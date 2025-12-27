@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="https://i.postimg.cc/7hZVtdz9/Favicon-(without-BG)-(1).png" />
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/7hZVtdz9/Favicon-(without-BG)-(1).png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Atlas Classes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              /* STRICT BRAND ENFORCEMENT: Logo Green (#10B981) Only */
+              'atlas-primary': '#10B981', /* Emerald 500 */
+              'atlas-green': '#10B981',
+              'atlas-orange': '#10B981', /* ALIASED TO GREEN - REMOVES ORANGE GLOBALLY */
+              'orange': {
+                 400: '#34D399', /* Emerald 400 */
+                 500: '#10B981', /* Emerald 500 */
+                 600: '#059669', /* Emerald 600 */
+              },
+              
+              /* Dark Theme Palette */
+              'atlas-dark': '#0B0F19', 
+              'atlas-soft': '#111827', 
+              'atlas-gray': '#1F2937', 
+              'atlas-border': '#374151', 
+              'atlas-text-main': '#F9FAFB', 
+              'atlas-text-muted': '#9CA3AF',
+              'atlas-black': '#05080F', 
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            animation: {
+              'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
+              'pulse-slow': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 6s ease-in-out infinite',
+              'scale-in': 'scaleIn 0.5s ease-out forwards',
+            },
+            keyframes: {
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(30px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-15px)' },
+              },
+              scaleIn: {
+                '0%': { opacity: '0', transform: 'scale(0.9)' },
+                '100%': { opacity: '1', transform: 'scale(1)' },
+              }
+            },
+          }
+        }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.5",
+    "recharts": "https://aistudiocdn.com/recharts@^3.3.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "axios": "https://aistudiocdn.com/axios@^1.13.2",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-atlas-dark text-atlas-text-main antialiased selection:bg-atlas-primary selection:text-black">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
