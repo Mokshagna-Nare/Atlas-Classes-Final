@@ -54,16 +54,45 @@ export interface AdminQuestionPaper {
   mimeType: string;
 }
 
-export interface MCQ extends Question {
+// export interface MCQ extends Question {
+//   subject: string;
+//   topic: string;
+//   difficulty: string;
+//   marks: number;
+//   isFlagged: boolean;
+//   flagReason?: string;
+//   createdAt: string;
+//   updatedAt: string;
+// }
+
+export interface MCQ {
+  id?: string;
+  createdAt?: string;
+  updatedAt?: string; // You likely added this earlier
+  question: string;
+  options: string[];
+  
+  // --- ADD THIS NEW LINE ---
+  option_images?: (string | null)[]; 
+  // -------------------------
+
+  answer: string;
+  explanation?: string;
+  grade?: string;
   subject: string;
-  topic: string;
-  difficulty: string;
-  marks: number;
-  isFlagged: boolean;
+  topic?: string;
+  sub_topic?: string;
+  question_type?: string;
+  difficulty?: string;
+  marks?: number;
+  question_code?: string;
+  imageUrl?: string;
+  type?: "Multiple Choice" | "Short Answer" | "True/False";
+  isFlagged?: boolean;
   flagReason?: string;
-  createdAt: string;
-  updatedAt: string;
 }
+
+
 
 export interface Question {
   id?: string;
@@ -145,3 +174,6 @@ export interface Payment {
     amount: number;
     status: 'Paid' | 'Due';
 }
+
+
+
