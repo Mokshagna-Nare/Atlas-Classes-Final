@@ -9,10 +9,44 @@ type Props = {
 // Theme Color Constant
 const THEME_COLOR = "#29A34A";
 
+// Helper: Upload Base64 Image to Supabase Storage
+const uploadImageToSupabase = async (base64Data: string): Promise<string | null> => {
+  if (!base64Data || !base64Data.startsWith('data:image')) return null;
+
+  try {
+    // 1. Convert Base64 to Blob
+    const res = await fetch(base64Data);
+    const blob = await res.blob();
+
+    // 2. Generate Unique Filename
+    const fileExt = blob.type.split('/')[1] || 'png';
+    const fileName = `bulk_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    // 3. Upload
+    const { error } = await supabase.storage
+      .from('question-images') // Ensure this bucket exists in Supabase
+      .upload(filePath, blob);
+
+    if (error) throw error;
+
+    // 4. Get Public URL
+    const { data } = supabase.storage
+      .from('question-images')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  } catch (error) {
+    console.error("Image upload failed:", error);
+    return null;
+  }
+};
+
 const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
   // 1. STATE MANAGEMENT
   const [questions, setQuestions] = useState<MCQInsert[]>([]);
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(""); // For detailed progress updates
   const [errors, setErrors] = useState<string[]>([]);
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
@@ -21,6 +55,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
     setLoading(true);
     setErrors([]);
     setUploadSuccess(false);
+    setStatusMessage("Parsing document...");
     
     try {
       const res = await parseDocxOneTablePerQuestion(f);
@@ -38,6 +73,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
       setErrors([e?.message ?? "Failed to parse document"]);
     } finally {
       setLoading(false);
+      setStatusMessage("");
     }
   };
 
@@ -47,16 +83,57 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
 
     setLoading(true);
     setErrors([]);
+    setStatusMessage("Preparing upload...");
+
     try {
-      const { error } = await supabase.from("mcqs").insert(questions);
+      const processedQuestions: MCQInsert[] = [];
+      let successCount = 0;
+
+      // Iterate through each question to handle image uploads sequentially
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        setStatusMessage(`Uploading images for question ${i + 1}/${questions.length}...`);
+
+        // A. Upload Question Image (if exists as base64)
+        let finalImageUrl = q.imageUrl;
+        if (q.imageUrl && q.imageUrl.startsWith('data:image')) {
+            const url = await uploadImageToSupabase(q.imageUrl);
+            if (url) finalImageUrl = url;
+        }
+
+        // B. Upload Option Images (if exist as base64)
+        // Ensure option_images array exists and matches options length
+        const currentOptImages = q.option_images || new Array(4).fill(null);
+        const finalOptionImages = await Promise.all(
+            currentOptImages.map(async (img) => {
+                if (img && img.startsWith('data:image')) {
+                    return await uploadImageToSupabase(img);
+                }
+                return img; // Return original if null or already URL
+            })
+        );
+
+        // Add to processed list with replaced URLs
+        processedQuestions.push({
+            ...q,
+            imageUrl: finalImageUrl,
+            option_images: finalOptionImages
+        });
+        successCount++;
+      }
+
+      setStatusMessage("Saving questions to database...");
+      const { error } = await supabase.from("mcqs").insert(processedQuestions);
       if (error) throw error;
       
       setUploadSuccess(true);
       setQuestions([]); 
     } catch (e: any) {
+      console.error(e);
       setErrors([e?.message ?? "Bulk insert failed"]);
     } finally {
       setLoading(false);
+      setStatusMessage("");
     }
   };
 
@@ -145,7 +222,12 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
           {/* --- STATE 1: UPLOAD INPUT --- */}
           {questions.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-700 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-colors relative group">
-               {loading && <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center z-10">Processing...</div>}
+               {loading && (
+                   <div className="absolute inset-0 bg-gray-900/80 flex flex-col items-center justify-center z-10 gap-2">
+                       <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: THEME_COLOR }}></div>
+                       <p className="text-gray-300 text-sm animate-pulse">{statusMessage || "Processing..."}</p>
+                   </div>
+               )}
                
                <input
                 type="file"
@@ -168,7 +250,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
                 </div>
                 <div className="text-center space-y-1">
                     <p className="text-lg font-medium text-gray-200">Click to upload .docx</p>
-                    <p className="text-sm text-gray-500">Supports single-table format</p>
+                    <p className="text-sm text-gray-500">Supports text & images inside tables</p>
                 </div>
               </label>
             </div>
@@ -176,7 +258,16 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
 
           {/* --- STATE 2: REVIEW LIST --- */}
           {questions.length > 0 && (
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                
+                {/* Loading Overlay for Upload Phase */}
+                {loading && (
+                   <div className="absolute inset-0 bg-gray-900/90 flex flex-col items-center justify-center z-20 gap-3">
+                       <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: THEME_COLOR }}></div>
+                       <p className="text-white font-medium">{statusMessage || "Uploading..."}</p>
+                   </div>
+                )}
+
                 {/* Scrollable List */}
                 <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
                     {questions.map((q, idx) => (
@@ -188,21 +279,36 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
                                         <span className="text-xs text-blue-400 bg-blue-900/20 px-2 py-0.5 rounded border border-blue-900/50">{q.subject}</span>
                                         <span className="text-xs text-purple-400 bg-purple-900/20 px-2 py-0.5 rounded border border-purple-900/50">{q.difficulty}</span>
                                     </div>
-                                    <p className="text-gray-200 font-medium mb-3">{q.question}</p>
+
+                                    {/* Question Text & Image */}
+                                    <div className="flex items-start gap-4 mb-3">
+                                        {q.imageUrl && (
+                                            <img src={q.imageUrl} alt="Question" className="h-16 w-16 object-cover rounded border border-gray-600 shrink-0 bg-black" />
+                                        )}
+                                        <p className="text-gray-200 font-medium">{q.question || <span className="italic text-gray-500">Image Only Question</span>}</p>
+                                    </div>
                                     
                                     {/* Options Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                         {q.options?.map((opt, i) => {
-                                            const isCorrect = opt === q.answer;
+                                            const isCorrect = opt === q.answer; // Simple text match; logic may need robustness if answer is index based
+                                            const optImg = q.option_images && q.option_images[i];
+
                                             return (
-                                                <div key={i} className={`text-sm px-3 py-2 rounded border flex items-center justify-between ${
+                                                <div key={i} className={`text-sm px-3 py-2 rounded border flex items-center justify-between gap-2 ${
                                                     isCorrect 
                                                     ? "bg-green-900/20 border-green-600/50 text-green-300" 
                                                     : "bg-gray-900/50 border-gray-700 text-gray-400"
                                                 }`}>
-                                                    <span>{opt}</span>
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        <span className="text-xs opacity-50 font-mono shrink-0">{i+1}.</span>
+                                                        {optImg && (
+                                                            <img src={optImg} alt="Opt" className="h-8 w-8 object-cover rounded border border-gray-600 shrink-0 bg-black" />
+                                                        )}
+                                                        <span className="truncate">{opt || <span className="italic text-xs opacity-50">Image Only</span>}</span>
+                                                    </div>
                                                     {isCorrect && (
-                                                      <span style={{ color: THEME_COLOR }}>✔</span>
+                                                      <span style={{ color: THEME_COLOR }} className="shrink-0">✔</span>
                                                     )}
                                                 </div>
                                             )

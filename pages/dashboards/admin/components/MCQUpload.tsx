@@ -46,6 +46,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const [flagReason, setFlagReason] = useState('');
 
   // --- Load Data if Editing ---
+  // --- Load Data if Editing ---
   useEffect(() => {
     if (editingMcq) {
       // Force single mode when editing
@@ -62,18 +63,38 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
       setSubTopic(editingMcq.sub_topic || '');
       setQuestionType(editingMcq.question_type || 'Analytical');
       setDifficulty(editingMcq.difficulty || 'Medium');
-      setMarks(editingMcq.marks?.toString?.() ?? '4');
+      setMarks(editingMcq.marks?.toString() ?? '4');
       setQuestionCode(editingMcq.question_code || '');
       setPreviewUrl(editingMcq.imageUrl || null);
 
-      const existingOptImages = (editingMcq as any).option_images || new Array((editingMcq.options || []).length || 4).fill(null);
-      setOptionImagePreviews(existingOptImages);
-      setOptionImageFiles(new Array(existingOptImages.length).fill(null));
+      // --- FIX STARTS HERE ---
+      // 1. Get raw object to bypass TS checks and see real runtime keys
+      const rawMcq = editingMcq as any;
+      
+      // 2. Check ALL possible key names for option images
+      const rawOptionImages = 
+        rawMcq.option_images ||  // Snake case (DB default)
+        rawMcq.optionImages ||   // Camel case (JS convention)
+        rawMcq.option_image ||   // Typo safety
+        [null, null, null, null]; // Fallback
+
+      // 3. Ensure it's actually an array
+      const validOptionImages = Array.isArray(rawOptionImages) 
+        ? rawOptionImages 
+        : [null, null, null, null];
+
+      console.log("Found Option Images:", validOptionImages); // Debug log
+
+      setOptionImagePreviews(validOptionImages);
+      // Ensure file arrays match options length (reset file inputs since we have URLs now)
+      setOptionImageFiles(new Array(validOptionImages.length).fill(null));
+      // --- FIX ENDS HERE ---
 
       setIsFlagged(editingMcq.isFlagged || false);
       setFlagReason(editingMcq.flagReason || '');
     }
   }, [editingMcq]);
+
 
   // --- Handlers for Options ---
   const handleAddOption = () => {
