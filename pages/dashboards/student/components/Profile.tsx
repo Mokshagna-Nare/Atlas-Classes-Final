@@ -41,7 +41,7 @@ const Profile: React.FC = () => {
                   icon={<TrophyIcon className="h-6 w-6 text-atlas-orange"/>}
                   label="Latest Rank"
                   value={latestResult ? String(latestResult.rank) : '—'}
-                  subtext={latestResult ? `in ${latestResult.subject || '—'}` : 'No recent results'}
+                  subtext={latestResult ? `in ${latestResult.subjectBreakdown || '—'}` : 'No recent results'}
                 />
                 <StatCard 
                   icon={<CreditCardIcon className="h-6 w-6 text-atlas-orange"/>}

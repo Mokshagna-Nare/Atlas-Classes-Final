@@ -83,15 +83,26 @@ const AIPaperGenerator: React.FC = () => {
         if (!generatedQuestions) return;
 
         const newTest: Test = {
-            id: crypto.randomUUID(),
-            title: generatedTitle,
-            subject: generatedSubject,
-            date: new Date().toISOString().split('T')[0],
-            status: 'Upcoming',
-            institute_id: user!.id,
-            pdfFileName: filePreviewName, // Keeping for record
-            questions: generatedQuestions
-        };
+  id: crypto.randomUUID(),
+  title: generatedTitle,
+  subject: generatedSubject,
+  date: new Date().toISOString().split('T')[0],
+  status: 'Upcoming',
+  institute_id: user!.id,
+  
+  // FIX: Add the missing properties below
+  duration: 60, // Default duration in minutes (or calculate from questions)
+  total_marks: 100, // Default total marks (or sum of question marks)
+  batch: 'AXIS', // Default batch (or get from form input)
+  
+  // FIX: Map your questions to IDs as required
+  question_ids: generatedQuestions ? generatedQuestions.map(q => q.id) : [], 
+
+  // Optional: Keep these if you updated your interface to allow them
+  pdfFileName: filePreviewName, 
+  questions: generatedQuestions 
+};
+
 
         await addTest(newTest);
         alert('Test successfully created and assigned to dashboard!');

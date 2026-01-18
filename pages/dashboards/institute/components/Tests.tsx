@@ -11,7 +11,7 @@ const Tests: React.FC = () => {
   const { user } = useAuth()!;
 
   // Filter tests for the specific institute
-  const instituteTests = tests.filter(test => test.instituteId === user?.id);
+  const instituteTests = tests.filter(test => test.institute_id === user?.id);
 
   const handleOpenCreateModal = () => {
     setEditingTest(null);
@@ -48,7 +48,7 @@ const Tests: React.FC = () => {
                                     <p className="text-sm text-gray-400">Date: {test.date}</p>
                                     <span className="text-gray-600 hidden sm:inline">•</span>
                                     <span className={`px-2 py-1 text-xs rounded-full ${
-                                        test.status === 'Completed' ? 'bg-green-500/20 text-green-400' :
+                                        test.status === 'completed' ? 'bg-green-500/20 text-green-400' :
                                         test.status === 'Upcoming' ? 'bg-yellow-500/20 text-yellow-400' :
                                         'bg-blue-500/20 text-blue-400'
                                     }`}>

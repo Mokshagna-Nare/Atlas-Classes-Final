@@ -4,6 +4,22 @@ export interface User {
   name: string;
   role: 'institute' | 'student' | 'admin';
   institute_id?: string;
+  batch?: 'COMPASS' | 'AXIS' | 'NEXUS';
+}
+
+
+export interface AcademicClass {
+  id: string;
+  name: string;
+  subjects: string[];
+}
+
+export interface WeeklySchedule {
+  id: string;
+  classId: string;
+  weekNumber: number;
+  subject: string;
+  topic: string;
 }
 
 // Added Course interface to resolve export error
@@ -128,6 +144,9 @@ export type Test = {
   date: string;                // 'YYYY-MM-DD'
   status?: 'scheduled' | 'completed' | 'cancelled' | 'Upcoming'; // optional, frontend only
   subject?: string; // <-- add this line
+  batch: 'COMPASS' | 'AXIS' | 'NEXUS';
+  pdfFileName?: string; // optional, name of the uploaded PDF file
+  questions?: Question[];
 };
 
 
@@ -153,13 +172,17 @@ export interface AttemptAnswer {
 }
 
 export interface TestResult {
-    testId: string;
+testId: string;
     studentId: string;
     score: number;
     maxScore: number;
     rank: number;
+    totalStudents: number;
     grade: 'A+' | 'A' | 'B' | 'C' | 'D';
-    subjectBreakdown?: {
+    correctCount: number;
+    wrongCount: number;
+    unattemptedCount: number;
+    subjectBreakdown: {
       [subject: string]: {
         score: number;
         maxScore: number;

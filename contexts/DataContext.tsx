@@ -1,8 +1,11 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Test, TestResult, Payment, Institute, AdminQuestionPaper, MCQ } from '../types';
 import { ALL_RESULTS, STUDENT_PAYMENTS, INSTITUTES_DATA, ADMIN_QUESTION_PAPERS } from '../constants';
 import { supabase } from '../services/supabase';
+
+// Define types for the new properties (replace 'any' with actual interfaces if available)
+type ClassData = any;
+type ScheduleData = any;
 
 interface DataContextType {
   tests: Test[];
@@ -11,6 +14,11 @@ interface DataContextType {
   institutes: Institute[];
   adminQuestionPapers: AdminQuestionPaper[];
   mcqBank: MCQ[];
+  
+  // New properties for Classes and Schedules
+  classes: ClassData[];
+  schedules: ScheduleData[];
+
   addTest: (test: Test) => Promise<void>;
   editTest: (updatedTest: Test) => void;
   deleteTest: (testId: string) => Promise<void>;
@@ -26,6 +34,12 @@ interface DataContextType {
   deleteMCQ: (id: string) => Promise<void>;
   flagMCQ: (id: string, reason?: string) => Promise<void>;
   unflagMCQ: (id: string) => Promise<void>;
+
+  // New functions for Classes and Schedules
+  addClass: (newClass: ClassData) => void;
+  deleteClass: (classId: string) => void;
+  addSchedule: (schedule: ScheduleData) => void;
+  deleteSchedule: (scheduleId: string) => void;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -37,6 +51,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [institutes, setInstitutes] = useState<Institute[]>([]);
   const [adminQuestionPapers, setAdminQuestionPapers] = useState<AdminQuestionPaper[]>(ADMIN_QUESTION_PAPERS);
   const [mcqBank, setMcqBank] = useState<MCQ[]>([]);
+  
+  // State for Classes and Schedules
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleData[]>([]);
 
   useEffect(() => {
     const fetchTests = async () => {
@@ -63,44 +81,35 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setInstitutes(data as Institute[]);
       }
     };
+    // You might want to add fetchClasses() and fetchSchedules() here later
+    
     fetchTests();
     fetchMCQs();
     fetchInstitutes();
   }, []);
 
-  // const addTest = async (newTest: Test) => {
-  //   const { data, error } = await supabase.from('tests').insert([newTest]).select();
-  //   if (error) {
-  //     console.error('Error adding test:', error);
-  //   } else if (data) {
-  //     setTests(prev => [...prev, data[0] as Test]);
-  //   }
-  // };
+  const addTest = async (newTest: Test) => {
+    // Only send columns that actually exist in the "tests" table
+    const payload = {
+      title: newTest.title,
+      duration: newTest.duration,
+      institute_id: newTest.institute_id ?? null,
+      question_ids: newTest.question_ids ?? [],
+      total_marks: newTest.total_marks,
+      date: newTest.date, // make sure you pass 'YYYY-MM-DD'
+    };
 
-const addTest = async (newTest: Test) => {
-  // Only send columns that actually exist in the "tests" table
-  const payload = {
-    title: newTest.title,
-    duration: newTest.duration,
-    institute_id: newTest.institute_id ?? null,
-    question_ids: newTest.question_ids ?? [],
-    total_marks: newTest.total_marks,
-    date: newTest.date, // make sure you pass 'YYYY-MM-DD'
+    const { data, error } = await supabase
+      .from('tests')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      console.error('Error adding test:', error);
+    } else if (data) {
+      setTests(prev => [...prev, data[0] as Test]);
+    }
   };
-
-  const { data, error } = await supabase
-    .from('tests')
-    .insert([payload])
-    .select();
-
-  if (error) {
-    console.error('Error adding test:', error);
-  } else if (data) {
-    setTests(prev => [...prev, data[0] as Test]);
-  }
-};
-
-
 
   const editTest = (updatedTest: Test) => setTests(prev => prev.map(t => t.id === updatedTest.id ? updatedTest : t));
   const deleteTest = async (testId: string) => {
@@ -116,6 +125,7 @@ const addTest = async (newTest: Test) => {
   const updatePaymentStatus = (paymentId: string, status: Payment['status']) => setPayments(prev => prev.map(p => p.id === paymentId ? {...p, status} : p));
   const updateInstitute = (updatedInstitute: Institute) => setInstitutes(prev => prev.map(inst => inst.id === updatedInstitute.id ? updatedInstitute : inst));
   const addAdminQuestionPaper = (paper: AdminQuestionPaper) => setAdminQuestionPapers(prev => [...prev, paper]);
+  
   const addInstitute = async (institute: { name: string; email: string; password?: string }) => {
     try {
       const response = await fetch('http://localhost:5000/api/institutes', {
@@ -135,6 +145,7 @@ const addTest = async (newTest: Test) => {
       console.error('Error adding institute:', error);
     }
   };
+
   const deleteInstitute = async (instituteId: string) => {
     try {
       const response = await fetch(`http://localhost:5000/api/institutes/${instituteId}`, {
@@ -187,12 +198,36 @@ const addTest = async (newTest: Test) => {
     await updateMCQ(id, { isFlagged: false, flagReason: undefined });
   };
 
+  // Implementations for Classes and Schedules
+  const addClass = (newClass: ClassData) => {
+    setClasses(prev => [...prev, newClass]);
+    // Optionally add supabase call here
+  };
+
+  const deleteClass = (classId: string) => {
+    setClasses(prev => prev.filter(c => c.id !== classId));
+  };
+
+  const addSchedule = (newSchedule: ScheduleData) => {
+    setSchedules(prev => [...prev, newSchedule]);
+  };
+
+  const deleteSchedule = (scheduleId: string) => {
+    setSchedules(prev => prev.filter(s => s.id !== scheduleId));
+  };
+
   return (
     <DataContext.Provider value={{ 
         tests, results, payments, institutes, adminQuestionPapers, mcqBank,
+        // Include new values in provider
+        classes, schedules,
+        
         addTest, editTest, deleteTest, addTestResult, updateTestStatus, updatePaymentStatus,
         updateInstitute, addAdminQuestionPaper, addInstitute, deleteInstitute,
-        addMCQ, updateMCQ, deleteMCQ, flagMCQ, unflagMCQ
+        addMCQ, updateMCQ, deleteMCQ, flagMCQ, unflagMCQ,
+
+        // Include new functions in provider
+        addClass, deleteClass, addSchedule, deleteSchedule
     }}>
       {children}
     </DataContext.Provider>

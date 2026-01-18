@@ -72,6 +72,11 @@ const CreateTestModal: React.FC<CreateTestModalProps> = ({ onClose, testToEdit }
                 pdfFileName: pdfFile!.name,
                 status: 'Upcoming',
                 institute_id: user!.id,
+                // FIX: Add these missing mandatory fields
+    duration: 60,         // Default duration (e.g., 60 minutes)
+    total_marks: 100,     // Default total marks
+    question_ids: [],     // Initialize as empty array since no questions exist yet
+    batch: 'AXIS',     // Default batch name (or get it from a form input)
             };
             await addTest(newTest);
         }

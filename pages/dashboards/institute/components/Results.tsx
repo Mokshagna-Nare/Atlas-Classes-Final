@@ -10,7 +10,7 @@ const Results: React.FC = () => {
     const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
 
     // Tests belonging to this institute
-    const instituteTests = tests.filter(t => t.instituteId === user?.id && t.status === 'Completed');
+    const instituteTests = tests.filter(t => t.institute_id === user?.id && t.status === 'completed');
 
     const TestDetailView = ({ testId }: { testId: string }) => {
         const test = tests.find(t => t.id === testId);

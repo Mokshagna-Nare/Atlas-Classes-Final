@@ -128,6 +128,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
              {/* Grade */}
              <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="bg-gray-800 border border-gray-700 text-xs font-bold text-white rounded-lg px-3 py-2.5 outline-none cursor-pointer hover:border-green-500 transition">
                 <option value="All">All Grades</option>
+                <option value="10">Grade 10</option>
                 <option value="11">Grade 11</option>
                 <option value="12">Grade 12</option>
              </select>
