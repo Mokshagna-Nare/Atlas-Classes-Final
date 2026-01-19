@@ -21,6 +21,10 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
   const [filterDifficulty, setFilterDifficulty] = useState('All');
   const [filterFlag, setFilterFlag] = useState('All');
 
+  // --- Bulk Selection States ---
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
   // --- Flagging Modal State ---
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
@@ -31,16 +35,13 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
     try {
       let query = supabase.from('mcqs').select('*').order('createdAt', { ascending: false });
 
-      // 1. Dropdown Filters (Exact Match)
       if (filterSubject !== 'All') query = query.eq('subject', filterSubject);
       if (filterGrade !== 'All') query = query.eq('grade', filterGrade);
       if (filterDifficulty !== 'All') query = query.eq('difficulty', filterDifficulty);
 
-      // 2. Flag Filter
       if (filterFlag === 'Flagged') query = query.eq('isFlagged', true);
       if (filterFlag === 'Unflagged') query = query.eq('isFlagged', false);
 
-      // 3. Search Bar (Text Search)
       if (search.trim()) {
         query = query.ilike('question', `%${search.trim()}%`);
       }
@@ -56,35 +57,72 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
     }
   }, [filterSubject, filterGrade, filterDifficulty, filterFlag, search]);
 
-  // Fetch when filters change (Debounce search slightly if needed)
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchQuestions();
-    }, 300); // 300ms debounce
+    }, 300);
     return () => clearTimeout(timer);
   }, [fetchQuestions]);
 
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [questions]);
+
+  // --- Bulk Selection Handlers ---
+  const toggleSelectAll = () => {
+    if (selectedIds.size === questions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(questions.map(q => q.id!)));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const deletePromises = Array.from(selectedIds).map(id => deleteMCQ(id));
+      await Promise.all(deletePromises);
+      setSelectedIds(new Set());
+      setShowBulkDeleteConfirm(false);
+      fetchQuestions();
+    } catch (error) {
+      console.error("Error bulk deleting questions:", error);
+      alert("Failed to delete some questions. Please try again.");
+    }
+  };
 
   const confirmFlag = async () => {
     if (flaggingId) {
       await flagMCQ(flaggingId, reason);
       setFlaggingId(null);
       setReason('');
-      fetchQuestions(); // Refresh list
+      fetchQuestions();
     }
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this question?')) {
       await deleteMCQ(id);
-      fetchQuestions(); // Refresh list
+      fetchQuestions();
     }
   };
 
   const handleUnflag = async (id: string) => {
     await unflagMCQ(id);
-    fetchQuestions(); // Refresh
+    fetchQuestions();
   };
+
+  const isAllSelected = questions.length > 0 && selectedIds.size === questions.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < questions.length;
 
   return (
     <div className="space-y-6 reveal-on-scroll text-white">
@@ -93,14 +131,15 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
         <div className="flex justify-between items-start md:items-center">
           <div>
             <h2 className="text-3xl font-extrabold mb-1">Question Bank</h2>
-            <p className="text-gray-400 text-sm flex items-center gap-2"><InformationCircleIcon className="h-4 w-4" /> Manage and review your MCQ repository</p>
+            <p className="text-gray-400 text-sm flex items-center gap-2">
+              <InformationCircleIcon className="h-4 w-4" /> Manage and review your MCQ repository
+            </p>
           </div>
         </div>
 
         {/* --- Filter Bar --- */}
         <div className="flex flex-col md:flex-row gap-4 bg-gray-900/50 p-4 rounded-2xl border border-gray-800 backdrop-blur-md">
            
-           {/* Search Input */}
            <div className="flex-1 relative">
              <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
              <input 
@@ -112,11 +151,9 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
              />
            </div>
 
-           {/* Filters */}
            <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
              <FunnelIcon className="h-5 w-5 text-green-500 hidden md:block mr-2" />
              
-             {/* Subject */}
              <select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)} className="bg-gray-800 border border-gray-700 text-xs font-bold text-white rounded-lg px-3 py-2.5 outline-none cursor-pointer hover:border-green-500 transition">
                 <option value="All">All Subjects</option>
                 <option value="Physics">Physics</option>
@@ -125,7 +162,6 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
                 <option value="Mathematics">Mathematics</option>
              </select>
 
-             {/* Grade */}
              <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="bg-gray-800 border border-gray-700 text-xs font-bold text-white rounded-lg px-3 py-2.5 outline-none cursor-pointer hover:border-green-500 transition">
                 <option value="All">All Grades</option>
                 <option value="10">Grade 10</option>
@@ -133,7 +169,6 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
                 <option value="12">Grade 12</option>
              </select>
 
-             {/* Difficulty */}
              <select value={filterDifficulty} onChange={(e) => setFilterDifficulty(e.target.value)} className="bg-gray-800 border border-gray-700 text-xs font-bold text-white rounded-lg px-3 py-2.5 outline-none cursor-pointer hover:border-green-500 transition">
                 <option value="All">All Difficulty</option>
                 <option value="Easy">Easy</option>
@@ -141,7 +176,6 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
                 <option value="Hard">Hard</option>
              </select>
 
-             {/* Flag Status */}
              <select value={filterFlag} onChange={(e) => setFilterFlag(e.target.value)} className="bg-gray-800 border border-gray-700 text-xs font-bold text-white rounded-lg px-3 py-2.5 outline-none cursor-pointer hover:border-green-500 transition">
                 <option value="All">All Status</option>
                 <option value="Flagged">Flagged</option>
@@ -149,6 +183,27 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
              </select>
            </div>
         </div>
+
+        {/* --- Bulk Actions Bar --- */}
+        {selectedIds.size > 0 && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between animate-scale-in">
+            <div className="flex items-center gap-3">
+              <div className="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">
+                {selectedIds.size} Selected
+              </div>
+              <span className="text-sm text-gray-300">
+                {selectedIds.size === 1 ? '1 question selected' : `${selectedIds.size} questions selected`}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-xl font-bold text-sm transition flex items-center gap-2 shadow-lg shadow-red-900/20"
+            >
+              <TrashIcon className="h-4 w-4" />
+              Delete Selected
+            </button>
+          </div>
+        )}
       </div>
 
       {/* --- Table --- */}
@@ -156,6 +211,28 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-800/50 border-b border-gray-800">
+              <th className="p-5 w-12">
+                <div className="flex items-center justify-center">
+                  <label className="relative flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
+                      className="peer sr-only"
+                    />
+                    {/* CHANGED: peer-checked:bg-red-500 peer-checked:border-red-500 */}
+                    <div className="w-5 h-5 border-2 border-gray-600 rounded bg-gray-800/80 peer-checked:bg-red-500 peer-checked:border-red-500 hover:border-gray-500 transition-all duration-200 flex items-center justify-center relative">
+                      {isSomeSelected && !isAllSelected ? (
+                        <div className="w-2.5 h-0.5 bg-white rounded-full"></div>
+                      ) : (
+                        <svg className="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              </th>
               <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest w-1/2">Question</th>
               <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Metadata</th>
               <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Status</th>
@@ -164,23 +241,40 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {loading ? (
-               <tr><td colSpan={4} className="p-10 text-center text-gray-500">Loading questions...</td></tr>
+               <tr><td colSpan={5} className="p-10 text-center text-gray-500">Loading questions...</td></tr>
             ) : questions.length === 0 ? (
-               <tr><td colSpan={4} className="p-10 text-center text-gray-500">No questions found matching your filters.</td></tr>
+               <tr><td colSpan={5} className="p-10 text-center text-gray-500">No questions found matching your filters.</td></tr>
             ) : (
               questions.map(q => (
-                <tr key={q.id} className="group hover:bg-white/[0.02] transition-colors">
+                <tr 
+                  key={q.id} 
+                  /* CHANGED: bg-red-500/5 for selected row */
+                  className={`group hover:bg-white/[0.02] transition-colors ${selectedIds.has(q.id!) ? 'bg-red-500/5' : ''}`}
+                >
+                  <td className="p-5">
+                    <div className="flex items-center justify-center">
+                      <label className="relative flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(q.id!)}
+                          onChange={() => toggleSelectOne(q.id!)}
+                          className="peer sr-only"
+                        />
+                        {/* CHANGED: peer-checked:bg-red-500 peer-checked:border-red-500 */}
+                        <div className="w-5 h-5 border-2 border-gray-600 rounded bg-gray-800/80 peer-checked:bg-red-500 peer-checked:border-red-500 hover:border-gray-500 transition-all duration-200 flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </label>
+                    </div>
+                  </td>
                   <td className="p-5">
                      <div className="flex gap-3">
-                       
-                       {/* Question Image Icon (Green) */}
                        {q.imageUrl && <PhotoIcon className="h-5 w-5 text-green-500 shrink-0 mt-1" />}
-                       
-                       {/* NEW: Option Images Icon (Blue) */}
                        {q.option_images && q.option_images.some(img => img) && (
                          <PhotoIcon className="h-5 w-5 text-blue-400 shrink-0 mt-1"  />
                        )}
-
                        <div>
                          <p className="text-sm text-gray-200 line-clamp-2 font-medium">{q.question}</p>
                          <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-2">
@@ -225,6 +319,32 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
           </tbody>
         </table>
       </div>
+
+      {/* --- Bulk Delete Confirmation Modal --- */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+           <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-3xl p-8 animate-scale-in shadow-2xl">
+              <h3 className="text-xl font-bold text-white mb-4">Delete Multiple Questions</h3>
+              <p className="text-sm text-gray-400 mb-6">
+                Are you sure you want to delete <span className="text-red-500 font-bold">{selectedIds.size}</span> {selectedIds.size === 1 ? 'question' : 'questions'}? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-4">
+                 <button 
+                   onClick={() => setShowBulkDeleteConfirm(false)} 
+                   className="text-gray-400 font-bold text-sm hover:text-white transition"
+                 >
+                   Cancel
+                 </button>
+                 <button 
+                   onClick={handleBulkDelete} 
+                   className="bg-red-600 text-white px-6 py-2 rounded-xl font-bold text-sm hover:bg-red-700 transition shadow-lg shadow-red-900/20"
+                 >
+                   Delete {selectedIds.size} {selectedIds.size === 1 ? 'Question' : 'Questions'}
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
 
       {/* --- Flag Modal --- */}
       {flaggingId && (
