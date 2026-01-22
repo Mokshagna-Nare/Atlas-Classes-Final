@@ -1,7 +1,7 @@
-
-import api from './api';
+// geminiService.ts (Safe Mode / AI Disabled)
 import { Question, TestResult } from '../types';
 
+// 1. Placeholder for HTML conversion
 export const convertHtmlToTest = async (
     htmlContent: string
 ): Promise<{ 
@@ -9,27 +9,27 @@ export const convertHtmlToTest = async (
     subject: string; 
     questions: Question[] 
 }> => {
-    try {
-        const response = await api.post('/ai/convert-html', { htmlContent });
-        return response.data;
-    } catch (error) {
-        console.error("Error converting HTML via Backend:", error);
-        throw new Error("Failed to process HTML on server.");
-    }
+    console.log("AI is currently disabled.");
+    // Return empty dummy data so the app doesn't crash
+    return {
+        testTitle: "AI Disabled",
+        subject: "None",
+        questions: []
+    };
 };
 
+// 2. Placeholder for PDF conversion
 export const convertPdfToTest = async (base64: string): Promise<any> => {
-    // Implement similar backend route for PDF
-    // For now, placeholder error
-    throw new Error("PDF conversion needs backend implementation similar to HTML");
+    console.log("AI is currently disabled.");
+    return null;
 };
 
+// 3. Placeholder for Analysis
 export const getPerformanceAnalysis = async (results: TestResult[]): Promise<string> => {
-    // This should also be a backend call to protect API keys
-    // Returning mock for now to prevent breakage during migration if backend route isn't ready
-    return "Analysis generation moving to backend..."; 
+    return "AI analysis is disabled.";
 };
 
+// 4. Placeholder for Study Tips
 export const getStudyTips = async (topic: string, score: number): Promise<string> => {
-     return "Study tips generation moving to backend...";
+     return "AI tips are disabled.";
 };

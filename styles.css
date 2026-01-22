@@ -7,6 +7,7 @@
 :root {
     /* Brand Identity - Exact Logo Green Match */
     --brand-accent: #10B981; /* Emerald 500 */
+    /* --brand-accent: #10B981; /* Emerald 500 */
     --brand-accent-rgb: 16, 185, 129;
     --brand-glow: rgba(16, 185, 129, 0.4);
     
@@ -260,4 +261,17 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--brand-accent);
+}
+
+
+/* --- FIX LOGO COLOR CONSISTENCY --- */
+/* This shifts the logo image color to match the #10B981 Emerald theme */
+
+img[src*="logo"], 
+img[src*="favicon"], 
+.brand-logo {
+    filter: hue-rotate(60deg) saturate(1.4) brightness(1.05) !important;
+    will-change: filter;
+    /* Optional: Ensure transitions are smooth if you have hover effects */
+    transition: filter 0.3s ease;
 }
