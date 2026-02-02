@@ -37,8 +37,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let demoUser: User | null = null;
     let demoToken = 'demo-token-static';
 
+
     if (email === 'student@atlas.com' && password === 'password') {
-        demoUser = { id: 's1', name: 'Riya Sharma', role: 'student', instituteId: 'i1' };
+        demoUser = { id: 's1', name: 'Riya Sharma', role: 'student', institute_id: 'i1' };
     } else if (email === 'institute@atlas.com' && password === 'password') {
         demoUser = { id: 'i1', name: 'ABC School', role: 'institute' };
     } else if (email === 'admin@atlas.com' && password === 'password') {
@@ -80,6 +81,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(false);
     }
   };
+
+  
 
   const signup = async (userData: any) => {
       setIsLoading(true);

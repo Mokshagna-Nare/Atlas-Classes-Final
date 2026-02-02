@@ -1,11 +1,21 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Test, TestResult, Payment, Institute, AdminQuestionPaper, MCQ } from '../types';
-import { ALL_RESULTS, STUDENT_PAYMENTS, INSTITUTES_DATA, ADMIN_QUESTION_PAPERS } from '../constants';
-import { supabase } from '../services/supabase';
 
-// Define types for the new properties (replace 'any' with actual interfaces if available)
-type ClassData = any;
-type ScheduleData = any;
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { 
+  Test, TestResult, Payment, Institute, AdminQuestionPaper, 
+  AcademicClass, WeeklySchedule, Student, TestMark, MCQ 
+} from '../types';
+import { 
+  STUDENT_TESTS, ALL_RESULTS, STUDENT_PAYMENTS, INSTITUTES_DATA, 
+  ADMIN_QUESTION_PAPERS, INSTITUTE_STUDENTS 
+} from '../constants';
+import { createClient } from '@supabase/supabase-js';
+
+// Setup Supabase (Using standard config from environment or defaults)
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000/api';
 
 interface DataContextType {
   tests: Test[];
@@ -15,219 +25,262 @@ interface DataContextType {
   adminQuestionPapers: AdminQuestionPaper[];
   mcqBank: MCQ[];
   
-  // New properties for Classes and Schedules
-  classes: ClassData[];
-  schedules: ScheduleData[];
+  classes: AcademicClass[];
+  schedules: WeeklySchedule[];
+  students: Student[];
+  marks: TestMark[];
 
+  // Operations
   addTest: (test: Test) => Promise<void>;
-  editTest: (updatedTest: Test) => void;
+  editTest: (test: Test) => void;
   deleteTest: (testId: string) => Promise<void>;
-  addTestResult: (result: TestResult) => void;
   updateTestStatus: (testId: string, status: Test['status']) => void;
+  addTestResult: (result: TestResult) => void;
+  
   updatePaymentStatus: (paymentId: string, status: Payment['status']) => void;
-  updateInstitute: (updatedInstitute: Institute) => void;
+  
+  addInstitute: (inst: { name: string; email: string; password?: string; id?: string }) => Promise<void>;
+  updateInstitute: (inst: Institute) => Promise<void>;
+  deleteInstitute: (id: string) => Promise<void>;
+  
   addAdminQuestionPaper: (paper: AdminQuestionPaper) => void;
-  addInstitute: (institute: { name: string; email: string; password?: string }) => void;
-  deleteInstitute: (instituteId: string) => void;
+  
+  addClass: (cls: AcademicClass) => void;
+  updateClass: (cls: AcademicClass) => void;
+  deleteClass: (id: string) => void;
+  
+  addSchedule: (sch: WeeklySchedule) => void;
+  deleteSchedule: (id: string) => void;
+  
+  addStudent: (std: Student) => void;
+  updateStudent: (std: Student) => void;
+  deleteStudent: (id: string) => void;
+  bulkAddStudents: (stds: Student[]) => void;
+  
+  addMark: (mark: TestMark) => void;
+  bulkAddMarks: (marks: TestMark[]) => void;
+
   addMCQ: (mcq: MCQ) => Promise<void>;
   updateMCQ: (id: string, updates: Partial<MCQ>) => Promise<void>;
   deleteMCQ: (id: string) => Promise<void>;
   flagMCQ: (id: string, reason?: string) => Promise<void>;
   unflagMCQ: (id: string) => Promise<void>;
-
-  // New functions for Classes and Schedules
-  addClass: (newClass: ClassData) => void;
-  deleteClass: (classId: string) => void;
-  addSchedule: (schedule: ScheduleData) => void;
-  deleteSchedule: (scheduleId: string) => void;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [tests, setTests] = useState<Test[]>([]);
+  // --- Core States ---
+  const [tests, setTests] = useState<Test[]>(STUDENT_TESTS);
   const [results, setResults] = useState<TestResult[]>(ALL_RESULTS);
   const [payments, setPayments] = useState<Payment[]>(STUDENT_PAYMENTS);
-  const [institutes, setInstitutes] = useState<Institute[]>([]);
+  const [institutes, setInstitutes] = useState<Institute[]>(() => {
+    const saved = localStorage.getItem('atlas-institutes');
+    return saved ? JSON.parse(saved) : INSTITUTES_DATA;
+  });
   const [adminQuestionPapers, setAdminQuestionPapers] = useState<AdminQuestionPaper[]>(ADMIN_QUESTION_PAPERS);
   const [mcqBank, setMcqBank] = useState<MCQ[]>([]);
-  
-  // State for Classes and Schedules
-  const [classes, setClasses] = useState<ClassData[]>([]);
-  const [schedules, setSchedules] = useState<ScheduleData[]>([]);
 
+  // --- Academic Entity States ---
+  const [classes, setClasses] = useState<AcademicClass[]>([
+    { id: 'c6', name: 'Class 6', subjects: ['Mathematics', 'Science', 'Social'] },
+    { id: 'c7', name: 'Class 7', subjects: ['Mathematics', 'Science', 'Social'] },
+    { id: 'c8', name: 'Class 8', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'] },
+    { id: 'c9', name: 'Class 9', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'] },
+    { id: 'c10', name: 'Class 10', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'] },
+  ]);
+  const [schedules, setSchedules] = useState<WeeklySchedule[]>([
+    { id: 'sc1', classId: 'c10', weekNumber: 1, subject: 'Physics', topic: 'Light Reflection and Refraction' },
+    { id: 'sc2', classId: 'c9', weekNumber: 1, subject: 'Mathematics', topic: 'Number Systems' },
+  ]);
+  const [students, setStudents] = useState<Student[]>(INSTITUTE_STUDENTS);
+  const [marks, setMarks] = useState<TestMark[]>([]);
+
+  // Sync state to local storage for persistent prototype experience
   useEffect(() => {
-    const fetchTests = async () => {
-      const { data, error } = await supabase.from('tests').select('*');
-      if (error) {
-        console.error('Error fetching tests:', error);
-      } else {
-        setTests(data as Test[]);
+    localStorage.setItem('atlas-institutes', JSON.stringify(institutes));
+  }, [institutes]);
+
+  // Initial Sync from Supabase if available
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { data: testsData } = await supabase.from('tests').select('*');
+        if (testsData) setTests(testsData as Test[]);
+
+        const { data: mcqData } = await supabase.from('mcqs').select('*');
+        if (mcqData) setMcqBank(mcqData as MCQ[]);
+
+        const { data: instData } = await supabase.from('institutes_with_users').select('*');
+        if (instData) setInstitutes(instData as Institute[]);
+      } catch (e) {
+        console.warn("Supabase connection failed or tables missing, using local state defaults.");
       }
     };
-    const fetchMCQs = async () => {
-        const { data, error } = await supabase.from('mcqs').select('*');
-        if (error) {
-            console.error('Error fetching MCQs:', error);
-        } else {
-            setMcqBank(data as MCQ[]);
-        }
-    };
-    const fetchInstitutes = async () => {
-      const { data, error } = await supabase.from('institutes_with_users').select('*');
-      if (error) {
-          console.error('Error fetching institutes:', error);
-      } else {
-          setInstitutes(data as Institute[]);
-      }
-    };
-    // You might want to add fetchClasses() and fetchSchedules() here later
-    
-    fetchTests();
-    fetchMCQs();
-    fetchInstitutes();
+    fetchData();
   }, []);
 
-  const addTest = async (newTest: Test) => {
-    // Only send columns that actually exist in the "tests" table
-    const payload = {
-      title: newTest.title,
-      duration: newTest.duration,
-      institute_id: newTest.institute_id ?? null,
-      question_ids: newTest.question_ids ?? [],
-      total_marks: newTest.total_marks,
-      date: newTest.date, // make sure you pass 'YYYY-MM-DD'
+  // --- Institute Management ---
+  const addInstitute = async (inst: { name: string; email: string; password?: string; id?: string }) => {
+    const newId = inst.id?.trim() || `INST-${Date.now()}`;
+    const newInst: Institute = {
+      id: newId,
+      name: inst.name,
+      email: inst.email,
+      password: inst.password || 'password'
     };
 
-    const { data, error } = await supabase
-      .from('tests')
-      .insert([payload])
-      .select();
+    try {
+      // Mocking the backend call provided in user's prompt
+      const response = await fetch(`${API_BASE_URL}/institutes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'admin-static-token'
+        },
+        body: JSON.stringify(newInst)
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to sync with server');
+      }
+      
+      const serverData = await response.json();
+      setInstitutes(prev => [...prev, { ...serverData.institute, email: inst.email }]);
+    } catch (e) {
+      console.warn("Backend unavailable, adding to local state only.");
+      setInstitutes(prev => [...prev, newInst]);
+    }
+  };
 
-    if (error) {
-      console.error('Error adding test:', error);
-    } else if (data) {
-      setTests(prev => [...prev, data[0] as Test]);
+  const updateInstitute = async (updated: Institute) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/institutes/${updated.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'admin-static-token' },
+        body: JSON.stringify(updated)
+      });
+      if (!response.ok) throw new Error("Update failed");
+      
+      setInstitutes(prev => prev.map(inst => inst.id === updated.id ? updated : inst));
+    } catch (e) {
+      setInstitutes(prev => prev.map(inst => inst.id === updated.id ? updated : inst));
+    }
+  };
+
+  const deleteInstitute = async (id: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/institutes/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'admin-static-token' }
+      });
+      if (!response.ok) throw new Error("Delete failed");
+      
+      setInstitutes(prev => prev.filter(inst => inst.id !== id));
+    } catch (e) {
+      setInstitutes(prev => prev.filter(inst => inst.id !== id));
+    }
+  };
+
+  // --- Test Management ---
+  const addTest = async (newTest: Test) => {
+    try {
+      const { data, error } = await supabase.from('tests').insert([newTest]).select();
+      if (error) throw error;
+      if (data) setTests(prev => [...prev, data[0] as Test]);
+    } catch (e) {
+      setTests(prev => [...prev, newTest]);
     }
   };
 
   const editTest = (updatedTest: Test) => setTests(prev => prev.map(t => t.id === updatedTest.id ? updatedTest : t));
+  
   const deleteTest = async (testId: string) => {
-    const { error } = await supabase.from('tests').delete().eq('id', testId);
-    if (error) {
-      console.error('Error deleting test:', error);
-    } else {
+    try {
+      const { error } = await supabase.from('tests').delete().eq('id', testId);
+      if (error) throw error;
+      setTests(prev => prev.filter(t => t.id !== testId));
+    } catch (e) {
       setTests(prev => prev.filter(t => t.id !== testId));
     }
   };
-  const addTestResult = (newResult: TestResult) => setResults(prev => [...prev, newResult]);
+
   const updateTestStatus = (testId: string, status: Test['status']) => setTests(prev => prev.map(t => t.id === testId ? {...t, status} : t));
-  const updatePaymentStatus = (paymentId: string, status: Payment['status']) => setPayments(prev => prev.map(p => p.id === paymentId ? {...p, status} : p));
-  const updateInstitute = (updatedInstitute: Institute) => setInstitutes(prev => prev.map(inst => inst.id === updatedInstitute.id ? updatedInstitute : inst));
+  const addTestResult = (res: TestResult) => setResults(prev => [...prev, res]);
+
+  // --- Academic Entities ---
+  const addClass = (cls: AcademicClass) => setClasses(prev => [...prev, cls]);
+  const updateClass = (cls: AcademicClass) => setClasses(prev => prev.map(c => c.id === cls.id ? cls : c));
+  const deleteClass = (id: string) => setClasses(prev => prev.filter(c => c.id !== id));
+
+  const addSchedule = (sch: WeeklySchedule) => setSchedules(prev => [...prev, sch]);
+  const deleteSchedule = (id: string) => setSchedules(prev => prev.filter(s => s.id !== id));
+
+  const addStudent = (std: Student) => setStudents(prev => [...prev, std]);
+  const updateStudent = (std: Student) => setStudents(prev => prev.map(s => s.id === std.id ? std : s));
+  const deleteStudent = (id: string) => setStudents(prev => prev.filter(s => s.id !== id));
+  const bulkAddStudents = (stds: Student[]) => setStudents(prev => [...prev, ...stds]);
+
+  const addMark = (mark: TestMark) => setMarks(prev => [...prev, mark]);
+  const bulkAddMarks = (newMarks: TestMark[]) => setMarks(prev => [...prev, ...newMarks]);
+
+  // --- Document Sharing ---
   const addAdminQuestionPaper = (paper: AdminQuestionPaper) => setAdminQuestionPapers(prev => [...prev, paper]);
-  
-  const addInstitute = async (institute: { name: string; email: string; password?: string }) => {
-    try {
-      const response = await fetch('http://localhost:5000/api/institutes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'admin-static-token' // Replace with a dynamic token in a real app
-        },
-        body: JSON.stringify(institute)
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to add institute');
-      }
-      setInstitutes(prev => [...prev, { ...data.institute, email: institute.email }]);
-    } catch (error) {
-      console.error('Error adding institute:', error);
-    }
-  };
 
-  const deleteInstitute = async (instituteId: string) => {
-    try {
-      const response = await fetch(`http://localhost:5000/api/institutes/${instituteId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': 'admin-static-token' // Replace with a dynamic token in a real app
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to delete institute');
-      }
-      setInstitutes(prev => prev.filter(inst => inst.id !== instituteId));
-    } catch (error) {
-      console.error('Error deleting institute:', error);
-    }
-  };
-
+  // --- MCQ Bank ---
   const addMCQ = async (mcq: MCQ) => {
-    const { data, error } = await supabase.from('mcqs').insert([mcq]).select();
-    if (error) {
-      console.error('Error adding MCQ:', error);
-    } else if (data) {
-      setMcqBank(prev => [...prev, data[0] as MCQ]);
+    try {
+      const { data, error } = await supabase.from('mcqs').insert([mcq]).select();
+      if (error) throw error;
+      if (data) setMcqBank(prev => [...prev, data[0] as MCQ]);
+    } catch (e) {
+      setMcqBank(prev => [...prev, mcq]);
     }
   };
 
   const updateMCQ = async (id: string, updates: Partial<MCQ>) => {
-    const { data, error } = await supabase.from('mcqs').update(updates).eq('id', id).select();
-    if (error) {
-      console.error('Error updating MCQ:', error);
-    } else if (data) {
-      setMcqBank(prev => prev.map(m => m.id === id ? data[0] as MCQ : m));
+    try {
+      const { data, error } = await supabase.from('mcqs').update(updates).eq('id', id).select();
+      if (error) throw error;
+      if (data) setMcqBank(prev => prev.map(m => m.id === id ? (data[0] as MCQ) : m));
+    } catch (e) {
+      setMcqBank(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
     }
   };
 
   const deleteMCQ = async (id: string) => {
-    const { error } = await supabase.from('mcqs').delete().eq('id', id);
-    if (error) {
-      console.error('Error deleting MCQ:', error);
-    } else {
+    try {
+      await supabase.from('mcqs').delete().eq('id', id);
+      setMcqBank(prev => prev.filter(m => m.id !== id));
+    } catch (e) {
       setMcqBank(prev => prev.filter(m => m.id !== id));
     }
   };
-  
+
   const flagMCQ = async (id: string, reason?: string) => {
     await updateMCQ(id, { isFlagged: true, flagReason: reason });
   };
-  
+
   const unflagMCQ = async (id: string) => {
-    await updateMCQ(id, { isFlagged: false, flagReason: undefined });
+    await updateMCQ(id, { isFlagged: false, flagReason: '' });
   };
 
-  // Implementations for Classes and Schedules
-  const addClass = (newClass: ClassData) => {
-    setClasses(prev => [...prev, newClass]);
-    // Optionally add supabase call here
-  };
-
-  const deleteClass = (classId: string) => {
-    setClasses(prev => prev.filter(c => c.id !== classId));
-  };
-
-  const addSchedule = (newSchedule: ScheduleData) => {
-    setSchedules(prev => [...prev, newSchedule]);
-  };
-
-  const deleteSchedule = (scheduleId: string) => {
-    setSchedules(prev => prev.filter(s => s.id !== scheduleId));
-  };
+  const updatePaymentStatus = (id: string, status: Payment['status']) => setPayments(prev => prev.map(p => p.id === id ? { ...p, status } : p));
 
   return (
     <DataContext.Provider value={{ 
         tests, results, payments, institutes, adminQuestionPapers, mcqBank,
-        // Include new values in provider
-        classes, schedules,
-        
-        addTest, editTest, deleteTest, addTestResult, updateTestStatus, updatePaymentStatus,
-        updateInstitute, addAdminQuestionPaper, addInstitute, deleteInstitute,
-        addMCQ, updateMCQ, deleteMCQ, flagMCQ, unflagMCQ,
-
-        // Include new functions in provider
-        addClass, deleteClass, addSchedule, deleteSchedule
+        classes, schedules, students, marks,
+        addTest, editTest, deleteTest, updateTestStatus, addTestResult,
+        updatePaymentStatus,
+        addInstitute, updateInstitute, deleteInstitute,
+        addAdminQuestionPaper,
+        addClass, updateClass, deleteClass,
+        addSchedule, deleteSchedule,
+        addStudent, updateStudent, deleteStudent, bulkAddStudents,
+        addMark, bulkAddMarks,
+        addMCQ, updateMCQ, deleteMCQ, flagMCQ, unflagMCQ
     }}>
       {children}
     </DataContext.Provider>

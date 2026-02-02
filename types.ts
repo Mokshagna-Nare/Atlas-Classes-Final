@@ -55,10 +55,23 @@ export interface Student {
   institute_id: string;
 }
 
+export interface TestMark {
+  id: string;
+  testName: string;
+  testId: string;
+  date: string;
+  studentId: string;
+  classId: string;
+  marks: Record<string, number>; // subject -> mark
+  maxMarks: number; // per subject assuming uniform for simplicity or can be Record
+}
+
+
 export interface Institute {
   id: string;
   name: string;
   email: string;
+  password?: string; // Added for institute login
 }
 
 export interface AdminQuestionPaper {

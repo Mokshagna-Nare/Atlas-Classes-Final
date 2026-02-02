@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useData } from '../../../../contexts/DataContext';
-import { XIcon } from '../../../../components/icons';
+import { XIcon, PencilSquareIcon } from '../../../../components/icons';
 import { Institute } from '../../../../types';
 
 interface EditInstituteModalProps {
@@ -12,48 +12,73 @@ interface EditInstituteModalProps {
 const EditInstituteModal: React.FC<EditInstituteModalProps> = ({ institute, onClose }) => {
   const [name, setName] = useState(institute.name);
   const [email, setEmail] = useState(institute.email);
+  const [password, setPassword] = useState(institute.password || '');
   const { updateInstitute } = useData();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateInstitute({ ...institute, name, email });
+    updateInstitute({ ...institute, name, email, password });
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
-      <div className="bg-atlas-gray rounded-lg shadow-2xl w-full max-w-lg relative p-8" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
-          <XIcon className="h-6 w-6" />
-        </button>
-        <h2 className="text-2xl font-bold mb-6 text-atlas-orange">Edit Institute</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-sm font-bold text-gray-300 block mb-2">Institute Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              required
-              className="w-full p-2 bg-atlas-black border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-atlas-orange"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-bold text-gray-300 block mb-2">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="w-full p-2 bg-atlas-black border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-atlas-orange"
-            />
-          </div>
-          <div className="pt-2">
-            <button type="submit" className="w-full bg-atlas-orange text-white font-bold py-3 px-6 rounded-md hover:bg-orange-600 transition">
-              Save Changes
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex justify-center items-center z-[100] p-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
+      <div className="bg-atlas-soft border border-gray-800 rounded-[2.5rem] shadow-2xl w-full max-w-xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-10 relative z-10">
+            <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
+                <XIcon className="h-7 w-7" />
             </button>
-          </div>
-        </form>
+            
+            <div className="flex items-center gap-4 mb-10">
+                <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20">
+                    <PencilSquareIcon className="h-8 w-8 text-blue-500" />
+                </div>
+                <div>
+                    <h2 className="text-3xl font-black text-white">Modify Profile</h2>
+                    <p className="text-gray-500 text-sm font-bold uppercase tracking-widest mt-1">Updating ID: <span className="text-atlas-primary font-mono">{institute.id}</span></p>
+                </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2 ml-1">Institute Name</label>
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        required
+                        className="w-full p-4 bg-atlas-dark border border-gray-700 rounded-2xl text-white outline-none focus:border-atlas-primary transition-all"
+                    />
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2 ml-1">Official Email</label>
+                    <input
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        required
+                        className="w-full p-4 bg-atlas-dark border border-gray-700 rounded-2xl text-white outline-none focus:border-atlas-primary transition-all"
+                    />
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2 ml-1">Update Password</label>
+                    <input
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        required
+                        className="w-full p-4 bg-atlas-dark border border-gray-700 rounded-2xl text-white outline-none focus:border-atlas-primary transition-all"
+                        placeholder="••••••••"
+                    />
+                </div>
+                
+                <div className="pt-6">
+                    <button type="submit" className="w-full bg-white text-black font-black py-5 rounded-2xl shadow-glow hover:bg-gray-200 transition-all uppercase tracking-widest text-sm active:scale-95">
+                        Commit Record Changes
+                    </button>
+                </div>
+            </form>
+        </div>
       </div>
     </div>
   );
