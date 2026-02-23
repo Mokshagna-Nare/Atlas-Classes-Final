@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -57,18 +56,30 @@ const InstituteDashboard: React.FC = () => {
           ></div>
       )}
       <aside className={`fixed inset-y-0 left-0 bg-atlas-soft border-r border-gray-800 p-4 flex flex-col z-30 w-64 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex justify-between items-center mb-8">
-            <div className="px-2">
+        
+        {/* Header Section with both logos side-by-side */}
+        <div className="flex justify-between items-center mb-8 w-full">
+            <div className="flex flex-row items-center justify-start gap-2 w-full pr-1">
+                {/* Atlas Logo */}
                 <img 
                     src="https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png" 
                     alt="Atlas Classes" 
-                    className="h-16 w-auto object-contain" 
+                    className="h-auto w-[45%] object-contain" 
+                />
+                {/* Visual Separator */}
+                <div className="h-8 w-[1px] bg-gray-600 shrink-0"></div>
+                {/* iLearn Logo */}
+                <img 
+                    src="https://i.postimg.cc/Y9jSSdVL/Logo-(ilearn).png" 
+                    alt="iLearn" 
+                    className="h-auto w-[45%] object-contain" 
                 />
             </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-white">
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-white shrink-0 ml-1">
                 <XIcon className="h-6 w-6" />
             </button>
         </div>
+
         <nav className="flex-grow space-y-2">
             <NavItem view="analysis" label="Analysis" icon={<ChartBarIcon className="h-5 w-5" />} />
             <NavItem view="results" label="Results" icon={<DocumentTextIcon className="h-5 w-5" />} />

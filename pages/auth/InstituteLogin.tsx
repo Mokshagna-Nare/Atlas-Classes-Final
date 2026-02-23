@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,11 +24,22 @@ const InstituteLogin: React.FC = () => {
     <div className="min-h-screen bg-atlas-dark flex items-center justify-center">
       <div className="bg-atlas-soft p-8 rounded-lg shadow-2xl w-full max-w-md border border-gray-800">
         <div className="text-center mb-6">
-             <img 
-                src="https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png" 
-                alt="Atlas Classes" 
-                className="h-20 w-auto mx-auto mb-4 object-contain" 
-            />
+             {/* Logo Section */}
+             <div className="flex justify-center items-center gap-6 mb-4">
+                 <img 
+                    src="https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png" 
+                    alt="Atlas Classes" 
+                    className="h-16 sm:h-20 w-auto object-contain" 
+                />
+                {/* Vertical divider */}
+                <div className="h-12 w-px bg-gray-600 hidden sm:block"></div>
+                {/* iLearn Logo */}
+                <img 
+                    src="https://i.postimg.cc/Y9jSSdVL/Logo-(ilearn).png" 
+                    alt="iLearn" 
+                    className="h-auto w-32 sm:w-40 object-contain" 
+                />
+             </div>
             <h2 className="text-3xl font-bold text-atlas-green">Institute Login</h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-6">
