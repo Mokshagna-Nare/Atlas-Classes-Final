@@ -12,11 +12,15 @@ const InstituteLogin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError('');
+    
     try {
-        await auth?.login({ email, password }, 'institute');
+      if (auth) {
+        await auth.login({ email, password }, 'institute');
         navigate('/dashboard/institute');
+      }
     } catch (err: any) {
-        setLocalError(err.response?.data?.message || err.message || 'Login failed');
+      // Properly extract the error message thrown by AuthContext
+      setLocalError(err.message || 'Login failed. Please check your credentials.');
     }
   };
 
@@ -65,8 +69,14 @@ const InstituteLogin: React.FC = () => {
               required
             />
           </div>
-          {(localError || auth?.error) && <p className="text-red-500 text-sm">{localError || auth?.error}</p>}
-          <button type="submit" disabled={auth?.isLoading} className="w-full bg-atlas-green text-white font-bold py-3 px-6 rounded-md hover:bg-green-600 transition duration-300 shadow-md shadow-green-900/20 disabled:opacity-50">
+          {(localError || auth?.error) && (
+            <p className="text-red-500 text-sm font-medium">{localError || auth?.error}</p>
+          )}
+          <button 
+            type="submit" 
+            disabled={auth?.isLoading} 
+            className="w-full bg-atlas-green text-white font-bold py-3 px-6 rounded-md hover:bg-green-600 transition duration-300 shadow-md shadow-green-900/20 disabled:opacity-50"
+          >
             {auth?.isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>

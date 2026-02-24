@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,13 +12,15 @@ const StudentLogin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
     try {
       if (auth) {
           await auth.login({ email, password }, 'student');
           navigate('/dashboard/student');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid credentials. Please try again.');
+      // Properly extract the error message thrown by AuthContext
+      setError(err.message || 'Login failed. Please check your credentials.');
     }
   };
 
@@ -36,7 +37,7 @@ const StudentLogin: React.FC = () => {
         </div>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="text-sm font-bold text-gray-400 block mb-2">Email or Institute Code</label>
+            <label className="text-sm font-bold text-gray-400 block mb-2">Email</label>
             <input
               type="email"
               value={email}
@@ -57,8 +58,12 @@ const StudentLogin: React.FC = () => {
               required
             />
           </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" disabled={auth?.isLoading} className="w-full bg-atlas-green text-white font-bold py-3 px-6 rounded-md hover:bg-green-600 transition duration-300 shadow-md shadow-green-900/20 disabled:opacity-50">
+          {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+          <button 
+            type="submit" 
+            disabled={auth?.isLoading} 
+            className="w-full bg-atlas-green text-white font-bold py-3 px-6 rounded-md hover:bg-green-600 transition duration-300 shadow-md shadow-green-900/20 disabled:opacity-50"
+          >
             {auth?.isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
