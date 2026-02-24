@@ -14,11 +14,16 @@ const app = express();
  * credentials: true => allows Authorization header / cookies if ever used
  */
 const corsOptions = {
-  origin: true,
+  origin: [
+    'http://localhost:3000',
+    'https://www.atlasclasses.com',
+    'https://atlasclasses.com'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
+
 
 
 // IMPORTANT: CORS must be before routes
