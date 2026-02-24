@@ -1,13 +1,9 @@
-
 const express = require('express');
 const router = express.Router();
-const supabase = require('../supabaseClient');
+// Import both the standard client and the admin client
+const { supabase, supabaseAdmin } = require('../supabaseClient');
 
-// Admin credentials from environment variables
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
-// Register (Institute or Student)
+// Register (Student or self-signup Institute)
 router.post('/signup', async (req, res) => {
   try {
     const { name, email, password, role, instituteId } = req.body;
@@ -44,67 +40,61 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// Login
+// Admin-Only Route: Programmatically Create an Institute Account
+router.post('/create-institute', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // 1. Create the user in Supabase Auth using the Admin API
+    // This requires supabaseAdmin (Service Role) so it doesn't log the current Admin out
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: email,
+      password: password,
+      email_confirm: true // Automatically confirm email so they can log in immediately
+    });
+
+    if (authError) throw authError;
+
+    const newUserId = authData.user.id;
+
+    // 2. Insert the new Institute into the public.institutes table
+    const { data: instituteData, error: instituteError } = await supabaseAdmin
+      .from('institutes')
+      .insert([{ name: name }])
+      .select()
+      .single();
+
+    if (instituteError) throw instituteError;
+
+    // 3. Link the new Auth user and the Institute in the public.users table
+    const { error: dbError } = await supabaseAdmin
+      .from('users')
+      .insert([{
+        id: newUserId,
+        email: email,
+        name: name,
+        role: 'institute',
+        institute_id: instituteData.id // Link to the institute table
+      }]);
+
+    if (dbError) throw dbError;
+
+    res.status(201).json({ 
+      message: 'Institute created successfully',
+      institute: instituteData
+    });
+
+  } catch (err) {
+    console.error("Create Institute Error:", err.message);
+    res.status(400).json({ message: err.message || 'Failed to create institute' });
+  }
+});
+
+// Universal Login (Handles Admin, Institute, and Student)
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // --- DUMMY CREDENTIALS FOR DEMO/TESTING ---
-    if (email === 'student@atlas.com' && password === 'password') {
-        return res.json({
-            token: 'mock-student-token',
-            user: {
-                id: 's1',
-                name: 'Riya Sharma',
-                email: 'student@atlas.com',
-                role: 'student',
-                instituteId: 'i1'
-            }
-        });
-    }
-
-    if (email === 'institute@atlas.com' && password === 'password') {
-        return res.json({
-            token: 'mock-institute-token',
-            user: {
-                id: 'i1',
-                name: 'ABC School',
-                email: 'institute@atlas.com',
-                role: 'institute'
-            }
-        });
-    }
-
-    if (email === 'admin@atlas.com' && password === 'password') {
-         return res.json({
-            token: "admin-static-token",
-            user: {
-                id: "admin-id",
-                name: "Administrator",
-                email: email,
-                role: "admin",
-                instituteId: null
-            }
-        });
-    }
-    // -------------------------------------------
-
-    // --- CHECK ADMIN LOGIN (Environment Variables) ---
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      return res.json({
-        token: "admin-static-token", // Static token for admin
-        user: {
-          id: "admin-id",
-          name: "Administrator",
-          email: email,
-          role: "admin",
-          instituteId: null
-        }
-      });
-    }
-
-    // --- CHECK SUPABASE LOGIN (Institute/Student) ---
-    
     // 1. Authenticate with Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,

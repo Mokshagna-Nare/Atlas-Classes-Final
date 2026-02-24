@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import api from '../services/api';
@@ -19,11 +18,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Check for existing session on app load
   useEffect(() => {
     const token = localStorage.getItem('atlas-token');
     const storedUser = localStorage.getItem('atlas-user');
+    
     if (token && storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (err) {
+        console.error("Failed to parse stored user", err);
+        localStorage.removeItem('atlas-token');
+        localStorage.removeItem('atlas-user');
+      }
     }
     setIsLoading(false);
   }, []);
@@ -32,57 +39,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     setError(null);
 
-    // --- DEMO CREDENTIALS INTERCEPTION (Client-Side Override) ---
-    const { email, password } = credentials;
-    let demoUser: User | null = null;
-    let demoToken = 'demo-token-static';
-
-
-    if (email === 'student@atlas.com' && password === 'password') {
-        demoUser = { id: 's1', name: 'Riya Sharma', role: 'student', institute_id: 'i1' };
-    } else if (email === 'institute@atlas.com' && password === 'password') {
-        demoUser = { id: 'i1', name: 'ABC School', role: 'institute' };
-    } else if (email === 'admin@atlas.com' && password === 'password') {
-        demoUser = { id: 'admin-id', name: 'Administrator', role: 'admin' };
-    }
-
-    if (demoUser) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        if (demoUser.role !== role && role !== 'any') {
-             setError(`Unauthorized. This login is for ${role}s only.`);
-             setIsLoading(false);
-             return;
-        }
-
-        localStorage.setItem('atlas-token', demoToken);
-        localStorage.setItem('atlas-user', JSON.stringify(demoUser));
-        setUser(demoUser);
-        setIsLoading(false);
-        return;
-    }
-    // -----------------------------------------------------------
-
     try {
+      // 1. Send request to your Express backend (which uses Supabase Auth)
       const response = await api.post('/auth/login', { ...credentials });
       const { token, user } = response.data;
 
+      // 2. Verify the user has the correct role for the portal they are trying to access
       if (user.role !== role && role !== 'any') {
           throw new Error(`Unauthorized. This login is for ${role}s only.`);
       }
 
+      // 3. Save real Supabase token and user profile to localStorage
       localStorage.setItem('atlas-token', token);
       localStorage.setItem('atlas-user', JSON.stringify(user));
+      
+      // 4. Update React state
       setUser(user);
+
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
-      throw err;
+      const errorMessage = err.response?.data?.message || err.message || 'Login failed';
+      setError(errorMessage);
+      throw new Error(errorMessage); // Throw to let the UI component (AdminLogin) handle the error state
     } finally {
       setIsLoading(false);
     }
   };
-
-  
 
   const signup = async (userData: any) => {
       setIsLoading(true);
@@ -90,14 +71,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
           await api.post('/auth/signup', userData);
       } catch (err: any) {
-          setError(err.response?.data?.message || 'Signup failed');
-          throw err;
+          const errorMessage = err.response?.data?.message || 'Signup failed';
+          setError(errorMessage);
+          throw new Error(errorMessage);
       } finally {
           setIsLoading(false);
       }
   }
 
   const logout = () => {
+    // Clear tokens from browser and reset React state
     localStorage.removeItem('atlas-token');
     localStorage.removeItem('atlas-user');
     setUser(null);

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,13 +12,17 @@ const AdminLogin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
     try {
       if (auth) {
+          // Attempt to log in requesting the 'admin' role
           await auth.login({ email, password }, 'admin');
+          // If successful, redirect to dashboard
           navigate('/dashboard/admin');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid credentials. Please try again.');
+      // Display the error thrown by AuthContext (e.g. "Invalid credentials" or "Unauthorized")
+      setError(err.message || 'An unexpected error occurred. Please try again.');
     }
   };
 
@@ -57,8 +60,12 @@ const AdminLogin: React.FC = () => {
               required
             />
           </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" disabled={auth?.isLoading} className="w-full bg-atlas-green text-white font-bold py-3 px-6 rounded-md hover:bg-green-600 transition duration-300 shadow-md shadow-green-900/20 disabled:opacity-50">
+          {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+          <button 
+            type="submit" 
+            disabled={auth?.isLoading} 
+            className="w-full bg-atlas-green text-white font-bold py-3 px-6 rounded-md hover:bg-green-600 transition duration-300 shadow-md shadow-green-900/20 disabled:opacity-50"
+          >
             {auth?.isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
