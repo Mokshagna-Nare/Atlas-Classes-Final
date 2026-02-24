@@ -45,15 +45,18 @@ router.post('/create-institute', async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // 1. Create the user in Supabase Auth using the Admin API
-    // This requires supabaseAdmin (Service Role) so it doesn't log the current Admin out
+    // 1. Create the user using the Admin API
+    // We strictly use the admin API which doesn't alter local sessions
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: password,
-      email_confirm: true // Automatically confirm email so they can log in immediately
+      email_confirm: true 
     });
 
-    if (authError) throw authError;
+    if (authError) {
+      console.error("Auth Creation Error:", authError);
+      throw new Error(authError.message);
+    }
 
     const newUserId = authData.user.id;
 
@@ -64,7 +67,11 @@ router.post('/create-institute', async (req, res) => {
       .select()
       .single();
 
-    if (instituteError) throw instituteError;
+    if (instituteError) {
+       // Cleanup the auth user if db insert fails (optional but good practice)
+       await supabaseAdmin.auth.admin.deleteUser(newUserId);
+       throw new Error(instituteError.message);
+    }
 
     // 3. Link the new Auth user and the Institute in the public.users table
     const { error: dbError } = await supabaseAdmin
@@ -74,14 +81,24 @@ router.post('/create-institute', async (req, res) => {
         email: email,
         name: name,
         role: 'institute',
-        institute_id: instituteData.id // Link to the institute table
+        institute_id: instituteData.id 
       }]);
 
-    if (dbError) throw dbError;
+    if (dbError) {
+       await supabaseAdmin.auth.admin.deleteUser(newUserId);
+       await supabaseAdmin.from('institutes').delete().eq('id', instituteData.id);
+       throw new Error(dbError.message);
+    }
 
+    // 4. Return ONLY safe data. NEVER return authData.session or authData tokens here
     res.status(201).json({ 
       message: 'Institute created successfully',
-      institute: instituteData
+      institute: {
+        id: instituteData.id,
+        name: instituteData.name,
+        email: email
+        // Notice we do not send any access_tokens back!
+      }
     });
 
   } catch (err) {

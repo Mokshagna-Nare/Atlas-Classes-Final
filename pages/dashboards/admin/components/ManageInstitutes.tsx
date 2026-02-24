@@ -1,11 +1,109 @@
-
 import React, { useState } from 'react';
 import { useData } from '../../../../contexts/DataContext';
 import { Institute } from '../../../../types';
 import EditInstituteModal from './EditInstituteModal';
-import AddInstituteModal from './AddInstituteModal';
 import SharePaperModal from './SharePaperModal';
-import { ChartPieIcon, GlobeAltIcon, SparklesIcon, UserGroupIcon, DocumentDuplicateIcon, PencilSquareIcon, TrashIcon, EyeIcon, EyeSlashIcon } from '../../../../components/icons';
+import api from '../../../../services/api'; // Import our API service
+import { 
+    ChartPieIcon, GlobeAltIcon, SparklesIcon, UserGroupIcon, 
+    DocumentDuplicateIcon, PencilSquareIcon, TrashIcon, EyeIcon, EyeSlashIcon 
+} from '../../../../components/icons';
+
+// --- NEW COMPONENT: ADD INSTITUTE MODAL ---
+const AddInstituteModal: React.FC<{ onClose: () => void, onSuccess: () => void }> = ({ onClose, onSuccess }) => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      // Call our new Express backend route using the Master Key
+      await api.post('/auth/create-institute', {
+        name,
+        email,
+        password
+      });
+      
+      // If successful, trigger a refresh and close modal
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      console.error("Failed to create institute:", err);
+      setError(err.response?.data?.message || err.message || 'Failed to create institute.');
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-atlas-dark border border-gray-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
+        <h3 className="text-xl font-bold text-white mb-4">Add Partner School</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-sm font-bold text-gray-400 block mb-2">Institute Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full p-3 bg-atlas-black border border-gray-700 rounded-xl focus:outline-none focus:border-atlas-primary text-white"
+              placeholder="e.g., Greenwood High"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-gray-400 block mb-2">Login Email / Username</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 bg-atlas-black border border-gray-700 rounded-xl focus:outline-none focus:border-atlas-primary text-white"
+              placeholder="e.g., greenwood@atlas.com"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-bold text-gray-400 block mb-2">Secure Password</label>
+            <input
+              type="text" // Changed to text so Admin can clearly see the password they generate
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 bg-atlas-black border border-gray-700 rounded-xl focus:outline-none focus:border-atlas-primary text-white"
+              placeholder="Generate a password"
+              required
+            />
+          </div>
+          
+          {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+          
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 rounded-xl font-bold text-gray-400 bg-gray-800 hover:bg-gray-700 hover:text-white transition-colors"
+              disabled={isLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-atlas-primary hover:bg-emerald-600 transition-colors shadow-lg disabled:opacity-50"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Creating...' : 'Create Account'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+// ------------------------------------------
 
 const GlobalAnalytics = () => {
     const { institutes, results, tests } = useData();
@@ -81,7 +179,7 @@ const GlobalAnalytics = () => {
 };
 
 const ManageInstitutes: React.FC = () => {
-  const { institutes, deleteInstitute } = useData();
+  const { institutes, deleteInstitute, refreshInstitutes } = useData(); // Assumes refreshData exists in DataContext
   const [activeTab, setActiveTab] = useState<'list' | 'analytics'>('list');
   const [editingInstitute, setEditingInstitute] = useState<Institute | null>(null);
   const [sharingInstitute, setSharingInstitute] = useState<Institute | null>(null);
@@ -145,7 +243,9 @@ const ManageInstitutes: React.FC = () => {
                 <tbody className="divide-y divide-gray-800/50">
                     {institutes.map(institute => (
                     <tr key={institute.id} className="group hover:bg-white/[0.02] transition-colors">
-                        <td className="p-6 text-atlas-primary font-mono text-xs font-black">{institute.id}</td>
+                        <td className="p-6 text-atlas-primary font-mono text-xs font-black">
+                           {institute.id.substring(0, 8)}... {/* Shorten UUID for cleaner display */}
+                        </td>
                         <td className="p-6">
                             <p className="font-bold text-white text-base">{institute.name}</p>
                             <p className="text-gray-500 text-xs mt-1">{institute.email}</p>
@@ -154,7 +254,8 @@ const ManageInstitutes: React.FC = () => {
                             <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1">Access Pass</p>
                             <div className="flex items-center gap-3">
                                 <p className="text-sm font-mono text-gray-400">
-                                    {visiblePasswords.has(institute.id) ? (institute.password || 'password') : '••••••••'}
+                                    {/* We don't store plain text passwords anymore, so we just show a hidden placeholder */}
+                                    {visiblePasswords.has(institute.id) ? 'Encrypted via Supabase' : '••••••••'}
                                 </p>
                                 <button 
                                     onClick={() => togglePasswordVisibility(institute.id)}
@@ -204,7 +305,16 @@ const ManageInstitutes: React.FC = () => {
       )}
       {editingInstitute && <EditInstituteModal institute={editingInstitute} onClose={handleCloseModal} />}
       {sharingInstitute && <SharePaperModal institute={sharingInstitute} onClose={handleCloseModal} />}
-      {isAddModalOpen && <AddInstituteModal onClose={() => setIsAddModalOpen(false)} />}
+      
+      {/* Render the new Add Institute Modal when state is true */}
+      {isAddModalOpen && (
+  <AddInstituteModal 
+      onClose={() => setIsAddModalOpen(false)} 
+      onSuccess={async () => {
+          await refreshInstitutes(); // <--- Make sure this matches!
+      }} 
+  />
+)}
     </div>
   );
 };

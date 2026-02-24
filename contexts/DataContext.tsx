@@ -1,22 +1,20 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { 
   Test, TestResult, Payment, Institute, AdminQuestionPaper, 
   AcademicClass, WeeklySchedule, Student, TestMark, MCQ 
 } from '../types';
 import { 
-  STUDENT_TESTS, ALL_RESULTS, STUDENT_PAYMENTS, INSTITUTES_DATA, 
+  STUDENT_TESTS, ALL_RESULTS, STUDENT_PAYMENTS, 
   ADMIN_QUESTION_PAPERS, INSTITUTE_STUDENTS 
 } from '../constants';
 import { createClient } from '@supabase/supabase-js';
 
-// Setup Supabase (Using standard config from environment or defaults)
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Safely setup Supabase to prevent crashes if env variables are missing
+const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || '';
+const supabaseKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000/api';
-
+// The interface includes ALL your existing functions PLUS refreshInstitutes
 interface DataContextType {
   tests: Test[];
   results: TestResult[];
@@ -24,13 +22,15 @@ interface DataContextType {
   institutes: Institute[];
   adminQuestionPapers: AdminQuestionPaper[];
   mcqBank: MCQ[];
+  // Optional, only if you want a full refresh function
   
   classes: AcademicClass[];
   schedules: WeeklySchedule[];
   students: Student[];
   marks: TestMark[];
 
-  // Operations
+  refreshInstitutes: () => Promise<void>;
+
   addTest: (test: Test) => Promise<void>;
   editTest: (test: Test) => void;
   deleteTest: (testId: string) => Promise<void>;
@@ -70,18 +70,15 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | null>(null);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // --- Core States ---
   const [tests, setTests] = useState<Test[]>(STUDENT_TESTS);
   const [results, setResults] = useState<TestResult[]>(ALL_RESULTS);
   const [payments, setPayments] = useState<Payment[]>(STUDENT_PAYMENTS);
-  const [institutes, setInstitutes] = useState<Institute[]>(() => {
-    const saved = localStorage.getItem('atlas-institutes');
-    return saved ? JSON.parse(saved) : INSTITUTES_DATA;
-  });
+
+  // Institutes starts empty, gets loaded directly from Supabase via refreshInstitutes
+  const [institutes, setInstitutes] = useState<Institute[]>([]);
   const [adminQuestionPapers, setAdminQuestionPapers] = useState<AdminQuestionPaper[]>(ADMIN_QUESTION_PAPERS);
   const [mcqBank, setMcqBank] = useState<MCQ[]>([]);
 
-  // --- Academic Entity States ---
   const [classes, setClasses] = useState<AcademicClass[]>([
     { id: 'c6', name: 'Class 6', subjects: ['Mathematics', 'Science', 'Social'] },
     { id: 'c7', name: 'Class 7', subjects: ['Mathematics', 'Science', 'Social'] },
@@ -96,14 +93,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [students, setStudents] = useState<Student[]>(INSTITUTE_STUDENTS);
   const [marks, setMarks] = useState<TestMark[]>([]);
 
-  // Sync state to local storage for persistent prototype experience
-  useEffect(() => {
-    localStorage.setItem('atlas-institutes', JSON.stringify(institutes));
-  }, [institutes]);
+   const refreshInstitutes = async () => {
+    if (!supabase) return;
+    try {
+      // Fetch directly from users table where role is institute
+      const { data: instData, error } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .eq('role', 'institute');
+        
+      if (error) {
+        console.error('Supabase fetch error:', error);
+        throw error;
+      }
+      
+      if (instData) {
+        const mapped = instData.map((row: any) => ({
+          id: row.id,
+          name: row.name || 'Unknown Institute',
+          email: row.email ?? ''
+        })) as Institute[];
+        
+        console.log("Loaded institutes:", mapped); // Helpful for debugging
+        setInstitutes(mapped);
+      }
+    } catch (e) {
+      console.warn('Failed to load institutes from Supabase');
+    }
+  };
 
-  // Initial Sync from Supabase if available
+
   useEffect(() => {
     const fetchData = async () => {
+      if (!supabase) return;
       try {
         const { data: testsData } = await supabase.from('tests').select('*');
         if (testsData) setTests(testsData as Test[]);
@@ -111,16 +133,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: mcqData } = await supabase.from('mcqs').select('*');
         if (mcqData) setMcqBank(mcqData as MCQ[]);
 
-        const { data: instData } = await supabase.from('institutes_with_users').select('*');
-        if (instData) setInstitutes(instData as Institute[]);
+        await refreshInstitutes();
       } catch (e) {
-        console.warn("Supabase connection failed or tables missing, using local state defaults.");
+        console.warn('Supabase connection failed, using local defaults.');
       }
     };
     fetchData();
   }, []);
 
-  // --- Institute Management ---
   const addInstitute = async (inst: { name: string; email: string; password?: string; id?: string }) => {
     const newId = inst.id?.trim() || `INST-${Date.now()}`;
     const newInst: Institute = {
@@ -129,87 +149,43 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       email: inst.email,
       password: inst.password || 'password'
     };
-
-    try {
-      // Mocking the backend call provided in user's prompt
-      const response = await fetch(`${API_BASE_URL}/institutes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'admin-static-token'
-        },
-        body: JSON.stringify(newInst)
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to sync with server');
-      }
-      
-      const serverData = await response.json();
-      setInstitutes(prev => [...prev, { ...serverData.institute, email: inst.email }]);
-    } catch (e) {
-      console.warn("Backend unavailable, adding to local state only.");
-      setInstitutes(prev => [...prev, newInst]);
-    }
+    setInstitutes(prev => [...prev, newInst]);
   };
 
   const updateInstitute = async (updated: Institute) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/institutes/${updated.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'admin-static-token' },
-        body: JSON.stringify(updated)
-      });
-      if (!response.ok) throw new Error("Update failed");
-      
-      setInstitutes(prev => prev.map(inst => inst.id === updated.id ? updated : inst));
-    } catch (e) {
-      setInstitutes(prev => prev.map(inst => inst.id === updated.id ? updated : inst));
-    }
+    setInstitutes(prev => prev.map(inst => inst.id === updated.id ? updated : inst));
   };
 
   const deleteInstitute = async (id: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/institutes/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': 'admin-static-token' }
-      });
-      if (!response.ok) throw new Error("Delete failed");
-      
-      setInstitutes(prev => prev.filter(inst => inst.id !== id));
-    } catch (e) {
-      setInstitutes(prev => prev.filter(inst => inst.id !== id));
-    }
+    setInstitutes(prev => prev.filter(inst => inst.id !== id));
   };
 
-  // --- Test Management ---
   const addTest = async (newTest: Test) => {
-    try {
-      const { data, error } = await supabase.from('tests').insert([newTest]).select();
-      if (error) throw error;
-      if (data) setTests(prev => [...prev, data[0] as Test]);
-    } catch (e) {
-      setTests(prev => [...prev, newTest]);
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('tests').insert([newTest]).select();
+        if (error) throw error;
+        if (data) return setTests(prev => [...prev, data[0] as Test]);
+      } catch (e) { console.warn(e); }
     }
+    setTests(prev => [...prev, newTest]);
   };
 
-  const editTest = (updatedTest: Test) => setTests(prev => prev.map(t => t.id === updatedTest.id ? updatedTest : t));
+  const editTest = (updatedTest: Test) => 
+    setTests(prev => prev.map(t => t.id === updatedTest.id ? updatedTest : t));
   
   const deleteTest = async (testId: string) => {
-    try {
-      const { error } = await supabase.from('tests').delete().eq('id', testId);
-      if (error) throw error;
-      setTests(prev => prev.filter(t => t.id !== testId));
-    } catch (e) {
-      setTests(prev => prev.filter(t => t.id !== testId));
+    if (supabase) {
+      try { await supabase.from('tests').delete().eq('id', testId); } catch (e) { console.warn(e); }
     }
+    setTests(prev => prev.filter(t => t.id !== testId));
   };
 
-  const updateTestStatus = (testId: string, status: Test['status']) => setTests(prev => prev.map(t => t.id === testId ? {...t, status} : t));
+  const updateTestStatus = (testId: string, status: Test['status']) => 
+    setTests(prev => prev.map(t => t.id === testId ? { ...t, status } : t));
+
   const addTestResult = (res: TestResult) => setResults(prev => [...prev, res]);
 
-  // --- Academic Entities ---
   const addClass = (cls: AcademicClass) => setClasses(prev => [...prev, cls]);
   const updateClass = (cls: AcademicClass) => setClasses(prev => prev.map(c => c.id === cls.id ? cls : c));
   const deleteClass = (id: string) => setClasses(prev => prev.filter(c => c.id !== id));
@@ -225,37 +201,35 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addMark = (mark: TestMark) => setMarks(prev => [...prev, mark]);
   const bulkAddMarks = (newMarks: TestMark[]) => setMarks(prev => [...prev, ...newMarks]);
 
-  // --- Document Sharing ---
   const addAdminQuestionPaper = (paper: AdminQuestionPaper) => setAdminQuestionPapers(prev => [...prev, paper]);
 
-  // --- MCQ Bank ---
   const addMCQ = async (mcq: MCQ) => {
-    try {
-      const { data, error } = await supabase.from('mcqs').insert([mcq]).select();
-      if (error) throw error;
-      if (data) setMcqBank(prev => [...prev, data[0] as MCQ]);
-    } catch (e) {
-      setMcqBank(prev => [...prev, mcq]);
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('mcqs').insert([mcq]).select();
+        if (error) throw error;
+        if (data) return setMcqBank(prev => [...prev, data[0] as MCQ]);
+      } catch (e) { console.warn(e); }
     }
+    setMcqBank(prev => [...prev, mcq]);
   };
 
   const updateMCQ = async (id: string, updates: Partial<MCQ>) => {
-    try {
-      const { data, error } = await supabase.from('mcqs').update(updates).eq('id', id).select();
-      if (error) throw error;
-      if (data) setMcqBank(prev => prev.map(m => m.id === id ? (data[0] as MCQ) : m));
-    } catch (e) {
-      setMcqBank(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('mcqs').update(updates).eq('id', id).select();
+        if (error) throw error;
+        if (data) return setMcqBank(prev => prev.map(m => m.id === id ? (data[0] as MCQ) : m));
+      } catch (e) { console.warn(e); }
     }
+    setMcqBank(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
   };
 
   const deleteMCQ = async (id: string) => {
-    try {
-      await supabase.from('mcqs').delete().eq('id', id);
-      setMcqBank(prev => prev.filter(m => m.id !== id));
-    } catch (e) {
-      setMcqBank(prev => prev.filter(m => m.id !== id));
+    if (supabase) {
+      try { await supabase.from('mcqs').delete().eq('id', id); } catch (e) { console.warn(e); }
     }
+    setMcqBank(prev => prev.filter(m => m.id !== id));
   };
 
   const flagMCQ = async (id: string, reason?: string) => {
@@ -266,12 +240,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await updateMCQ(id, { isFlagged: false, flagReason: '' });
   };
 
-  const updatePaymentStatus = (id: string, status: Payment['status']) => setPayments(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+  const updatePaymentStatus = (id: string, status: Payment['status']) => 
+    setPayments(prev => prev.map(p => p.id === id ? { ...p, status } : p));
 
   return (
     <DataContext.Provider value={{ 
         tests, results, payments, institutes, adminQuestionPapers, mcqBank,
-        classes, schedules, students, marks,
+        classes, schedules, students, marks, 
+        refreshInstitutes,
         addTest, editTest, deleteTest, updateTestStatus, addTestResult,
         updatePaymentStatus,
         addInstitute, updateInstitute, deleteInstitute,
