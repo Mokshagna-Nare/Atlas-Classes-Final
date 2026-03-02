@@ -1,113 +1,114 @@
-const express = require('express');
+const express = require('express'); // Assuming this is defined at the top of your file
 const router = express.Router();
-// Import both the standard client and the admin client
-const { supabase, supabaseAdmin } = require('../supabaseClient');
+const { supabase, supabaseAdmin } = require('../supabaseClient'); // Ensure this imports your client correctly
 
-// Register (Student or self-signup Institute)
-router.post('/signup', async (req, res) => {
-  try {
-    const { name, email, password, role, instituteId } = req.body;
-
-    // 1. Sign up user in Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (authError) throw authError;
-
-    if (authData.user) {
-      // 2. Insert profile into 'public.users' table
-      const { error: dbError } = await supabase
-        .from('users')
-        .insert([
-          {
-            id: authData.user.id,
-            email: email,
-            name: name,
-            role: role,
-            institute_id: instituteId || null // Use snake_case for DB column
-          }
-        ]);
-
-      if (dbError) throw dbError;
-    }
-
-    res.status(201).json({ message: 'User created successfully' });
-  } catch (err) {
-    console.error("Signup Error:", err.message);
-    res.status(400).json({ message: err.message || 'Signup failed' });
-  }
-});
-
-// Admin-Only Route: Programmatically Create an Institute Account
+// 1. CREATE INSTITUTE
 router.post('/create-institute', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, logo_url } = req.body;
+    console.log("--- INCOMING REQUEST ---");
+    console.log("Logo URL Received:", logo_url ? logo_url : "None");
 
-    // 1. Create the user using the Admin API
-    // We strictly use the admin API which doesn't alter local sessions
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: password,
       email_confirm: true 
     });
 
-    if (authError) {
-      console.error("Auth Creation Error:", authError);
-      throw new Error(authError.message);
-    }
+    if (authError) throw new Error(authError.message);
 
-    const newUserId = authData.user.id;
+    const userId = authData.user.id;
 
-    // 2. Insert the new Institute into the public.institutes table
-    const { data: instituteData, error: instituteError } = await supabaseAdmin
+    const { data: instData, error: instError } = await supabaseAdmin
       .from('institutes')
-      .insert([{ name: name }])
+      .insert([{ id: userId, name: name, logo_url: logo_url }])
       .select()
       .single();
 
-    if (instituteError) {
-       // Cleanup the auth user if db insert fails (optional but good practice)
-       await supabaseAdmin.auth.admin.deleteUser(newUserId);
-       throw new Error(instituteError.message);
-    }
+    if (instError) throw new Error(instError.message);
 
-    // 3. Link the new Auth user and the Institute in the public.users table
-    const { error: dbError } = await supabaseAdmin
+    const { error: userError } = await supabaseAdmin
       .from('users')
       .insert([{
-        id: newUserId,
+        id: userId,
+        institute_id: userId,
+        role: 'institute',
         email: email,
         name: name,
-        role: 'institute',
-        institute_id: instituteData.id 
+        logo_url: logo_url
       }]);
 
-    if (dbError) {
-       await supabaseAdmin.auth.admin.deleteUser(newUserId);
-       await supabaseAdmin.from('institutes').delete().eq('id', instituteData.id);
-       throw new Error(dbError.message);
-    }
+    if (userError) throw new Error(userError.message);
 
-    // 4. Return ONLY safe data. NEVER return authData.session or authData tokens here
-    res.status(201).json({ 
-      message: 'Institute created successfully',
-      institute: {
-        id: instituteData.id,
-        name: instituteData.name,
-        email: email
-        // Notice we do not send any access_tokens back!
-      }
-    });
+    res.status(201).json({ message: 'Institute created successfully', user: authData.user });
 
   } catch (err) {
-    console.error("Create Institute Error:", err.message);
+    console.error("Error:", err.message);
     res.status(400).json({ message: err.message || 'Failed to create institute' });
   }
 });
 
-// Universal Login (Handles Admin, Institute, and Student)
+// ---------------------------------------------------------
+// 2. DELETE INSTITUTE & USER COMPLETELY
+// ---------------------------------------------------------
+router.delete('/delete-institute/:id', async (req, res) => {
+  try {
+    const { id } = req.params; 
+    console.log(`Attempting to delete institute with ID: ${id}`);
+
+    // 1. Get the actual user ID from the users table using the institute_id
+    const { data: userRecord, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('institute_id', id)
+      .single();
+
+    if (userError && userError.code !== 'PGRST116') {
+      throw new Error(userError.message);
+    }
+
+    const actualUserId = userRecord ? userRecord.id : id;
+
+    // 2. Delete from public.users FIRST
+    const { error: userTableDeleteError } = await supabaseAdmin
+      .from('users')
+      .delete()
+      .eq('id', actualUserId);
+      
+    if (userTableDeleteError) {
+        console.warn("Could not delete from users table:", userTableDeleteError.message);
+    }
+
+    // 3. Delete from public.institutes SECOND
+    const { error: instDeleteError } = await supabaseAdmin
+      .from('institutes')
+      .delete()
+      .eq('id', id);
+
+    if (instDeleteError) {
+        console.warn("Could not delete from institutes table:", instDeleteError.message);
+    }
+
+    // 4. Finally, Delete from Supabase Auth
+    const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(actualUserId);
+    if (authDeleteError) {
+        console.warn("Could not delete from Auth:", authDeleteError.message);
+    }
+
+    console.log(`Successfully deleted institute with ID: ${id}`);
+    res.status(200).json({ message: 'Institute permanently deleted from all tables' });
+
+  } catch (err) {
+    console.error("Delete Error:", err.message);
+    res.status(400).json({ message: err.message || 'Failed to delete institute' });
+  }
+});
+
+
+
+// ---------------------------------------------------------
+// 2. UNIVERSAL LOGIN (Handles Admin, Institute, and Student)
+// ---------------------------------------------------------
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -131,8 +132,22 @@ router.post('/login', async (req, res) => {
       return res.status(404).json({ message: 'User profile not found in database.' });
     }
 
-    // 3. Return JSON exactly as frontend expects
-    // Note: Mapping 'institute_id' (DB) to 'instituteId' (Frontend)
+    // 3. IF NO LOGO IN USERS, FETCH IT FROM INSTITUTES TABLE (Fallback)
+    let logoUrl = userProfile.logo_url;
+    
+    if (!logoUrl && userProfile.role === 'institute') {
+       const { data: instData } = await supabase
+         .from('institutes')
+         .select('logo_url')
+         .eq('id', userProfile.institute_id)
+         .single();
+         
+       if (instData && instData.logo_url) {
+           logoUrl = instData.logo_url;
+       }
+    }
+
+    // 4. Return JSON exactly as frontend expects
     res.json({
       token: authData.session.access_token,
       user: {
@@ -140,7 +155,8 @@ router.post('/login', async (req, res) => {
         name: userProfile.name,
         email: userProfile.email,
         role: userProfile.role,
-        instituteId: userProfile.institute_id 
+        instituteId: userProfile.institute_id,
+        logo_url: logoUrl || null // <-- ENSURE THIS IS PASSED
       }
     });
 
@@ -150,5 +166,95 @@ router.post('/login', async (req, res) => {
     res.status(400).json({ message: msg });
   }
 });
+
+
+
+
+// ---------------------------------------------------------
+// 3. UPDATE INSTITUTE DETAILS
+// ---------------------------------------------------------
+router.put('/update-institute/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, password, logo_url } = req.body;
+    
+    console.log(`Attempting to update institute: ${id}`);
+
+    // 1. Find the associated Auth user ID
+    const { data: userRecord, error: userRecordError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('institute_id', id)
+      .single();
+
+    if (userRecordError && userRecordError.code !== 'PGRST116') {
+       throw new Error(userRecordError.message);
+    }
+
+       // 2. Update Supabase Auth Email/Password
+    if (userRecord && userRecord.id && (email || password)) {
+        const updateAuthData = {
+           email_confirm: true,
+           user_metadata: { password_updated: new Date().toISOString() }
+        };
+        
+        if (email) updateAuthData.email = email;
+        if (password) updateAuthData.password = password;
+        
+        // This MUST use supabaseAdmin (the service_role key)
+        const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+            userRecord.id, 
+            updateAuthData
+        );
+
+        if (authUpdateError) throw new Error(authUpdateError.message);
+    }
+
+
+
+
+
+    // 3. Update public.institutes table
+    const updateInstData = {};
+    if (name) updateInstData.name = name;
+    if (logo_url !== undefined) updateInstData.logo_url = logo_url;
+
+    if (Object.keys(updateInstData).length > 0) {
+      const { error: instError } = await supabaseAdmin
+        .from('institutes')
+        .update(updateInstData)
+        .eq('id', id);
+
+      if (instError) throw new Error(instError.message);
+    }
+
+    // 4. Update public.users table (INCLUDING THE PASSWORD)
+    if (userRecord && userRecord.id) {
+       const updateUserData = {};
+       if (name) updateUserData.name = name;
+       if (email) updateUserData.email = email;
+       if (logo_url !== undefined) updateUserData.logo_url = logo_url;
+       
+       // ADDED: Save the password to the public users table so custom login routes still work
+       if (password) updateUserData.password = password;
+
+       if (Object.keys(updateUserData).length > 0) {
+          await supabaseAdmin
+            .from('users')
+            .update(updateUserData)
+            .eq('id', userRecord.id);
+       }
+    }
+
+    console.log(`Successfully updated institute: ${id}`);
+    res.status(200).json({ message: 'Institute updated successfully' });
+  } catch (err) {
+    console.error("Update Error:", err.message);
+    res.status(400).json({ message: err.message || 'Failed to update institute' });
+  }
+});
+
+
+
 
 module.exports = router;

@@ -94,21 +94,52 @@ const InstituteDashboard: React.FC = () => {
           </button>
         </div>
       </aside>
-      <main className="flex-1 p-4 md:p-8 overflow-auto bg-atlas-dark">
+      
+            <main className="flex-1 p-4 md:p-8 overflow-auto bg-atlas-dark">
+        {/* Mobile Header */}
         <header className="md:hidden flex justify-between items-center mb-4">
           <button onClick={() => setIsSidebarOpen(true)} className="text-gray-300 p-1">
             <MenuIcon className="h-6 w-6" />
           </button>
-           <h1 className="text-xl font-bold truncate text-white">Welcome, {user?.name}</h1>
+          <div className="flex items-center gap-3">
+              {/* Dynamic Logo (Mobile) - Removed circle, allowed natural width */}
+              {user?.logo_url && (
+                  <div className="h-10 w-auto max-w-[80px] shrink-0 bg-white/5 rounded-md p-1 flex items-center justify-center">
+                      <img 
+                          src={user.logo_url} 
+                          alt="Institute Logo" 
+                          className="h-full w-full object-contain" 
+                      />
+                  </div>
+              )}
+             <h1 className="text-xl font-bold truncate text-white">Welcome, {user?.name}</h1>
+          </div>
         </header>
-        <header className="hidden md:block mb-8">
-          <h1 className="text-3xl font-bold text-white">Welcome, {user?.name}</h1>
-          <p className="text-gray-500">Here's your institute's performance overview.</p>
+
+        {/* Desktop Header */}
+        <header className="hidden md:flex flex-col mb-8">
+          <div className="flex items-center gap-4">
+              {/* Dynamic Logo (Desktop) - Removed circle, allowed natural width, scaled slightly */}
+              {user?.logo_url && (
+                  <div className="h-16 w-auto max-w-[140px] shrink-0 bg-white rounded-lg p-2 shadow-md flex items-center justify-center">
+                      <img 
+                          src={user.logo_url} 
+                          alt={`${user?.name} logo`} 
+                          // object-contain keeps aspect ratio, scale-110 slightly zooms past excess whitespace
+                          className="h-full w-full object-contain scale-110" 
+                      />
+                  </div>
+              )}
+              <h1 className="text-3xl font-bold text-white tracking-tight">Welcome, {user?.name}</h1>
+          </div>
+          <p className="text-gray-500 mt-1">Here's your institute's performance overview.</p>
         </header>
+
         <div className="bg-atlas-soft p-4 sm:p-6 rounded-lg shadow-sm border border-gray-800">
           {renderContent()}
         </div>
       </main>
+
     </div>
   );
 };

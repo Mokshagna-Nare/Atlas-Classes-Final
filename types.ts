@@ -5,6 +5,7 @@ export interface User {
   role: 'institute' | 'student' | 'admin';
   institute_id?: string;
   batch?: 'COMPASS' | 'AXIS' | 'NEXUS';
+  logo_url?: string;
 }
 
 
@@ -72,6 +73,7 @@ export interface Institute {
   name: string;
   email: string;
   password?: string; // Added for institute login
+  logo_url?: string;
 }
 
 export interface AdminQuestionPaper {

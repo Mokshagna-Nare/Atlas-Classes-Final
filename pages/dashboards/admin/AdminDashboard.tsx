@@ -17,7 +17,7 @@ import {
 import ManageInstitutes from './components/ManageInstitutes';
 import AIPaperGenerator from './components/AIPaperGenerator';
 import MCQUpload from './components/MCQUpload';
-import CreateTest from './components/CreateTest';
+// import CreateTest from './components/CreateTest'
 import QuestionBank from './components/QuestionBank';
 import ManageTests from './components/ManageTests';
 import { MCQ } from '../../../types';
@@ -51,7 +51,7 @@ const AdminDashboard: React.FC = () => {
       case 'ai-generator': return <AIPaperGenerator />;
       case 'institutes': return <ManageInstitutes />;
       case 'mcq-upload': return <MCQUpload editingMcq={editingMcq} onFinished={editingMcq ? handleFinishedMcqEdit : undefined} />;
-      case 'create-test': return <CreateTest />;
+      // case 'create-test': return <CreateTest />;
       case 'question-bank': return <QuestionBank onEdit={handleEditMcq} />;
       case 'tests': return <ManageTests />;
       default: return <AIPaperGenerator />;

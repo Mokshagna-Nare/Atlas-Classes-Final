@@ -3,48 +3,115 @@ import { useData } from '../../../../contexts/DataContext';
 import { Institute } from '../../../../types';
 import EditInstituteModal from './EditInstituteModal';
 import SharePaperModal from './SharePaperModal';
-import api from '../../../../services/api'; // Import our API service
+import api from '../../../../services/api'; 
 import { 
     ChartPieIcon, GlobeAltIcon, SparklesIcon, UserGroupIcon, 
     DocumentDuplicateIcon, PencilSquareIcon, TrashIcon, EyeIcon, EyeSlashIcon 
 } from '../../../../components/icons';
 
-// --- NEW COMPONENT: ADD INSTITUTE MODAL ---
+// --- ADD INSTITUTE MODAL ---
 const AddInstituteModal: React.FC<{ onClose: () => void, onSuccess: () => void }> = ({ onClose, onSuccess }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null); 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
     try {
-      // Call our new Express backend route using the Master Key
-      await api.post('/auth/create-institute', {
-        name,
-        email,
-        password
-      });
+      let finalLogoUrl = null;
+
+      // Make sure logoFile exists and is an actual File object
+      if (logoFile && logoFile instanceof File) {
+        
+        // --- CLOUDINARY DETAILS ---
+        const CLOUD_NAME = 'dj0gekofh'; 
+        const UPLOAD_PRESET = 'Institute Logos'; // Must be lowercase with underscore in Cloudinary!
+
+        // Build the correct FormData for Unsigned Uploads
+        const cloudinaryData = new FormData();
+        cloudinaryData.append('file', logoFile);
+        cloudinaryData.append('upload_preset', UPLOAD_PRESET);
+        cloudinaryData.append('cloud_name', CLOUD_NAME);
+        
+        const cloudinaryResponse = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+          method: 'POST',
+          body: cloudinaryData,
+        });
+        
+        const imgData = await cloudinaryResponse.json();
+        
+        if (cloudinaryResponse.ok && (imgData.secure_url || imgData.url)) {
+           finalLogoUrl = imgData.secure_url || imgData.url;
+           console.log("Cloudinary Upload Success:", finalLogoUrl);
+        } else {
+           console.error("Cloudinary Detailed Error:", imgData);
+           throw new Error(imgData.error?.message || "Cloudinary rejected the upload.");
+        }
+      }
+
+      // Send the final URL to your backend
+      const payload = {
+        name: name,
+        email: email,
+        password: password,
+        logo_url: finalLogoUrl 
+      };
+
+      await api.post('/auth/create-institute', payload);
       
-      // If successful, trigger a refresh and close modal
       onSuccess();
       onClose();
     } catch (err: any) {
       console.error("Failed to create institute:", err);
-      setError(err.response?.data?.message || err.message || 'Failed to create institute.');
+      setError(err.message || err.response?.data?.message || 'Failed to create institute.');
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-atlas-dark border border-gray-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+      <div className="bg-atlas-dark border border-gray-800 rounded-3xl p-6 w-full max-w-md shadow-2xl my-8">
         <h3 className="text-xl font-bold text-white mb-4">Add Partner School</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
+          
+          <div>
+            <label className="text-sm font-bold text-gray-400 block mb-2">Institute Logo</label>
+            <div className="flex items-center gap-4 bg-atlas-black border border-gray-700 p-2 rounded-xl">
+                {logoFile ? (
+                    <img
+                        src={URL.createObjectURL(logoFile)}
+                        alt="Preview"
+                        className="h-12 w-12 object-contain rounded-lg bg-white p-1"
+                    />
+                ) : (
+                    <div className="h-12 w-12 rounded-lg bg-gray-800 flex items-center justify-center border border-gray-700">
+                        <span className="text-xs text-gray-500">Logo</span>
+                    </div>
+                )}
+                
+                {/* FIXED INPUT FIELD - Properly sets the File object to state */}
+                <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                        const fileList = e.target.files;
+                        if (fileList && fileList.length > 0) {
+                            setLogoFile(fileList[0]);
+                        } else {
+                            setLogoFile(null);
+                        }
+                    }}
+                    className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-atlas-primary file:text-white hover:file:bg-emerald-600 cursor-pointer transition-colors"
+                />
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-bold text-gray-400 block mb-2">Institute Name</label>
             <input
@@ -70,7 +137,7 @@ const AddInstituteModal: React.FC<{ onClose: () => void, onSuccess: () => void }
           <div>
             <label className="text-sm font-bold text-gray-400 block mb-2">Secure Password</label>
             <input
-              type="text" // Changed to text so Admin can clearly see the password they generate
+              type="text"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full p-3 bg-atlas-black border border-gray-700 rounded-xl focus:outline-none focus:border-atlas-primary text-white"
@@ -103,11 +170,11 @@ const AddInstituteModal: React.FC<{ onClose: () => void, onSuccess: () => void }
     </div>
   );
 };
-// ------------------------------------------
 
+// --- GLOBAL ANALYTICS COMPONENT ---
 const GlobalAnalytics = () => {
     const { institutes, results, tests } = useData();
-    const totalStudents = 500; // Mock aggregate
+    const totalStudents = 500; 
     const totalTests = tests.length;
     const avgGlobalScore = (results.reduce((acc, r) => acc + r.score, 0) / (results.length || 1)).toFixed(1);
 
@@ -159,7 +226,14 @@ const GlobalAnalytics = () => {
                     <tbody className="divide-y divide-gray-800/50">
                         {institutes.map(inst => (
                             <tr key={inst.id} className="hover:bg-white/[0.02] transition-colors">
-                                <td className="p-6 font-bold text-white">{inst.name}</td>
+                                <td className="p-6 font-bold text-white">
+                                  <div className="flex items-center gap-3">
+                                    {inst.logo_url && (
+                                        <img src={inst.logo_url} alt="logo" className="h-6 w-6 rounded bg-white p-0.5 object-contain" />
+                                    )}
+                                    {inst.name}
+                                  </div>
+                                </td>
                                 <td className="p-6 text-gray-400">{tests.filter(t => t.institute_id === inst.id).length}</td>
                                 <td className="p-6">
                                     <div className="flex items-center gap-3">
@@ -178,8 +252,9 @@ const GlobalAnalytics = () => {
     );
 };
 
+// --- MAIN MANAGE INSTITUTES COMPONENT ---
 const ManageInstitutes: React.FC = () => {
-  const { institutes, deleteInstitute, refreshInstitutes } = useData(); // Assumes refreshData exists in DataContext
+  const { institutes, deleteInstitute, refreshInstitutes } = useData(); 
   const [activeTab, setActiveTab] = useState<'list' | 'analytics'>('list');
   const [editingInstitute, setEditingInstitute] = useState<Institute | null>(null);
   const [sharingInstitute, setSharingInstitute] = useState<Institute | null>(null);
@@ -244,23 +319,33 @@ const ManageInstitutes: React.FC = () => {
                     {institutes.map(institute => (
                     <tr key={institute.id} className="group hover:bg-white/[0.02] transition-colors">
                         <td className="p-6 text-atlas-primary font-mono text-xs font-black">
-                           {institute.id.substring(0, 8)}... {/* Shorten UUID for cleaner display */}
+                           {institute.id.substring(0, 8)}...
                         </td>
                         <td className="p-6">
-                            <p className="font-bold text-white text-base">{institute.name}</p>
-                            <p className="text-gray-500 text-xs mt-1">{institute.email}</p>
+                            <div className="flex items-center gap-3">
+                               {institute.logo_url ? (
+    <img src={institute.logo_url} alt="Logo" className="h-10 w-auto max-w-[60px] rounded object-contain bg-white p-1 border border-gray-700" style={{ filter: 'none', mixBlendMode: 'normal' }} />
+) : (
+    <div className="h-10 w-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700">
+        <span className="text-gray-500 text-xs">No</span>
+    </div>
+)}
+
+                                <div>
+                                    <p className="font-bold text-white text-base">{institute.name}</p>
+                                    <p className="text-gray-500 text-xs mt-1">{institute.email}</p>
+                                </div>
+                            </div>
                         </td>
                         <td className="p-6">
                             <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1">Access Pass</p>
                             <div className="flex items-center gap-3">
                                 <p className="text-sm font-mono text-gray-400">
-                                    {/* We don't store plain text passwords anymore, so we just show a hidden placeholder */}
                                     {visiblePasswords.has(institute.id) ? 'Encrypted via Supabase' : '••••••••'}
                                 </p>
                                 <button 
                                     onClick={() => togglePasswordVisibility(institute.id)}
                                     className="text-gray-600 hover:text-atlas-primary transition-colors"
-                                    title={visiblePasswords.has(institute.id) ? "Hide Password" : "Show Password"}
                                 >
                                     {visiblePasswords.has(institute.id) ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                                 </button>
@@ -271,21 +356,18 @@ const ManageInstitutes: React.FC = () => {
                             <button 
                                 onClick={() => handleShare(institute)} 
                                 className="p-2.5 bg-atlas-soft border border-gray-700 rounded-xl text-atlas-primary hover:text-white hover:bg-atlas-primary transition-all"
-                                title="Share Documents"
                             >
                                 <DocumentDuplicateIcon className="h-5 w-5" />
                             </button>
                             <button 
                                 onClick={() => handleEdit(institute)} 
                                 className="p-2.5 bg-atlas-soft border border-gray-700 rounded-xl text-blue-400 hover:text-white hover:bg-blue-500 transition-all"
-                                title="Edit Institute"
                             >
                                 <PencilSquareIcon className="h-5 w-5" />
                             </button>
                             <button 
                                 onClick={() => handleDelete(institute.id)} 
                                 className="p-2.5 bg-atlas-soft border border-gray-700 rounded-xl text-red-500 hover:text-white hover:bg-red-500 transition-all"
-                                title="Delete Institute"
                             >
                                 <TrashIcon className="h-5 w-5" />
                             </button>
@@ -306,15 +388,14 @@ const ManageInstitutes: React.FC = () => {
       {editingInstitute && <EditInstituteModal institute={editingInstitute} onClose={handleCloseModal} />}
       {sharingInstitute && <SharePaperModal institute={sharingInstitute} onClose={handleCloseModal} />}
       
-      {/* Render the new Add Institute Modal when state is true */}
       {isAddModalOpen && (
-  <AddInstituteModal 
-      onClose={() => setIsAddModalOpen(false)} 
-      onSuccess={async () => {
-          await refreshInstitutes(); // <--- Make sure this matches!
-      }} 
-  />
-)}
+        <AddInstituteModal 
+            onClose={() => setIsAddModalOpen(false)} 
+            onSuccess={async () => {
+                await refreshInstitutes(); 
+            }} 
+        />
+      )}
     </div>
   );
 };

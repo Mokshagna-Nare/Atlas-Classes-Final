@@ -1,3 +1,4 @@
+import api from '../services/api';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { 
   Test, TestResult, Payment, Institute, AdminQuestionPaper, 
@@ -94,33 +95,36 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [marks, setMarks] = useState<TestMark[]>([]);
 
    const refreshInstitutes = async () => {
-    if (!supabase) return;
-    try {
-      // Fetch directly from users table where role is institute
-      const { data: instData, error } = await supabase
-        .from('users')
-        .select('id, name, email')
-        .eq('role', 'institute');
-        
-      if (error) {
-        console.error('Supabase fetch error:', error);
-        throw error;
-      }
+  if (!supabase) return;
+  try {
+    // 1. ADD logo_url TO THE SELECT QUERY
+    const { data: instData, error } = await supabase
+      .from('users')
+      .select('id, name, email, logo_url') // <--- Added logo_url here
+      .eq('role', 'institute');
       
-      if (instData) {
-        const mapped = instData.map((row: any) => ({
-          id: row.id,
-          name: row.name || 'Unknown Institute',
-          email: row.email ?? ''
-        })) as Institute[];
-        
-        console.log("Loaded institutes:", mapped); // Helpful for debugging
-        setInstitutes(mapped);
-      }
-    } catch (e) {
-      console.warn('Failed to load institutes from Supabase');
+    if (error) {
+      console.error('Supabase fetch error:', error);
+      throw error;
     }
-  };
+    
+    if (instData) {
+      // 2. MAP THE logo_url TO THE FRONTEND STATE
+      const mapped = instData.map((row: any) => ({
+        id: row.id,
+        name: row.name || 'Unknown Institute',
+        email: row.email ?? '',
+        logo_url: row.logo_url || undefined // <--- Pass the logo to the state
+      })) as Institute[];
+      
+      console.log("Loaded institutes with logos:", mapped); 
+      setInstitutes(mapped);
+    }
+  } catch (e) {
+    console.warn('Failed to load institutes from Supabase');
+  }
+};
+
 
 
   useEffect(() => {
@@ -157,8 +161,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteInstitute = async (id: string) => {
+    // 1. Save the current list in case the API call fails
+    const previousInstitutes = [...institutes];
+    
+    // 2. Remove it from the UI immediately
     setInstitutes(prev => prev.filter(inst => inst.id !== id));
+
+    try {
+      // 3. Make the API call to the backend. 
+      // Note: Make sure api.ts is configured to point to http://localhost:5001/api
+      await api.delete(`/auth/delete-institute/${id}`);
+      console.log(`Institute ${id} deleted successfully from backend.`);
+      
+    } catch (e: any) {
+      console.error('Delete institute failed:', e.response?.data || e.message);
+      // 4. If it fails, put the institute back on the screen
+      setInstitutes(previousInstitutes);
+      throw e; 
+    }
   };
+
+
 
   const addTest = async (newTest: Test) => {
     if (supabase) {
