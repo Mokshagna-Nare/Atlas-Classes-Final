@@ -13,6 +13,8 @@
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.89.0",
     "axios": "^1.13.2",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.562.0",
     "mammoth": "^1.11.0",
     "react": "^19.2.0",

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -20,9 +19,11 @@ import MCQUpload from './components/MCQUpload';
 // import CreateTest from './components/CreateTest'
 import QuestionBank from './components/QuestionBank';
 import ManageTests from './components/ManageTests';
+import QuestionPaperGenerator from './components/QuestionPaperGenerator'; // <-- NEW IMPORT
 import { MCQ } from '../../../types';
 
-type DashboardView = 'institutes' | 'ai-generator' | 'mcq-upload' | 'create-test' | 'question-bank' | 'tests';
+// Added 'paper-generator' to the union type
+type DashboardView = 'institutes' | 'ai-generator' | 'mcq-upload' | 'create-test' | 'question-bank' | 'tests' | 'paper-generator';
 
 const AdminDashboard: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -49,6 +50,7 @@ const AdminDashboard: React.FC = () => {
   const renderContent = () => {
     switch (activeView) {
       case 'ai-generator': return <AIPaperGenerator />;
+      case 'paper-generator': return <QuestionPaperGenerator />; // <-- NEW ROUTE
       case 'institutes': return <ManageInstitutes />;
       case 'mcq-upload': return <MCQUpload editingMcq={editingMcq} onFinished={editingMcq ? handleFinishedMcqEdit : undefined} />;
       // case 'create-test': return <CreateTest />;
@@ -99,6 +101,10 @@ const AdminDashboard: React.FC = () => {
             <NavItem view="ai-generator" label="Upload & Assign Test" icon={<SparklesIcon className="h-5 w-5" />} />
             <NavItem view="mcq-upload" label="MCQ Upload" icon={<PlusIcon className="h-5 w-5" />} />
             <NavItem view="question-bank" label="Question Bank" icon={<Squares2X2Icon className="h-5 w-5" />} />
+            
+            {/* NEW SIDEBAR ITEM */}
+            <NavItem view="paper-generator" label="Generate Paper" icon={<ClipboardDocumentListIcon className="h-5 w-5" />} />
+            
             <NavItem view="create-test" label="Create Online Test" icon={<PencilSquareIcon className="h-5 w-5" />} />
             <NavItem view="tests" label="Manage Tests" icon={<ClipboardCheckIcon className="h-5 w-5" />} />
             <NavItem view="institutes" label="Manage Institutes" icon={<UserGroupIcon className="h-5 w-5" />} />
