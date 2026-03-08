@@ -10,18 +10,20 @@ import StudentDashboard from './pages/dashboards/student/StudentDashboard';
 import InstituteSignup from './pages/auth/InstituteSignup';
 import StudentSignup from './pages/auth/StudentSignup';
 import { User } from './types';
-import TakeTestPage from './pages/dashboards/student/TakeTestPage';
 import CareersPage from './pages/careers/CareersPage';
 import AdminLogin from './pages/auth/AdminLogin';
 import AdminDashboard from './pages/dashboards/admin/AdminDashboard';
 import { initInteractions } from './interactions';
 
-// FIXED: ProtectedRoute now properly uses useAuth inside JSX (React 18 rule)
+// NEW: Import your public TakeTest page
+// Adjust this path if you placed the TakeTest file somewhere else in the previous steps
+import TakeTest from './pages/dashboards/student/TakeTest';
+
+// ProtectedRoute properly using useAuth inside JSX
 const ProtectedRoute: React.FC<{ role: 'institute' | 'student' | 'admin' }> = ({ role }) => {
   const auth = useAuth();
   const user = auth?.user as User | null;
 
-  // Convert to JSX - cannot call hooks at top level like this
   if (!user) {
     return <Navigate to={`/login/${role}`} replace />;
   }
@@ -45,27 +47,34 @@ const AppContent: React.FC = () => {
   return (
     <Router>
       <Routes>
+        {/* PUBLIC ROUTES */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/careers" element={<CareersPage />} />
+        
+        {/* PUBLIC TEST-TAKING ROUTE */}
+        <Route path="/test/:testId" element={<TakeTest />} />
+        
+        {/* AUTH ROUTES */}
         <Route path="/login/institute" element={<InstituteLogin />} />
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/admin" element={<AdminLogin />} />
         <Route path="/signup/institute" element={<InstituteSignup />} />
         <Route path="/signup/student" element={<StudentSignup />} />
         
+        {/* PROTECTED ROUTES */}
         <Route element={<ProtectedRoute role="institute" />}>
           <Route path="/dashboard/institute" element={<InstituteDashboard />} />
         </Route>
         
         <Route element={<ProtectedRoute role="student" />}>
           <Route path="/dashboard/student" element={<StudentDashboard />} />
-          <Route path="/dashboard/student/test/:testId" element={<TakeTestPage />} />
         </Route>
 
         <Route element={<ProtectedRoute role="admin" />}>
-          <Route path="/dashboard/admin" element={<AdminDashboard />} />
+          <Route path="/dashboard/admin/*" element={<AdminDashboard />} />
         </Route>
         
+        {/* CATCH-ALL ROUTE */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
