@@ -13,6 +13,7 @@
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.89.0",
     "axios": "^1.13.2",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.562.0",
@@ -21,7 +22,7 @@
     "react-dom": "^19.2.0",
     "react-dropzone": "^14.3.8",
     "react-router-dom": "^7.9.5",
-    "recharts": "^3.3.0"
+    "recharts": "^3.8.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
