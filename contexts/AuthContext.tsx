@@ -1,12 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import api from '../services/api';
+// IMPORTANT: Import your frontend Supabase client so we can inject the session
+// Inside AuthContext.tsx
+import { supabase } from '../services/supabase';  
 
 interface AuthContextType {
   user: User | null;
   login: (credentials: any, role: string) => Promise<void>;
   signup: (userData: any) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -20,19 +23,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Check for existing session on app load
   useEffect(() => {
-    const token = localStorage.getItem('atlas-token');
-    const storedUser = localStorage.getItem('atlas-user');
-    
-    if (token && storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (err) {
-        console.error("Failed to parse stored user", err);
-        localStorage.removeItem('atlas-token');
-        localStorage.removeItem('atlas-user');
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('atlas-token');
+      const refreshToken = localStorage.getItem('atlas-refreshToken');
+      const storedUser = localStorage.getItem('atlas-user');
+      
+      if (token && storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+          // Attach token to any standard Axios requests
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+          // Inject session into Supabase client to ensure refreshes don't break RLS fetching
+          if (refreshToken) {
+            await supabase.auth.setSession({
+              access_token: token,
+              refresh_token: refreshToken
+            });
+          }
+        } catch (err) {
+          console.error("Failed to parse stored user", err);
+          localStorage.removeItem('atlas-token');
+          localStorage.removeItem('atlas-refreshToken');
+          localStorage.removeItem('atlas-user');
+        }
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (credentials: any, role: string) => {
@@ -40,26 +59,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
 
     try {
-      // 1. Send request to your Express backend (which uses Supabase Auth)
+      // 1. Send request to your Express backend
       const response = await api.post('/auth/login', { ...credentials });
-      const { token, user } = response.data;
+      const { token, refreshToken, user } = response.data;
 
-      // 2. Verify the user has the correct role for the portal they are trying to access
+      // 2. Verify role
       if (user.role !== role && role !== 'any') {
           throw new Error(`Unauthorized. This login is for ${role}s only.`);
       }
 
-      // 3. Save real Supabase token and user profile to localStorage
+      // 3. Inject the session into the frontend Supabase Client instantly.
+      // This fixes the empty data bug on the first login!
+      if (refreshToken) {
+        await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: refreshToken
+        });
+      }
+
+      // 4. Save to localStorage
       localStorage.setItem('atlas-token', token);
+      if (refreshToken) localStorage.setItem('atlas-refreshToken', refreshToken);
       localStorage.setItem('atlas-user', JSON.stringify(user));
       
-      // 4. Update React state
+      // 5. Update React state and Axios default headers
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
 
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message || 'Login failed';
       setError(errorMessage);
-      throw new Error(errorMessage); // Throw to let the UI component (AdminLogin) handle the error state
+      throw new Error(errorMessage); 
     } finally {
       setIsLoading(false);
     }
@@ -79,10 +109,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   }
 
-  const logout = () => {
-    // Clear tokens from browser and reset React state
+  const logout = async () => {
+    // Clear tokens from browser, reset React state, and sign out of Supabase
     localStorage.removeItem('atlas-token');
+    localStorage.removeItem('atlas-refreshToken');
     localStorage.removeItem('atlas-user');
+    delete api.defaults.headers.common['Authorization'];
+    await supabase.auth.signOut();
     setUser(null);
   };
 

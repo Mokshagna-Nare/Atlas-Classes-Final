@@ -1,6 +1,6 @@
-const express = require('express'); // Assuming this is defined at the top of your file
+const express = require('express'); 
 const router = express.Router();
-const { supabase, supabaseAdmin } = require('../supabaseClient'); // Ensure this imports your client correctly
+const { supabase, supabaseAdmin } = require('../supabaseClient'); 
 
 // 1. CREATE INSTITUTE
 router.post('/create-institute', async (req, res) => {
@@ -104,10 +104,8 @@ router.delete('/delete-institute/:id', async (req, res) => {
   }
 });
 
-
-
 // ---------------------------------------------------------
-// 2. UNIVERSAL LOGIN (Handles Admin, Institute, and Student)
+// 3. UNIVERSAL LOGIN (Handles Admin, Institute, and Student)
 // ---------------------------------------------------------
 router.post('/login', async (req, res) => {
   try {
@@ -147,16 +145,17 @@ router.post('/login', async (req, res) => {
        }
     }
 
-    // 4. Return JSON exactly as frontend expects
+    // 4. Return JSON exactly as frontend expects (ADDED refreshToken)
     res.json({
       token: authData.session.access_token,
+      refreshToken: authData.session.refresh_token, // Added for frontend session injection
       user: {
         id: userProfile.id,
         name: userProfile.name,
         email: userProfile.email,
         role: userProfile.role,
         instituteId: userProfile.institute_id,
-        logo_url: logoUrl || null // <-- ENSURE THIS IS PASSED
+        logo_url: logoUrl || null 
       }
     });
 
@@ -167,11 +166,8 @@ router.post('/login', async (req, res) => {
   }
 });
 
-
-
-
 // ---------------------------------------------------------
-// 3. UPDATE INSTITUTE DETAILS
+// 4. UPDATE INSTITUTE DETAILS
 // ---------------------------------------------------------
 router.put('/update-institute/:id', async (req, res) => {
   try {
@@ -191,7 +187,7 @@ router.put('/update-institute/:id', async (req, res) => {
        throw new Error(userRecordError.message);
     }
 
-       // 2. Update Supabase Auth Email/Password
+    // 2. Update Supabase Auth Email/Password
     if (userRecord && userRecord.id && (email || password)) {
         const updateAuthData = {
            email_confirm: true,
@@ -201,7 +197,6 @@ router.put('/update-institute/:id', async (req, res) => {
         if (email) updateAuthData.email = email;
         if (password) updateAuthData.password = password;
         
-        // This MUST use supabaseAdmin (the service_role key)
         const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
             userRecord.id, 
             updateAuthData
@@ -209,10 +204,6 @@ router.put('/update-institute/:id', async (req, res) => {
 
         if (authUpdateError) throw new Error(authUpdateError.message);
     }
-
-
-
-
 
     // 3. Update public.institutes table
     const updateInstData = {};
@@ -228,14 +219,12 @@ router.put('/update-institute/:id', async (req, res) => {
       if (instError) throw new Error(instError.message);
     }
 
-    // 4. Update public.users table (INCLUDING THE PASSWORD)
+    // 4. Update public.users table
     if (userRecord && userRecord.id) {
        const updateUserData = {};
        if (name) updateUserData.name = name;
        if (email) updateUserData.email = email;
        if (logo_url !== undefined) updateUserData.logo_url = logo_url;
-       
-       // ADDED: Save the password to the public users table so custom login routes still work
        if (password) updateUserData.password = password;
 
        if (Object.keys(updateUserData).length > 0) {
@@ -253,8 +242,5 @@ router.put('/update-institute/:id', async (req, res) => {
     res.status(400).json({ message: err.message || 'Failed to update institute' });
   }
 });
-
-
-
 
 module.exports = router;
