@@ -49,22 +49,37 @@ def file_to_data_url(path: str):
     return f"data:{mime};base64,{encoded}"
 
 def extract_content(td, temp_dir: str):
-    img = td.find("img")
+    # Find ALL images in the cell
+    imgs = td.find_all("img")
     image_src = None
 
-    if img and img.get("src"):
+    # Grab the first valid image we can find
+    for img in imgs:
         src = img.get("src")
+        if not src:
+            continue
+            
         if src.startswith("data:image"):
             image_src = src
+            break
         else:
-            img_path = os.path.join(temp_dir, src)
-            image_src = file_to_data_url(img_path)
+            # LibreOffice sometimes adds relative paths or url-encodes them
+            import urllib.parse
+            clean_src = urllib.parse.unquote(src)
+            img_path = os.path.join(temp_dir, clean_src)
+            
+            if os.path.exists(img_path):
+                image_src = file_to_data_url(img_path)
+                break
 
+    # Extract text after removing images
     td_clone = BeautifulSoup(str(td), "html.parser")
     for tag in td_clone.find_all("img"):
         tag.decompose()
 
+    # Get text, preserving basic spacing
     text = td_clone.get_text(" ", strip=True).replace("\xa0", " ").strip()
+    
     return text, image_src
 
 @app.get("/health")
