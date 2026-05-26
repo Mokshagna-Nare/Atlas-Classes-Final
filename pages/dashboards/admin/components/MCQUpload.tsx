@@ -9,8 +9,9 @@ import BulkUploadDocx from './bulkUpload/BulkUploadDocx';
 export const getQuestionPrefix = (subject: string, grade: string) => {
   const yearStr = new Date().getFullYear().toString().slice(-2);
   const subjChar = subject ? subject.charAt(0).toUpperCase() : 'X';
-  const gCode = grade === 'Dropper' ? 'DR' : (grade || '11');
-  return `${yearStr}${subjChar}${gCode}-`; // Hyphen included
+  // If the user selects Grade 6, it will become 26P6-
+  const gCode = grade || '11'; 
+  return `${yearStr}${subjChar}${gCode}-`; 
 };
 
 // --- HELPER 2: Query DB for next Sequence Number ---
@@ -63,6 +64,26 @@ export const checkDuplicate = async (questionText: string, optionsArr: string[])
   return null;
 };
 
+// --- HELPER 4: Safe Image Renderer (Fixes WMF/MathType Broken Previews) ---
+export const SafeImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
+  if (!src) return null;
+  // Detect proprietary MathType formats
+  const isUnsupported = src.includes('image/wmf') || src.includes('image/x-wmf') || src.includes('image/emf') || src.includes('octet-stream');
+  
+  if (isUnsupported) {
+    return (
+      <div className={`flex flex-col items-center justify-center bg-gray-800 border border-gray-700 text-gray-400 rounded-lg ${className}`} title="MathType Formula (Will process on backend)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-1 opacity-50">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>
+          <path d="M9 10h6"/><path d="M12 7v6"/>
+        </svg>
+        <span className="text-[9px] font-bold uppercase tracking-wider">Formula</span>
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} className={className} />;
+};
+
 interface MCQUploadProps {
   editingMcq?: MCQ | null;
   onFinished?: () => void;
@@ -77,7 +98,8 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const [topic, setTopic] = useState('');
   const [subTopic, setSubTopic] = useState('');
   const [difficulty, setDifficulty] = useState('Medium');
-  const [questionType, setQuestionType] = useState('Analytical');
+  // Updated default to match new Skill Types
+  const [questionType, setQuestionType] = useState('Understanding');
   const [marks, setMarks] = useState('4');
   const [question, setQuestion] = useState('');
   const [correctAnswer, setCorrectAnswer] = useState('');
@@ -93,7 +115,6 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const [isFlagged, setIsFlagged] = useState(false);
   const [flagReason, setFlagReason] = useState('');
 
-  // Duplicate Check States
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<any>(null);
 
@@ -108,7 +129,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
       setSubject(editingMcq.subject);
       setTopic(editingMcq.topic || '');
       setSubTopic(editingMcq.sub_topic || '');
-      setQuestionType(editingMcq.question_type || 'Analytical');
+      setQuestionType(editingMcq.question_type || 'Understanding');
       setDifficulty(editingMcq.difficulty || 'Medium');
       setMarks(editingMcq.marks?.toString() ?? '4');
       setQuestionCode(editingMcq.question_code || '');
@@ -203,7 +224,6 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
         })
       );
 
-      // SEQUENTIAL ID LOGIC
       let finalQuestionCode = questionCode;
       if (!finalQuestionCode) {
         const prefix = getQuestionPrefix(subject, grade);
@@ -220,7 +240,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
         subject,
         topic,
         sub_topic: subTopic,
-        question_type: questionType,
+        question_type: questionType, // Saves as the backend column name
         difficulty,
         marks: parseInt(marks) || 4,
         question_code: finalQuestionCode,
@@ -244,7 +264,6 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
         alert("Added to bank successfully!");
       }
 
-      // Reset form
       setQuestion(''); setOptions(['', '', '', '']); setCorrectAnswer(''); setExplanation(''); 
       setQuestionCode(''); setPreviewUrl(null); setSelectedImage(null);
       setOptionImagePreviews([null, null, null, null]); setOptionImageFiles([null, null, null, null]);
@@ -257,36 +276,10 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
     }
   };
 
-  if (!editingMcq && uploadMode === 'bulk') {
-    return (
-      <div className="max-w-4xl mx-auto reveal-on-scroll text-white">
-        <div className="flex flex-col space-y-6">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-3xl font-extrabold mb-2">MCQ Upload Panel</h2>
-              <p className="text-gray-400 text-sm uppercase tracking-widest font-semibold">Bulk Upload (.docx)</p>
-            </div>
-            <div className="bg-gray-800 p-1 rounded-xl flex gap-1">
-              <button type="button" onClick={() => setUploadMode('single')} className="px-4 py-2 text-sm font-bold rounded-lg text-gray-300 hover:text-white">Single</button>
-              <button type="button" onClick={() => setUploadMode('bulk')} className="px-4 py-2 text-sm font-bold rounded-lg bg-green-600 text-white">Bulk</button>
-            </div>
-          </div>
-          
-          {/* Enhanced onDone here to reset the view */}
-          <BulkUploadDocx 
-             onDone={() => {
-                setUploadMode('single'); // Return to single form
-                if (onFinished) onFinished(); 
-             }} 
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto reveal-on-scroll text-white relative">
       
+      {/* DUPLICATE MODAL */}
       {duplicateModalOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
           <div className="bg-gray-900 border border-red-500/50 rounded-2xl p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200">
@@ -303,163 +296,188 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
         </div>
       )}
 
-      <div className="flex flex-col space-y-6">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-extrabold mb-2">{editingMcq ? 'Edit Question' : 'MCQ Upload Panel'}</h2>
-            <p className="text-gray-400 text-sm uppercase tracking-widest font-semibold">
-              {editingMcq ? 'Modify existing repository item' : 'New Online Quiz Item'}
-            </p>
-          </div>
-          {!editingMcq && (
-            <div className="bg-gray-800 p-1 rounded-xl flex gap-1">
-              <button type="button" onClick={() => setUploadMode('single')} className={`px-4 py-2 text-sm font-bold rounded-lg transition ${uploadMode === 'single' ? 'bg-green-600 text-white' : 'text-gray-300 hover:text-white'}`}>Single</button>
-              <button type="button" onClick={() => setUploadMode('bulk')} className={`px-4 py-2 text-sm font-bold rounded-lg transition ${uploadMode === 'bulk' ? 'bg-green-600 text-white' : 'text-gray-300 hover:text-white'}`}>Bulk (.docx)</button>
-            </div>
-          )}
+      {/* FIXED: STATIC HEADER (Prevents Glitching when switching modes) */}
+      <div className="flex items-end justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-3xl font-extrabold mb-2">
+             {editingMcq ? 'Edit Question' : (uploadMode === 'bulk' ? 'Bulk Upload Panel' : 'MCQ Upload Panel')}
+          </h2>
+          <p className="text-gray-400 text-sm uppercase tracking-widest font-semibold">
+            {editingMcq ? 'Modify existing repository item' : (uploadMode === 'bulk' ? 'Upload via .docx' : 'New Online Quiz Item')}
+          </p>
         </div>
+        {!editingMcq && (
+          <div className="bg-gray-800 p-1 rounded-xl flex gap-1 shadow-inner">
+            <button type="button" onClick={() => setUploadMode('single')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${uploadMode === 'single' ? 'bg-green-600 text-white shadow-md' : 'text-gray-300 hover:text-white hover:bg-gray-700'}`}>Single</button>
+            <button type="button" onClick={() => setUploadMode('bulk')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${uploadMode === 'bulk' ? 'bg-green-600 text-white shadow-md' : 'text-gray-300 hover:text-white hover:bg-gray-700'}`}>Bulk (.docx)</button>
+          </div>
+        )}
+      </div>
 
-        <div className="bg-gray-900/60 backdrop-blur-xl border border-gray-800 rounded-3xl p-8 shadow-2xl">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Grade</label>
-                <select value={grade} onChange={(e) => setGrade(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none">
+      {/* DYNAMIC CONTENT WRAPPER WITH ANIMATIONS */}
+      <div className="relative overflow-hidden rounded-3xl bg-gray-900/60 backdrop-blur-xl border border-gray-800 shadow-2xl">
+        {uploadMode === 'bulk' && !editingMcq ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300">
+             <BulkUploadDocx onDone={() => { setUploadMode('single'); if(onFinished) onFinished(); }} />
+          </div>
+        ) : (
+          <div className="animate-in fade-in zoom-in-95 duration-300 p-8">
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              {/* ... The rest of your Single Form inputs remain exactly the same ... */}
+              
+              {/* Row 1 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Grade</label>
+                                  <select value={grade} onChange={(e) => setGrade(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors">
+                  <option value="6">Grade 6</option>
+                  <option value="7">Grade 7</option>
+                  <option value="8">Grade 8</option>
+                  <option value="9">Grade 9</option>
                   <option value="10">Grade 10</option>
                   <option value="11">Grade 11</option>
                   <option value="12">Grade 12</option>
-                  <option value="Dropper">Dropper</option>
                 </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Subject</label>
-                <select value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none">
-                  <option value="Physics">Physics</option>
-                  <option value="Chemistry">Chemistry</option>
-                  <option value="Biology">Biology</option>
-                  <option value="Mathematics">Mathematics</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Topic</label>
-                <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Thermodynamics" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Sub-topic</label>
-                <input type="text" value={subTopic} onChange={(e) => setSubTopic(e.target.value)} placeholder="e.g. Carnot Engine" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question Type</label>
-                <select value={questionType} onChange={(e) => setQuestionType(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none">
-                  <option value="Analytical">Analytical</option>
-                  <option value="Theoretical">Theoretical</option>
-                  <option value="Numerical">Numerical</option>
-                  <option value="Assertion-Reason">Assertion-Reason</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Difficulty</label>
-                <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none">
-                  <option value="Easy">Easy</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Hard">Hard</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question ID/Code (Optional)</label>
-                <input type="text" value={questionCode} onChange={(e) => setQuestionCode(e.target.value)} placeholder="e.g. 26P10-01 (Auto-generated if blank)" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Marks</label>
-                <input type="number" value={marks} onChange={(e) => setMarks(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none" />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question Text</label>
-              <textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Type the question here..." className="w-full px-4 py-4 bg-gray-800 border border-gray-700 rounded-2xl focus:border-green-500 outline-none resize-none" />
-            </div>
-
-            <div className="space-y-2 border border-dashed border-gray-700 p-4 rounded-xl">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1 block mb-2">Diagram / Image (Optional)</label>
-              <input type="file" accept="image/*" onChange={handleImageSelect} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700" />
-              {previewUrl && (
-                <div className="mt-4">
-                  <p className="text-xs text-gray-500 mb-1">Preview:</p>
-                  <img src={previewUrl} alt="Preview" className="h-32 rounded border border-gray-600 object-contain" />
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Subject</label>
+                  <select value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors">
+                    <option value="Physics">Physics</option>
+                    <option value="Chemistry">Chemistry</option>
+                    <option value="Biology">Biology</option>
+                    <option value="Mathematics">Mathematics</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Topic</label>
+                  <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Thermodynamics" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                </div>
+              </div>
 
-            <div className="space-y-4">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1 block">Options</label>
-              <div className="grid gap-4">
-                {options.map((opt, idx) => (
-                  <div key={idx} className="flex items-start gap-3">
-                    <span className="w-8 pt-3 text-xs font-bold text-green-500">{idx + 1}</span>
-                    <textarea rows={2} value={opt} onChange={(e) => handleOptionChange(idx, e.target.value)} placeholder={`Option ${idx + 1} text...`} className="flex-1 px-4 py-3 bg-gray-800 border border-gray-800 rounded-xl focus:border-green-500 outline-none resize-none" />
-                    <div className="relative shrink-0">
-                      <input type="file" accept="image/*" id={`opt-img-${idx}`} className="hidden" onChange={(e) => handleOptionImageSelect(idx, e)} />
-                      <label htmlFor={`opt-img-${idx}`} className={`h-20 w-20 flex flex-col items-center justify-center rounded-xl cursor-pointer transition border border-dashed ${optionImagePreviews[idx] ? 'bg-gray-900 border-green-500' : 'bg-gray-800 border-gray-600 hover:border-gray-400 hover:bg-gray-700'}`}>
-                        {optionImagePreviews[idx] ? (
-                          <img src={optionImagePreviews[idx]!} alt="Opt" className="h-full w-full object-contain rounded-xl p-1" />
-                        ) : (
-                          <>
-                            <PhotoIcon className="h-6 w-6 text-gray-400 mb-1" />
-                            <span className="text-[9px] text-gray-500 font-bold uppercase">Img</span>
-                          </>
-                        )}
-                      </label>
-                    </div>
-                    <button type="button" onClick={() => handleRemoveOption(idx)} className="p-2 pt-3 text-gray-600 hover:text-red-500 transition">
-                      <TrashIcon className="h-5 w-5" />
-                    </button>
+              {/* Row 2 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Sub-topic</label>
+                  <input type="text" value={subTopic} onChange={(e) => setSubTopic(e.target.value)} placeholder="e.g. Carnot Engine" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                </div>
+                <div className="space-y-2">
+                  {/* CHANGED LABEL TO SKILL TYPE */}
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question Skill Type</label>
+                  <select value={questionType} onChange={(e) => setQuestionType(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors">
+                    <option value="Understanding">Understanding</option>
+                    <option value="Knowledge Based">Knowledge Based</option>
+                    <option value="Application">Application</option>
+                    <option value="Analytical">Analytical</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Difficulty</label>
+                  <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors">
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question ID/Code (Optional)</label>
+                  <input type="text" value={questionCode} onChange={(e) => setQuestionCode(e.target.value)} placeholder="e.g. 26P10-01 (Auto-generated if blank)" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Marks</label>
+                  <input type="number" value={marks} onChange={(e) => setMarks(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                </div>
+              </div>
+
+              {/* Question Text */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question Text</label>
+                <textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Type the question here..." className="w-full px-4 py-4 bg-gray-800 border border-gray-700 rounded-2xl focus:border-green-500 outline-none resize-none transition-colors" />
+              </div>
+
+              {/* Question Image (Uses SafeImage for fallback) */}
+              <div className="space-y-2 border border-dashed border-gray-700 p-5 rounded-2xl bg-gray-800/30">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1 block mb-2">Diagram / Image (Optional)</label>
+                <input type="file" accept="image/*" onChange={handleImageSelect} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 transition-colors cursor-pointer" />
+                {previewUrl && (
+                  <div className="mt-4 bg-gray-900 p-2 rounded-xl inline-block border border-gray-700">
+                    <p className="text-xs text-gray-500 mb-2 font-semibold">Preview:</p>
+                    <SafeImage src={previewUrl} alt="Preview" className="h-32 w-auto rounded object-contain" />
                   </div>
-                ))}
+                )}
               </div>
-              <button type="button" onClick={handleAddOption} className="text-green-500 text-xs font-bold uppercase tracking-widest flex items-center gap-2 px-4 py-2 hover:bg-green-500/10 rounded-lg">
-                <PlusIcon className="h-4 w-4" /> Add Option
-              </button>
-            </div>
 
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Correct Answer (Text)</label>
-                <input type="text" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} placeholder="Exact text of correct option" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none" />
+              {/* Options */}
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1 block">Options</label>
+                <div className="grid gap-4">
+                  {options.map((opt, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <span className="w-8 pt-3 text-xs font-bold text-green-500">{idx + 1}</span>
+                      <textarea rows={2} value={opt} onChange={(e) => handleOptionChange(idx, e.target.value)} placeholder={`Option ${idx + 1} text...`} className="flex-1 px-4 py-3 bg-gray-800 border border-gray-800 rounded-xl focus:border-green-500 outline-none resize-none transition-colors" />
+                      <div className="relative shrink-0">
+                        <input type="file" accept="image/*" id={`opt-img-${idx}`} className="hidden" onChange={(e) => handleOptionImageSelect(idx, e)} />
+                        <label htmlFor={`opt-img-${idx}`} className={`h-20 w-20 flex flex-col items-center justify-center rounded-xl cursor-pointer transition-all border border-dashed ${optionImagePreviews[idx] ? 'bg-gray-900 border-green-500' : 'bg-gray-800 border-gray-600 hover:border-gray-400 hover:bg-gray-700'}`}>
+                          {optionImagePreviews[idx] ? (
+                            <SafeImage src={optionImagePreviews[idx]!} alt="Opt" className="h-full w-full object-contain rounded-xl p-1" />
+                          ) : (
+                            <>
+                              <PhotoIcon className="h-6 w-6 text-gray-400 mb-1" />
+                              <span className="text-[9px] text-gray-500 font-bold uppercase">Img</span>
+                            </>
+                          )}
+                        </label>
+                      </div>
+                      <button type="button" onClick={() => handleRemoveOption(idx)} className="p-2 pt-3 text-gray-600 hover:text-red-500 transition-colors">
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={handleAddOption} className="text-green-500 text-xs font-bold uppercase tracking-widest flex items-center gap-2 px-4 py-2 hover:bg-green-500/10 rounded-lg transition-colors w-max">
+                  <PlusIcon className="h-4 w-4" /> Add Option
+                </button>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Explanation</label>
-                <input type="text" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="Brief solution..." className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none" />
+
+              {/* Row 4 */}
+              <div className="grid md:grid-cols-2 gap-8 pt-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Correct Answer (Text)</label>
+                  <input type="text" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} placeholder="Exact text of correct option" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Explanation</label>
+                  <input type="text" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="Brief solution..." className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                </div>
               </div>
-            </div>
 
-            <div className="pt-6 border-t border-gray-800 space-y-4">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" checked={isFlagged} onChange={(e) => setIsFlagged(e.target.checked)} className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:bg-red-600 transition-all relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                <span className="text-sm font-bold text-gray-300 group-hover:text-white flex items-center gap-2">
-                  <FlagIcon className={`h-4 w-4 ${isFlagged ? 'text-red-500' : 'text-gray-600'}`} /> Flag for review
-                </span>
-              </label>
-              {isFlagged && (
-                <textarea rows={2} value={flagReason} onChange={(e) => setFlagReason(e.target.value)} placeholder="Why is this flagged?" className="w-full px-4 py-3 bg-red-900/10 border border-red-900/30 rounded-xl focus:border-red-500 text-white" />
-              )}
-            </div>
+              <div className="pt-6 border-t border-gray-800 space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer group w-max">
+                  <input type="checkbox" checked={isFlagged} onChange={(e) => setIsFlagged(e.target.checked)} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:bg-red-600 transition-all relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full shadow-inner"></div>
+                  <span className="text-sm font-bold text-gray-300 group-hover:text-white flex items-center gap-2 transition-colors">
+                    <FlagIcon className={`h-4 w-4 ${isFlagged ? 'text-red-500' : 'text-gray-600'}`} /> Flag for review
+                  </span>
+                </label>
+                {isFlagged && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                     <textarea rows={2} value={flagReason} onChange={(e) => setFlagReason(e.target.value)} placeholder="Why is this flagged?" className="w-full px-4 py-3 bg-red-900/10 border border-red-900/30 rounded-xl focus:border-red-500 text-white outline-none transition-colors" />
+                  </div>
+                )}
+              </div>
 
-            <div className="flex justify-end gap-4 pt-6 border-t border-gray-800">
-              <button type="button" onClick={() => onFinished?.()} className="px-8 py-3 text-gray-400 font-bold uppercase tracking-widest text-sm hover:text-white transition">Cancel</button>
-              <button type="submit" className={`px-10 py-4 font-bold uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg active:scale-95 ${editingMcq ? 'bg-white text-black' : 'bg-green-600 text-white shadow-emerald-900/40 hover:bg-emerald-600'}`}>
-                {editingMcq ? 'Update Question' : 'Save to Bank'}
-              </button>
-            </div>
-          </form>
-        </div>
+              <div className="flex justify-end gap-4 pt-6 border-t border-gray-800">
+                <button type="button" onClick={() => onFinished?.()} className="px-8 py-3 text-gray-400 font-bold uppercase tracking-widest text-sm hover:text-white hover:bg-gray-800 rounded-xl transition-colors">Cancel</button>
+                <button type="submit" className={`px-10 py-4 font-bold uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg active:scale-95 ${editingMcq ? 'bg-white text-black hover:bg-gray-200' : 'bg-green-600 text-white shadow-emerald-900/40 hover:bg-emerald-600'}`}>
+                  {editingMcq ? 'Update Question' : 'Save to Bank'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -24,7 +24,8 @@
     "react-dom": "^19.2.0",
     "react-dropzone": "^14.3.8",
     "react-router-dom": "^7.9.5",
-    "recharts": "^3.8.0"
+    "recharts": "^3.8.0",
+    "wmf": "^1.0.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
