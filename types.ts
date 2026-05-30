@@ -108,6 +108,7 @@ export interface MCQ {
   // -------------------------
 
   answer: string;
+  answer_index?: number | null;
   explanation?: string;
   grade?: string;
   subject: string;

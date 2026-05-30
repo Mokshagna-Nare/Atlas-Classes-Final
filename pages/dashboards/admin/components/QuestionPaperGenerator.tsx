@@ -4,7 +4,16 @@ import { MCQ } from '../../../../types';
 import { InformationCircleIcon, FunnelIcon, TrashIcon } from '../../../../components/icons';
 import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, BorderStyle } from 'docx';
-import { saveAs } from 'file-saver';
+const downloadBlob = (blob: Blob, fileName: string) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
 
 // --- Type Definition for Offline Paper History ---
 interface OfflinePaper {
