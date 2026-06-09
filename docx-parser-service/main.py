@@ -1,17 +1,15 @@
 import os
 import re
-import io
-import json
 import shutil
 import base64
 import tempfile
 import subprocess
-from typing import List, Optional
+from typing import List, Optional, Tuple
+from urllib.parse import unquote
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from bs4 import BeautifulSoup
-from PIL import Image
 from docx import Document
 
 
@@ -144,19 +142,19 @@ def restore_fraction_spacing(text: str) -> str:
     text = text.replace("\u00a0", " ")
     text = re.sub(r"\s+", " ", text).strip()
 
-    text = re.sub(r'(?<=\d)\s+(?=\d\s*[a-zA-Z]\b)', '/', text)
-    text = re.sub(r'(?<=\d)\s+(?=\d\b)', '/', text)
+    text = re.sub(r"(?<=\d)\s+(?=\d\s*[a-zA-Z]\b)", "/", text)
+    text = re.sub(r"(?<=\d)\s+(?=\d\b)", "/", text)
 
-    text = re.sub(r'-\s+(\d+)/(\d+)', r'-\1/\2', text)
-    text = re.sub(r'\+\s+(\d+)/(\d+)', r'+\1/\2', text)
+    text = re.sub(r"-\s+(\d+)/(\d+)", r"-\1/\2", text)
+    text = re.sub(r"\+\s+(\d+)/(\d+)", r"+\1/\2", text)
 
-    text = re.sub(r'=\s*-\s*(\d+)/(\d+)', r'= -\1/\2', text)
-    text = re.sub(r'=\s*(\d+)/(\d+)', r'= \1/\2', text)
+    text = re.sub(r"=\s*-\s*(\d+)/(\d+)", r"= -\1/\2", text)
+    text = re.sub(r"=\s*(\d+)/(\d+)", r"= \1/\2", text)
 
-    text = re.sub(r'\(\s*-\s*(\d+)/(\d+)', r'(-\1/\2', text)
-    text = re.sub(r'\(\s*(\d+)/(\d+)', r'(\1/\2', text)
+    text = re.sub(r"\(\s*-\s*(\d+)/(\d+)", r"(-\1/\2", text)
+    text = re.sub(r"\(\s*(\d+)/(\d+)", r"(\1/\2", text)
 
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
@@ -207,7 +205,60 @@ def parse_option_number(key: str) -> Optional[int]:
     return int(m.group(1)) - 1
 
 
-def parse_html_tables(html: str) -> List[dict]:
+def resolve_img_src_to_path(img_src: str, temp_dir: str) -> Optional[str]:
+    if not img_src:
+        return None
+
+    if img_src.startswith("data:"):
+        return img_src
+
+    cleaned = img_src.strip()
+    cleaned = cleaned.split("#")[0]
+    cleaned = cleaned.split("?")[0]
+    cleaned = unquote(cleaned)
+    cleaned = cleaned.replace("\\", os.sep)
+
+    candidates = [
+        os.path.join(temp_dir, cleaned),
+        os.path.join(temp_dir, os.path.basename(cleaned)),
+    ]
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    return None
+
+
+def img_src_to_payload(img_src: str, temp_dir: str) -> Optional[str]:
+    if not img_src:
+        return None
+
+    if img_src.startswith("data:"):
+        return img_src
+
+    resolved = resolve_img_src_to_path(img_src, temp_dir)
+    if not resolved:
+        return None
+
+    return file_to_data_url(resolved)
+
+
+def extract_cell_content(cell, temp_dir: str) -> Tuple[str, List[str], Optional[str]]:
+    text = safe_text(cell)
+
+    img_payloads = []
+    for img in cell.find_all("img"):
+        src = img.get("src")
+        payload = img_src_to_payload(src, temp_dir)
+        if payload:
+            img_payloads.append(payload)
+
+    first_image = img_payloads[0] if img_payloads else None
+    return text, img_payloads, first_image
+
+
+def parse_html_tables(html: str, temp_dir: str) -> Tuple[List[dict], List[str]]:
     soup = BeautifulSoup(html, "html.parser")
     tables = soup.find_all("table")
     rows = []
@@ -242,11 +293,7 @@ def parse_html_tables(html: str) -> List[dict]:
                 continue
 
             key = clean_key(safe_text(cells[0]))
-            val = safe_text(cells[1])
-
-            imgs = cells[1].find_all("img")
-            img_srcs = [img.get("src") for img in imgs if img.get("src")]
-            first_image = img_srcs[0] if img_srcs else None
+            val, img_payloads, first_image = extract_cell_content(cells[1], temp_dir)
 
             if key == "grade":
                 item["grade"] = val
@@ -262,7 +309,7 @@ def parse_html_tables(html: str) -> List[dict]:
                 item["difficulty"] = val or "Medium"
             elif key == "question":
                 item["question"] = val
-                item["inline_images"] = img_srcs
+                item["inline_images"] = img_payloads
                 if first_image:
                     item["imageUrl"] = first_image
             elif key == "explanation":
@@ -286,7 +333,7 @@ def parse_html_tables(html: str) -> List[dict]:
 
                     item["options"][idx] = val
                     item["option_images"][idx] = first_image
-                    item["option_inline_images"][idx] = img_srcs
+                    item["option_inline_images"][idx] = img_payloads
             elif key in ["key", "answer key", "correct option"]:
                 try:
                     correct_index = int(val) - 1
@@ -332,7 +379,10 @@ def convert_docx_to_html(docx_path: str, temp_dir: str) -> str:
     html_path = os.path.join(temp_dir, f"{base_name}.html")
 
     if not os.path.exists(html_path):
-        raise RuntimeError("Converted HTML file not found")
+        alt_candidates = [f for f in os.listdir(temp_dir) if f.lower().endswith(".html")]
+        if not alt_candidates:
+            raise RuntimeError("Converted HTML file not found")
+        html_path = os.path.join(temp_dir, alt_candidates[0])
 
     with open(html_path, "r", encoding="utf-8", errors="ignore") as f:
         return f.read()
@@ -340,7 +390,7 @@ def convert_docx_to_html(docx_path: str, temp_dir: str) -> str:
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "version": "image-dataurl-fix-v2"}
 
 
 @app.post("/parse-docx")
@@ -357,13 +407,11 @@ async def parse_docx(file: UploadFile = File(...)):
         try:
             image_map = extract_images_from_docx(docx_path, temp_dir)
             html = convert_docx_to_html(docx_path, temp_dir)
-
-            rows, errors = parse_html_tables(html)
-
+            rows, errors = parse_html_tables(html, temp_dir)
             rows = [normalize_row_text_fields(row) for row in rows]
 
             return {
-                "debug_version": "fraction-fix-v1",
+                "debug_version": "image-dataurl-fix-v2",
                 "rows": rows,
                 "errors": errors,
                 "image_relations_found": len(image_map),
