@@ -3,14 +3,13 @@ import re
 import shutil
 import base64
 import tempfile
-import subprocess
 from typing import List, Optional, Tuple
-from urllib.parse import unquote
+from zipfile import ZipFile
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from bs4 import BeautifulSoup
 from docx import Document
+from docx.oxml.ns import qn
 
 
 app = FastAPI()
@@ -24,11 +23,13 @@ app.add_middleware(
 )
 
 
-def file_to_data_url(path: str) -> Optional[str]:
-    if not path or not os.path.exists(path):
-        return None
+R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+V_NS = "urn:schemas-microsoft-com:vml"
 
-    ext = os.path.splitext(path)[1].lower().replace(".", "")
+
+def bytes_to_data_url(blob: bytes, ext: str) -> str:
+    ext = (ext or "png").lower().replace(".", "")
     mime = {
         "png": "image/png",
         "jpg": "image/jpeg",
@@ -39,100 +40,11 @@ def file_to_data_url(path: str) -> Optional[str]:
         "bmp": "image/bmp",
         "wmf": "image/wmf",
         "emf": "image/emf",
+        "bin": "application/octet-stream",
     }.get(ext, f"image/{ext}")
 
-    with open(path, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode("utf-8")
-
+    encoded = base64.b64encode(blob).decode("utf-8")
     return f"data:{mime};base64,{encoded}"
-
-
-def convert_wmf_emf_to_png(input_path: str, output_path: str) -> bool:
-    ext = os.path.splitext(input_path)[1].lower()
-
-    if ext not in [".wmf", ".emf"]:
-        try:
-            shutil.copy(input_path, output_path)
-            return True
-        except Exception:
-            return False
-
-    try:
-        temp_dir = os.path.dirname(output_path)
-
-        lo_cmd = [
-            "libreoffice",
-            "--headless",
-            "--convert-to",
-            "png",
-            "--outdir",
-            temp_dir,
-            input_path,
-        ]
-        result = subprocess.run(lo_cmd, capture_output=True, text=True, timeout=20)
-
-        converted_name = os.path.splitext(os.path.basename(input_path))[0] + ".png"
-        converted_path = os.path.join(temp_dir, converted_name)
-
-        if result.returncode == 0 and os.path.exists(converted_path):
-            if converted_path != output_path:
-                shutil.move(converted_path, output_path)
-            return True
-
-        magick_cmd = ["convert", input_path, output_path]
-        result = subprocess.run(magick_cmd, capture_output=True, text=True, timeout=20)
-        return result.returncode == 0 and os.path.exists(output_path)
-
-    except Exception:
-        return False
-
-
-def extract_images_from_docx(docx_path: str, temp_dir: str) -> dict:
-    image_map = {}
-
-    try:
-        doc = Document(docx_path)
-
-        for rel_id, rel in doc.part.rels.items():
-            if "image" not in rel.target_ref:
-                continue
-
-            try:
-                img_part = rel.target_part
-                img_bytes = img_part.blob
-                content_type = img_part.content_type
-
-                ext_map = {
-                    "image/png": "png",
-                    "image/jpeg": "jpg",
-                    "image/gif": "gif",
-                    "image/bmp": "bmp",
-                    "image/x-wmf": "wmf",
-                    "image/x-emf": "emf",
-                    "image/emf": "emf",
-                    "image/wmf": "wmf",
-                }
-
-                ext = ext_map.get(content_type, "png")
-                raw_path = os.path.join(temp_dir, f"{rel_id}.{ext}")
-
-                with open(raw_path, "wb") as f:
-                    f.write(img_bytes)
-
-                if ext in ["wmf", "emf"]:
-                    png_path = os.path.join(temp_dir, f"{rel_id}.png")
-                    ok = convert_wmf_emf_to_png(raw_path, png_path)
-                    image_map[rel_id] = png_path if ok and os.path.exists(png_path) else raw_path
-                else:
-                    image_map[rel_id] = raw_path
-
-            except Exception:
-                continue
-
-    except Exception:
-        pass
-
-    return image_map
 
 
 def restore_fraction_spacing(text: str) -> str:
@@ -142,42 +54,17 @@ def restore_fraction_spacing(text: str) -> str:
     text = text.replace("\u00a0", " ")
     text = re.sub(r"\s+", " ", text).strip()
 
-    text = re.sub(r"(?<=\d)\s+(?=\d\s*[a-zA-Z]\b)", "/", text)
+    text = re.sub(r"(?<=\d)\s+(?=\d\s*[a-zA-Z(]\b)", "/", text)
     text = re.sub(r"(?<=\d)\s+(?=\d\b)", "/", text)
 
     text = re.sub(r"-\s+(\d+)/(\d+)", r"-\1/\2", text)
     text = re.sub(r"\+\s+(\d+)/(\d+)", r"+\1/\2", text)
-
     text = re.sub(r"=\s*-\s*(\d+)/(\d+)", r"= -\1/\2", text)
     text = re.sub(r"=\s*(\d+)/(\d+)", r"= \1/\2", text)
-
     text = re.sub(r"\(\s*-\s*(\d+)/(\d+)", r"(-\1/\2", text)
     text = re.sub(r"\(\s*(\d+)/(\d+)", r"(\1/\2", text)
 
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-def normalize_row_text_fields(row: dict) -> dict:
-    if not isinstance(row, dict):
-        return row
-
-    if "question" in row:
-        row["question"] = restore_fraction_spacing(row.get("question", ""))
-
-    if "explanation" in row:
-        row["explanation"] = restore_fraction_spacing(row.get("explanation", ""))
-
-    if "answer" in row:
-        row["answer"] = restore_fraction_spacing(row.get("answer", ""))
-
-    if isinstance(row.get("options"), list):
-        row["options"] = [
-            restore_fraction_spacing(opt) if isinstance(opt, str) else opt
-            for opt in row["options"]
-        ]
-
-    return row
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def clean_key(raw: str) -> str:
@@ -192,12 +79,6 @@ def clean_key(raw: str) -> str:
     )
 
 
-def safe_text(el) -> str:
-    if el is None:
-        return ""
-    return re.sub(r"\s+", " ", el.get_text(" ", strip=True)).strip()
-
-
 def parse_option_number(key: str) -> Optional[int]:
     m = re.search(r"option\s*(\d+)", key, re.I)
     if not m:
@@ -205,66 +86,141 @@ def parse_option_number(key: str) -> Optional[int]:
     return int(m.group(1)) - 1
 
 
-def resolve_img_src_to_path(img_src: str, temp_dir: str) -> Optional[str]:
-    if not img_src:
-        return None
+def build_docx_image_maps(docx_path: str) -> Tuple[dict, dict]:
+    rid_to_data_url = {}
+    target_to_data_url = {}
 
-    if img_src.startswith("data:"):
-        return img_src
+    with ZipFile(docx_path, "r") as z:
+        names = set(z.namelist())
+        media_files = [n for n in names if n.startswith("word/media/")]
 
-    cleaned = img_src.strip()
-    cleaned = cleaned.split("#")[0]
-    cleaned = cleaned.split("?")[0]
-    cleaned = unquote(cleaned)
-    cleaned = cleaned.replace("\\", os.sep)
+        for media_path in media_files:
+            ext = os.path.splitext(media_path)[1].replace(".", "").lower() or "png"
+            blob = z.read(media_path)
+            data_url = bytes_to_data_url(blob, ext)
+            target_to_data_url[media_path] = data_url
+            target_to_data_url[media_path.replace("word/", "")] = data_url
+            target_to_data_url[os.path.basename(media_path)] = data_url
 
-    candidates = [
-        os.path.join(temp_dir, cleaned),
-        os.path.join(temp_dir, os.path.basename(cleaned)),
-    ]
+    doc = Document(docx_path)
+    for rel_id, rel in doc.part.rels.items():
+        try:
+            if "image" in rel.reltype:
+                part = rel.target_part
+                ext = os.path.splitext(part.partname)[1].replace(".", "").lower() or "png"
+                blob = part.blob
+                rid_to_data_url[rel_id] = bytes_to_data_url(blob, ext)
+        except Exception:
+            continue
 
-    for path in candidates:
-        if os.path.exists(path):
-            return path
-
-    return None
-
-
-def img_src_to_payload(img_src: str, temp_dir: str) -> Optional[str]:
-    if not img_src:
-        return None
-
-    if img_src.startswith("data:"):
-        return img_src
-
-    resolved = resolve_img_src_to_path(img_src, temp_dir)
-    if not resolved:
-        return None
-
-    return file_to_data_url(resolved)
+    return rid_to_data_url, target_to_data_url
 
 
-def extract_cell_content(cell, temp_dir: str) -> Tuple[str, List[str], Optional[str]]:
-    text = safe_text(cell)
+def extract_run_images(run, rid_to_data_url: dict) -> List[str]:
+    images = []
 
-    img_payloads = []
-    for img in cell.find_all("img"):
-        src = img.get("src")
-        payload = img_src_to_payload(src, temp_dir)
-        if payload:
-            img_payloads.append(payload)
+    try:
+        blips = run._element.xpath(".//*[local-name()='blip']")
+        for blip in blips:
+            rid = blip.get(f"{{{R_NS}}}embed")
+            if rid and rid in rid_to_data_url:
+                images.append(rid_to_data_url[rid])
+    except Exception:
+        pass
 
-    first_image = img_payloads[0] if img_payloads else None
-    return text, img_payloads, first_image
+    try:
+        imagedata_nodes = run._element.xpath(".//*[local-name()='imagedata']")
+        for node in imagedata_nodes:
+            rid = node.get(f"{{{R_NS}}}id")
+            if rid and rid in rid_to_data_url:
+                images.append(rid_to_data_url[rid])
+    except Exception:
+        pass
+
+    deduped = []
+    seen = set()
+    for img in images:
+        if img not in seen:
+            seen.add(img)
+            deduped.append(img)
+    return deduped
 
 
-def parse_html_tables(html: str, temp_dir: str) -> Tuple[List[dict], List[str]]:
-    soup = BeautifulSoup(html, "html.parser")
-    tables = soup.find_all("table")
+def extract_cell_content(cell, rid_to_data_url: dict) -> Tuple[str, List[str], bool]:
+    text_parts: List[str] = []
+    images: List[str] = []
+    has_object = False
+
+    for paragraph in cell.paragraphs:
+        para_parts: List[str] = []
+
+        for run in paragraph.runs:
+            run_text = run.text or ""
+            run_text = run_text.replace("\xa0", " ")
+            if run_text:
+                para_parts.append(run_text)
+
+            run_images = extract_run_images(run, rid_to_data_url)
+            if run_images:
+                images.extend(run_images)
+
+            try:
+                ole_nodes = run._element.xpath(".//*[local-name()='OLEObject']")
+                if ole_nodes:
+                    has_object = True
+            except Exception:
+                pass
+
+            try:
+                object_nodes = run._element.xpath(".//*[local-name()='object']")
+                if object_nodes:
+                    has_object = True
+            except Exception:
+                pass
+
+        para_text = "".join(para_parts).strip()
+        if para_text:
+            text_parts.append(para_text)
+
+    text = "\n".join([t for t in text_parts if t]).strip()
+    text = restore_fraction_spacing(text)
+
+    deduped_images = []
+    seen = set()
+    for img in images:
+        if img not in seen:
+            seen.add(img)
+            deduped_images.append(img)
+
+    return text, deduped_images, has_object
+
+
+def normalize_row_text_fields(row: dict) -> dict:
+    if not isinstance(row, dict):
+        return row
+
+    row["question"] = restore_fraction_spacing(row.get("question", ""))
+    row["explanation"] = restore_fraction_spacing(row.get("explanation", ""))
+    row["answer"] = restore_fraction_spacing(row.get("answer", ""))
+
+    if isinstance(row.get("options"), list):
+        row["options"] = [
+            restore_fraction_spacing(opt) if isinstance(opt, str) else opt
+            for opt in row["options"]
+        ]
+
+    return row
+
+
+def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
+    rid_to_data_url, _ = build_docx_image_maps(docx_path)
+    doc = Document(docx_path)
+
     rows = []
     errors = []
+    unresolved_object_count = 0
 
-    for table_index, table in enumerate(tables):
+    for table_index, table in enumerate(doc.tables):
         item = {
             "grade": "",
             "subject": "",
@@ -287,38 +243,42 @@ def parse_html_tables(html: str, temp_dir: str) -> Tuple[List[dict], List[str]]:
 
         correct_index = None
 
-        for tr in table.find_all("tr"):
-            cells = tr.find_all(["td", "th"])
-            if len(cells) < 2:
+        for row in table.rows:
+            if len(row.cells) < 2:
                 continue
 
-            key = clean_key(safe_text(cells[0]))
-            val, img_payloads, first_image = extract_cell_content(cells[1], temp_dir)
+            raw_key, _, _ = extract_cell_content(row.cells[0], rid_to_data_url)
+            key = clean_key(raw_key)
+
+            val_text, val_images, has_object = extract_cell_content(row.cells[1], rid_to_data_url)
+            first_image = val_images[0] if val_images else None
+
+            if has_object and not val_text:
+                unresolved_object_count += 1
 
             if key == "grade":
-                item["grade"] = val
+                item["grade"] = val_text
             elif key == "subject":
-                item["subject"] = val
+                item["subject"] = val_text
             elif key == "topic":
-                item["topic"] = val
+                item["topic"] = val_text
             elif key in ["sub-topic", "sub topic", "sub_topic"]:
-                item["sub_topic"] = val
+                item["sub_topic"] = val_text
             elif key in ["question skill type", "question type", "skill type"]:
-                item["question_type"] = val
+                item["question_type"] = val_text
             elif key in ["question difficulty", "difficulty"]:
-                item["difficulty"] = val or "Medium"
+                item["difficulty"] = val_text or "Medium"
             elif key == "question":
-                item["question"] = val
-                item["inline_images"] = img_payloads
-                if first_image:
-                    item["imageUrl"] = first_image
+                item["question"] = val_text
+                item["inline_images"] = val_images
+                item["imageUrl"] = first_image
             elif key == "explanation":
-                item["explanation"] = val
+                item["explanation"] = val_text
             elif key in ["question id/code", "question id", "question_code"]:
-                item["question_code"] = val
+                item["question_code"] = val_text
             elif key == "marks":
                 try:
-                    item["marks"] = int(val)
+                    item["marks"] = int(val_text)
                 except Exception:
                     item["marks"] = 4
             elif key.startswith("option"):
@@ -331,12 +291,15 @@ def parse_html_tables(html: str, temp_dir: str) -> Tuple[List[dict], List[str]]:
                     while len(item["option_inline_images"]) <= idx:
                         item["option_inline_images"].append([])
 
-                    item["options"][idx] = val
+                    item["options"][idx] = val_text
                     item["option_images"][idx] = first_image
-                    item["option_inline_images"][idx] = img_payloads
+                    item["option_inline_images"][idx] = val_images
+
+                    if has_object and not val_text:
+                        unresolved_object_count += 1
             elif key in ["key", "answer key", "correct option"]:
                 try:
-                    correct_index = int(val) - 1
+                    correct_index = int(val_text) - 1
                 except Exception:
                     correct_index = None
 
@@ -357,40 +320,12 @@ def parse_html_tables(html: str, temp_dir: str) -> Tuple[List[dict], List[str]]:
 
         rows.append(normalize_row_text_fields(item))
 
-    return rows, errors
-
-
-def convert_docx_to_html(docx_path: str, temp_dir: str) -> str:
-    cmd = [
-        "libreoffice",
-        "--headless",
-        "--convert-to",
-        "html",
-        "--outdir",
-        temp_dir,
-        docx_path,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr or "LibreOffice HTML conversion failed")
-
-    base_name = os.path.splitext(os.path.basename(docx_path))[0]
-    html_path = os.path.join(temp_dir, f"{base_name}.html")
-
-    if not os.path.exists(html_path):
-        alt_candidates = [f for f in os.listdir(temp_dir) if f.lower().endswith(".html")]
-        if not alt_candidates:
-            raise RuntimeError("Converted HTML file not found")
-        html_path = os.path.join(temp_dir, alt_candidates[0])
-
-    with open(html_path, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
+    return rows, errors, unresolved_object_count
 
 
 @app.get("/health")
 def health():
-    return {"ok": True, "version": "image-dataurl-fix-v2"}
+    return {"ok": True, "version": "docx-table-direct-v3"}
 
 
 @app.post("/parse-docx")
@@ -405,16 +340,13 @@ async def parse_docx(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, f)
 
         try:
-            image_map = extract_images_from_docx(docx_path, temp_dir)
-            html = convert_docx_to_html(docx_path, temp_dir)
-            rows, errors = parse_html_tables(html, temp_dir)
-            rows = [normalize_row_text_fields(row) for row in rows]
+            rows, errors, unresolved_object_count = parse_docx_tables(docx_path)
 
             return {
-                "debug_version": "image-dataurl-fix-v2",
+                "debug_version": "docx-table-direct-v3",
                 "rows": rows,
                 "errors": errors,
-                "image_relations_found": len(image_map),
+                "unresolved_math_objects": unresolved_object_count,
             }
 
         except Exception as e:
