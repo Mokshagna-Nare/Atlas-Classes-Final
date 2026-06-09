@@ -2,3 +2,8 @@ fastapi
 uvicorn[standard]
 python-multipart
 beautifulsoup4
+Pillow
+python-docx
+lxml
+olefile
+mathml2latex

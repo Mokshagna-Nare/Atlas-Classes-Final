@@ -44,3 +44,24 @@ export function isCorrectOption(mcq: MCQ, index: number): boolean {
   const correctIndex = getCorrectOptionIndex(mcq);
   return correctIndex !== null && correctIndex === index;
 }
+
+/**
+ * Gets the correct answer text for an MCQ.
+ * Uses getCorrectOptionIndex to find the correct option and returns its text.
+ * Falls back to the raw answer field if index lookup fails.
+ */
+export function getCorrectAnswerText(mcq: MCQ): string | null {
+  const correctIndex = getCorrectOptionIndex(mcq);
+  
+  // If we found a valid index, return the option text at that position
+  if (correctIndex !== null && mcq.options && mcq.options[correctIndex]) {
+    return mcq.options[correctIndex];
+  }
+  
+  // Fall back to raw answer field if it exists
+  if (mcq.answer) {
+    return mcq.answer;
+  }
+  
+  return null;
+}

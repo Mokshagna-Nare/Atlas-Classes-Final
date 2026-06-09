@@ -103,9 +103,11 @@ export interface MCQ {
   question: string;
   options: string[];
   
-  // --- ADD THIS NEW LINE ---
+  // --- Inline image support (Placeholder Array Method) ---
+  inline_images?: string[];  // Array of image URLs in order: ["url1", "url2", ...]
   option_images?: (string | null)[]; 
-  // -------------------------
+  option_inline_images?: string[][];  // Array of image URL arrays for each option
+  // ---------------------------
 
   answer: string;
   answer_index?: number | null;

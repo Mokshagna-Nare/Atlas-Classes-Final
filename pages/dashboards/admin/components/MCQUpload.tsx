@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PlusIcon, TrashIcon, FlagIcon, PhotoIcon } from '../../../../components/icons';
 import { useData } from '../../../../contexts/DataContext';
 import { MCQ } from '../../../../types';
 import { supabase } from '../../../../services/supabase';
 import BulkUploadDocx from './bulkUpload/BulkUploadDocx';
+import { getCorrectOptionIndex } from '../../../../utils/mcqAnswer';
+
 
 // --- HELPER 1: Generate the Category Prefix (e.g. 26P10-) ---
 export const getQuestionPrefix = (subject: string, grade: string) => {
@@ -67,9 +69,25 @@ export const checkDuplicate = async (questionText: string, optionsArr: string[])
 // --- HELPER 4: Safe Image Renderer (Fixes WMF/MathType Broken Previews) ---
 export const SafeImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
   if (!src) return null;
-  // Detect proprietary MathType formats
-  const isUnsupported = src.includes('image/wmf') || src.includes('image/x-wmf') || src.includes('image/emf') || src.includes('octet-stream');
-  
+
+  const lowerSrc = src.toLowerCase();
+  const lowerAlt = (alt || '').toLowerCase();
+
+  // Detect clearly unsupported/proprietary binary images
+  const isUnsupported = lowerSrc.includes('image/wmf') || lowerSrc.includes('image/x-wmf') || lowerSrc.includes('image/emf') || lowerSrc.includes('octet-stream');
+
+  // Heuristics to identify MathType/formula images (filename, content-type hints, or alt text)
+  const isLikelyFormula = isUnsupported
+    || lowerSrc.includes('.wmf')
+    || lowerSrc.includes('.emf')
+    || lowerSrc.includes('mathtype')
+    || lowerSrc.includes('equation')
+    || lowerSrc.includes('formula')
+    || lowerAlt.includes('formula')
+    || lowerAlt.includes('math')
+    || lowerAlt.includes('equation');
+
+  // If it's a proprietary format we can't render client-side yet, show a neutral placeholder
   if (isUnsupported) {
     return (
       <div className={`flex flex-col items-center justify-center bg-gray-800 border border-gray-700 text-gray-400 rounded-lg ${className}`} title="MathType Formula (Will process on backend)">
@@ -81,6 +99,18 @@ export const SafeImage = ({ src, alt, className }: { src: string; alt: string; c
       </div>
     );
   }
+
+  // For likely formula images, render them inside a light wrapper so they stay visible on dark backgrounds
+  if (isLikelyFormula) {
+    return (
+      <div className={`inline-block bg-white rounded-md p-1 shadow-sm`} title={alt || 'Formula'}>
+        {/* Force transparent background on the inner img to avoid conflicting bg classes; keep provided sizing classes */}
+        <img src={src} alt={alt} className={className} style={{ backgroundColor: 'transparent' }} />
+      </div>
+    );
+  }
+
+  // Default: render normally
   return <img src={src} alt={alt} className={className} />;
 };
 
@@ -103,6 +133,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const [marks, setMarks] = useState('4');
   const [question, setQuestion] = useState('');
   const [correctAnswer, setCorrectAnswer] = useState('');
+  const [correctAnswerIndex, setCorrectAnswerIndex] = useState<number | null>(null);
   const [explanation, setExplanation] = useState('');
   const [questionCode, setQuestionCode] = useState('');
 
@@ -118,12 +149,53 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<any>(null);
 
+  const questionImageInputRef = useRef<HTMLInputElement | null>(null);
+  const optionImageInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const clearLocalPreviewUrls = () => {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    optionImagePreviews.forEach((url) => {
+      if (url && url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    });
+  };
+
+  const resetForm = () => {
+    clearLocalPreviewUrls();
+
+    setQuestion('');
+    setOptions(['', '', '', '']);
+    setCorrectAnswer('');
+    setCorrectAnswerIndex(null);
+    setExplanation('');
+    setQuestionCode('');
+    setPreviewUrl(null);
+    setSelectedImage(null);
+    setOptionImagePreviews([null, null, null, null]);
+    setOptionImageFiles([null, null, null, null]);
+    setIsFlagged(false);
+    setFlagReason('');
+
+    if (questionImageInputRef.current) {
+      questionImageInputRef.current.value = '';
+    }
+
+    optionImageInputRefs.current.forEach((input) => {
+      if (input) input.value = '';
+    });
+  };
+
   useEffect(() => {
     if (editingMcq) {
       setUploadMode('single');
       setQuestion(editingMcq.question);
       setOptions(editingMcq.options || ['', '', '', '']);
       setCorrectAnswer(editingMcq.answer);
+      setCorrectAnswerIndex(getCorrectOptionIndex(editingMcq));
       setExplanation(editingMcq.explanation || '');
       setGrade(editingMcq.grade || '11');
       setSubject(editingMcq.subject);
@@ -146,6 +218,19 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
     }
   }, [editingMcq]);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      optionImagePreviews.forEach((url) => {
+        if (url && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [previewUrl, optionImagePreviews]);
+
   const handleAddOption = () => {
     setOptions([...options, '']);
     setOptionImageFiles([...optionImageFiles, null]);
@@ -154,6 +239,14 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
 
   const handleRemoveOption = (index: number) => {
     setOptions(options.filter((_, i) => i !== index));
+    if (correctAnswerIndex !== null) {
+  if (correctAnswerIndex === index) {
+    setCorrectAnswerIndex(null);
+    setCorrectAnswer('');
+  } else if (correctAnswerIndex > index) {
+    setCorrectAnswerIndex(correctAnswerIndex - 1);
+  }
+}
     setOptionImageFiles(optionImageFiles.filter((_, i) => i !== index));
     setOptionImagePreviews(optionImagePreviews.filter((_, i) => i !== index));
   };
@@ -200,6 +293,65 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
       return;
     }
 
+    if (!grade.trim()) {
+  alert("Please select the grade.");
+  return;
+}
+
+if (!subject.trim()) {
+  alert("Please select the subject.");
+  return;
+}
+
+if (!topic.trim()) {
+  alert("Please enter the topic.");
+  return;
+}
+
+if (!subTopic.trim()) {
+  alert("Please enter the sub-topic.");
+  return;
+}
+
+if (!questionType.trim()) {
+  alert("Please select the question skill type.");
+  return;
+}
+
+if (!difficulty.trim()) {
+  alert("Please select the difficulty.");
+  return;
+}
+
+if (!marks || Number(marks) <= 0) {
+  alert("Please enter valid marks.");
+  return;
+}
+
+const hasAtLeastTwoValidOptions = options.filter((opt, idx) => {
+  const hasText = opt?.trim().length > 0;
+  const hasImage = optionImageFiles[idx] !== null || optionImagePreviews[idx] !== null;
+  return hasText || hasImage;
+}).length >= 2;
+
+if (!hasAtLeastTwoValidOptions) {
+  alert("Please provide at least two valid options using text or images.");
+  return;
+}
+
+if (correctAnswerIndex === null) {
+  alert("Please select the correct option from the dropdown.");
+  return;
+}
+
+const hasText = options[correctAnswerIndex]?.trim().length > 0;
+const hasImage = optionImageFiles[correctAnswerIndex] !== null || optionImagePreviews[correctAnswerIndex] !== null;
+
+if (!hasText && !hasImage) {
+  alert(`Option ${correctAnswerIndex + 1} is selected as correct, but it is completely empty. Please add text or an image to it.`);
+  return;
+}
+
     if (!editingMcq) {
       const dup = await checkDuplicate(question, options);
       if (dup) {
@@ -231,10 +383,14 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
         finalQuestionCode = `${prefix}${(currentMax + 1).toString().padStart(2, '0')}`;
       }
 
+      const resolvedCorrectAnswer =
+  correctAnswerIndex !== null ? (options[correctAnswerIndex] || '') : correctAnswer;
+
       const mcqData = {
         question,
         options,
-        answer: correctAnswer,
+        answer: resolvedCorrectAnswer,
+         answer_index: correctAnswerIndex,
         explanation,
         grade,
         subject,
@@ -264,10 +420,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
         alert("Added to bank successfully!");
       }
 
-      setQuestion(''); setOptions(['', '', '', '']); setCorrectAnswer(''); setExplanation(''); 
-      setQuestionCode(''); setPreviewUrl(null); setSelectedImage(null);
-      setOptionImagePreviews([null, null, null, null]); setOptionImageFiles([null, null, null, null]);
-      setIsFlagged(false); setFlagReason('');
+      resetForm();
       
       onFinished?.();
     } catch (error) {
@@ -401,7 +554,13 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
               {/* Question Image (Uses SafeImage for fallback) */}
               <div className="space-y-2 border border-dashed border-gray-700 p-5 rounded-2xl bg-gray-800/30">
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1 block mb-2">Diagram / Image (Optional)</label>
-                <input type="file" accept="image/*" onChange={handleImageSelect} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 transition-colors cursor-pointer" />
+                <input
+  ref={questionImageInputRef}
+  type="file"
+  accept="image/*"
+  onChange={handleImageSelect}
+  className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 transition-colors cursor-pointer"
+/>
                 {previewUrl && (
                   <div className="mt-4 bg-gray-900 p-2 rounded-xl inline-block border border-gray-700">
                     <p className="text-xs text-gray-500 mb-2 font-semibold">Preview:</p>
@@ -419,7 +578,14 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
                       <span className="w-8 pt-3 text-xs font-bold text-green-500">{idx + 1}</span>
                       <textarea rows={2} value={opt} onChange={(e) => handleOptionChange(idx, e.target.value)} placeholder={`Option ${idx + 1} text...`} className="flex-1 px-4 py-3 bg-gray-800 border border-gray-800 rounded-xl focus:border-green-500 outline-none resize-none transition-colors" />
                       <div className="relative shrink-0">
-                        <input type="file" accept="image/*" id={`opt-img-${idx}`} className="hidden" onChange={(e) => handleOptionImageSelect(idx, e)} />
+                       <input
+  ref={(el) => { optionImageInputRefs.current[idx] = el; }}
+  type="file"
+  accept="image/*"
+  id={`opt-img-${idx}`}
+  className="hidden"
+  onChange={(e) => handleOptionImageSelect(idx, e)}
+/>
                         <label htmlFor={`opt-img-${idx}`} className={`h-20 w-20 flex flex-col items-center justify-center rounded-xl cursor-pointer transition-all border border-dashed ${optionImagePreviews[idx] ? 'bg-gray-900 border-green-500' : 'bg-gray-800 border-gray-600 hover:border-gray-400 hover:bg-gray-700'}`}>
                           {optionImagePreviews[idx] ? (
                             <SafeImage src={optionImagePreviews[idx]!} alt="Opt" className="h-full w-full object-contain rounded-xl p-1" />
@@ -445,9 +611,24 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
               {/* Row 4 */}
               <div className="grid md:grid-cols-2 gap-8 pt-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Correct Answer (Text)</label>
-                  <input type="text" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} placeholder="Exact text of correct option" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
-                </div>
+  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Correct Answer</label>
+  <select
+    value={correctAnswerIndex ?? ''}
+    onChange={(e) => {
+      const idx = e.target.value === '' ? null : Number(e.target.value);
+      setCorrectAnswerIndex(idx);
+      setCorrectAnswer(idx !== null ? (options[idx] || '') : '');
+    }}
+    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors"
+  >
+    <option value="">Select correct option</option>
+    {options.map((opt, idx) => (
+     <option key={idx} value={idx}>
+  {`Option ${idx + 1}${opt?.trim() ? ` — ${opt.slice(0, 60)}` : optionImagePreviews[idx] ? ' — [Image option]' : ''}`}
+</option>
+    ))}
+  </select>
+</div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Explanation</label>
                   <input type="text" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="Brief solution..." className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />

@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y \
     default-jre \
     fonts-dejavu \
     fonts-liberation \
+    imagemagick \
+    ghostscript \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

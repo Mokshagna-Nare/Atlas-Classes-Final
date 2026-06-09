@@ -103,7 +103,7 @@ const CreateTest: React.FC = () => {
       if (filterSubject !== 'All') query = query.eq('subject', filterSubject);
       if (filterTopic !== 'All') query = query.eq('topic', filterTopic);
       if (filterSubTopic !== 'All') query = query.eq('sub_topic', filterSubTopic);
-      if (filterType !== 'All') query = query.eq('type', filterType);
+      if (filterType !== 'All') query = query.eq('question_type', filterType);
       if (!useDistribution && filterDifficulty !== 'All') query = query.eq('difficulty', filterDifficulty);
 
       const { data, error } = await query;
@@ -347,7 +347,7 @@ const CreateTest: React.FC = () => {
                   {previewQuestions.map((q, index) => (
                     <tr key={q.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="p-4 text-center text-gray-500 font-mono text-sm">{index + 1}</td>
-                      <td className="p-4 text-sm text-gray-300 font-medium">{q.question}</td>
+                      <td className="p-4 text-sm text-gray-300 font-medium">{q.question?.trim() ? q.question : '[Image question]'}</td>
                       <td className="p-4 text-xs text-gray-500 text-right">{q.subject} • {q.difficulty}</td>
                     </tr>
                   ))}

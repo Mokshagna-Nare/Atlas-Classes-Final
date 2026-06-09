@@ -12,7 +12,7 @@ const THEME_COLOR = "#29A34A";
 
 const uploadImageToSupabase = async (base64Data: string): Promise<string | null> => {
   if (!base64Data || !base64Data.startsWith('data:image')) return null;
-  try {
+  try { 
     const res = await fetch(base64Data);
     const blob = await res.blob();
     const fileExt = blob.type.split('/')[1] || 'png';
@@ -27,6 +27,17 @@ const uploadImageToSupabase = async (base64Data: string): Promise<string | null>
     console.error("Image upload failed:", error);
     return null;
   }
+};
+
+// Validate that a question has sufficient content
+const isValidQuestion = (q: MCQInsert): boolean => {
+  // Question must have either text or image
+  const hasQuestionContent = q.question?.trim() || q.imageUrl;
+  if (!hasQuestionContent) return false;
+
+  // Must have at least 2 options with content (text or image)
+  const validOptions = q.options?.filter(opt => opt?.trim() || (q.option_images?.some(img => img))) || [];
+  return validOptions.length >= 2;
 };
 
 const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
@@ -49,7 +60,19 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
       const res = await parseDocxOneTablePerQuestion(f);
       if (res.errors && res.errors.length > 0) setErrors(res.errors);
       if (res.rows && res.rows.length > 0) {
-        setQuestions(res.rows);
+        // Filter out invalid questions but allow image-only questions/options
+        const validQuestions = res.rows.filter(q => isValidQuestion(q));
+        const invalidCount = res.rows.length - validQuestions.length;
+        
+        if (invalidCount > 0) {
+          setErrors(prev => [...prev, `${invalidCount} question(s) were skipped - insufficient content (must have question text/image and at least 2 options).`]);
+        }
+        
+        if (validQuestions.length > 0) {
+          setQuestions(validQuestions);
+        } else if (res.errors.length === 0) {
+          setErrors(["No valid questions found in the document."]);
+        }
       } else if (res.errors.length === 0) {
         setErrors(["No valid questions found in the document."]);
       }
@@ -102,52 +125,133 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
         return;
       }
 
+      console.time('bulk-upload-total');
+
       const processedQuestions: MCQInsert[] = [];
       const prefixTrackers: Record<string, number> = {};
 
+      // OPTIMIZATION: Collect all unique prefixes first
+      console.time('collect-prefixes');
+      const uniquePrefixes = new Set<string>();
+      for (const q of finalQuestions) {
+        const rawCode = q.question_code?.trim().toLowerCase();
+        if (!rawCode || rawCode === 'no code' || rawCode === '') {
+          const prefix = getQuestionPrefix(q.subject || 'X', q.grade || '11');
+          uniquePrefixes.add(prefix);
+        }
+      }
+      console.timeEnd('collect-prefixes');
+
+      // OPTIMIZATION: Fetch all sequence numbers in PARALLEL (one per prefix)
+      console.time('fetch-sequence-numbers');
+      if (uniquePrefixes.size > 0) {
+        const sequencePromises = Array.from(uniquePrefixes).map(async (prefix) => {
+          const num = await getNextSequenceNumber(prefix);
+          return { prefix, num };
+        });
+        
+        const results = await Promise.all(sequencePromises);
+        results.forEach(({ prefix, num }) => {
+          prefixTrackers[prefix] = num;
+        });
+      }
+      console.timeEnd('fetch-sequence-numbers');
+
+      // OPTIMIZATION: Collect all images that need uploading
+      console.time('collect-images');
+      const imagesToUpload: Array<{ index: number; isQuestion: boolean; imageData: string }> = [];
+      
+      finalQuestions.forEach((q, idx) => {
+        if (q.imageUrl && q.imageUrl.startsWith('data:image')) {
+          imagesToUpload.push({ index: idx, isQuestion: true, imageData: q.imageUrl });
+        }
+        
+        (q.option_images || []).forEach((img, optIdx) => {
+          if (img && img.startsWith('data:image')) {
+            imagesToUpload.push({ index: idx, isQuestion: false, imageData: img });
+          }
+        });
+      });
+      console.log(`Collected ${imagesToUpload.length} images to upload`);
+      console.timeEnd('collect-images');
+
+      // OPTIMIZATION: Upload ALL images in PARALLEL
+      console.time('upload-all-images');
+      const uploadedImageUrls = new Map<string, string>();
+      
+      if (imagesToUpload.length > 0) {
+        const uploadPromises = imagesToUpload.map(async (img) => {
+          const url = await uploadImageToSupabase(img.imageData);
+          return { imageData: img.imageData, url };
+        });
+        
+        const results = await Promise.all(uploadPromises);
+        results.forEach(({ imageData, url }) => {
+          if (url) {
+            uploadedImageUrls.set(imageData, url);
+          }
+        });
+      }
+      console.timeEnd('upload-all-images');
+      console.log(`Uploaded ${uploadedImageUrls.size} images to Supabase`);
+
+      // OPTIMIZATION: Process questions using pre-cached data
+      console.time('process-questions');
       for (let i = 0; i < finalQuestions.length; i++) {
         const q = finalQuestions[i];
-        setStatusMessage(`Uploading resources ${i + 1}/${finalQuestions.length}...`);
+        setStatusMessage(`Processing questions ${i + 1}/${finalQuestions.length}...`);
 
+        // Use cached URLs instead of re-uploading
         let finalImageUrl = q.imageUrl;
         if (q.imageUrl && q.imageUrl.startsWith('data:image')) {
-            const url = await uploadImageToSupabase(q.imageUrl);
-            if (url) finalImageUrl = url;
+          const cachedUrl = uploadedImageUrls.get(q.imageUrl);
+          if (cachedUrl) finalImageUrl = cachedUrl;
         }
 
         const currentOptImages = q.option_images || new Array(4).fill(null);
-        const finalOptionImages = await Promise.all(
-            currentOptImages.map(async (img) => {
-                if (img && img.startsWith('data:image')) return await uploadImageToSupabase(img);
-                return img; 
-            })
-        );
+        const finalOptionImages = currentOptImages.map((img) => {
+          if (img && img.startsWith('data:image')) {
+            const cachedUrl = uploadedImageUrls.get(img);
+            return cachedUrl || img;
+          }
+          return img;
+        });
 
         const rawCode = q.question_code?.trim().toLowerCase();
         let finalCode = q.question_code;
         
         if (!rawCode || rawCode === 'no code' || rawCode === '') {
           const prefix = getQuestionPrefix(q.subject || 'X', q.grade || '11');
-          
-          if (prefixTrackers[prefix] === undefined) {
-             prefixTrackers[prefix] = await getNextSequenceNumber(prefix);
-          }
-          
           prefixTrackers[prefix]++; 
           finalCode = `${prefix}${prefixTrackers[prefix].toString().padStart(2, '0')}`;
+        }
+
+        // Ensure backward compatibility: populate answer from answer_index if needed
+        let finalAnswer = q.answer || "";
+        if (!finalAnswer && q.answer_index !== undefined && q.answer_index !== null && q.options?.[q.answer_index]) {
+          finalAnswer = q.options[q.answer_index];
         }
 
         processedQuestions.push({
             ...q,
             question_code: finalCode,
             imageUrl: finalImageUrl,
-            option_images: finalOptionImages
+            option_images: finalOptionImages,
+            answer: finalAnswer,
+            answer_index: q.answer_index ?? undefined
         });
       }
+      console.timeEnd('process-questions');
+      console.log(`Processed ${processedQuestions.length} questions`);
 
       setStatusMessage("Saving questions to database...");
+      console.time('database-insert');
       const { error } = await supabase.from("mcqs").insert(processedQuestions);
       if (error) throw error;
+      console.timeEnd('database-insert');
+      
+      console.timeEnd('bulk-upload-total');
+      console.log('✓ Bulk upload complete! Check timing logs above.');
       
       setUploadSuccess(true);
       setQuestions([]); 
@@ -274,7 +378,9 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         {q.options?.map((opt, i) => {
-                                            const isCorrect = opt === q.answer; 
+                                            const isCorrect = q.answer_index !== undefined && q.answer_index !== null
+                                              ? i === q.answer_index
+                                              : opt === q.answer;
                                             const optImg = q.option_images && q.option_images[i];
                                             return (
                                                 <div key={i} className={`text-sm px-4 py-3 rounded-xl border flex items-center justify-between gap-3 transition-colors ${isCorrect ? "bg-green-900/20 border-green-600/40 text-green-300" : "bg-gray-900/50 border-gray-700/80 text-gray-400"}`}>

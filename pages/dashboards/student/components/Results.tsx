@@ -6,6 +6,7 @@ import {
 import { useData } from '../../../../contexts/DataContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { XIcon, InformationCircleIcon, ChartBarIcon, SparklesIcon, CheckCircleIcon, TrophyIcon } from '../../../../components/icons';
+import { replacePlaceholdersWithImages } from '../../../../utils/imagePlaceholder';
 
 interface ResultsProps {
     initialSelectedTestId?: string | null;
@@ -179,7 +180,7 @@ const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelecti
                                                     {idx + 1}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <p className="text-xl font-bold text-white mb-6 leading-relaxed">{q.question}</p>
+                                                    <div className="text-xl font-bold text-white mb-6 leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: replacePlaceholdersWithImages(q.question, q.inline_images) }} />
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                         <div className={`p-5 rounded-2xl border ${isCorrect ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-atlas-dark border-gray-800'}`}>
                                                             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Student Response</p>
@@ -188,7 +189,7 @@ const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelecti
                                                         {!isCorrect && (
                                                             <div className="p-5 rounded-2xl border bg-emerald-500/10 border-emerald-500/20 shadow-glow">
                                                                 <p className="text-[10px] font-black text-emerald-500/70 uppercase tracking-widest mb-2">Correct Solution</p>
-                                                                <p className="text-lg font-black text-emerald-400">{q.answer}</p>
+                                                                <p className="text-lg font-black text-emerald-400 prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: replacePlaceholdersWithImages(q.answer, q.inline_images) }} />
                                                             </div>
                                                         )}
                                                     </div>

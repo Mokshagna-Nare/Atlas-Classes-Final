@@ -275,3 +275,21 @@ img[src*="favicon"],
     /* Optional: Ensure transitions are smooth if you have hover effects */
     transition: filter 0.3s ease;
 }
+
+/* --- Inline Math Images (MathType/WMF/EMF) --- */
+/* These images should be displayed inline with text, not on new lines */
+.inline-math {
+    display: inline !important;
+    vertical-align: middle !important;
+    max-height: 1.2em !important;
+    margin: 0 2px !important;
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+/* Ensure prose styling doesn't break inline images */
+.prose .inline-math,
+.prose-invert .inline-math {
+    display: inline !important;
+    margin: 0 2px !important;
+}

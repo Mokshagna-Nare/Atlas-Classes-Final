@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../../services/supabase';
+import { getCorrectOptionIndex } from '../../../utils/mcqAnswer';
+import { replacePlaceholdersWithImages } from '../../../utils/imagePlaceholder';
 
 // SVG Icons
 const FlagIcon = ({ filled }: { filled?: boolean }) => (
@@ -25,7 +27,7 @@ const TakeTest: React.FC = () => {
   // CBT Engine States
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, number | null>>({});
   const [flagged, setFlagged] = useState<Set<string>>(new Set()); // Stores IDs of flagged questions
   const [currentIndex, setCurrentIndex] = useState(0); // Tracks current question index
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -134,16 +136,39 @@ const TakeTest: React.FC = () => {
     });
   };
 
-  const handleOptionSelect = (questionId: string, option: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: option }));
+  const handleOptionSelect = (questionId: string, optionIndex: number) => {
+    setAnswers(prev => ({ ...prev, [questionId]: optionIndex }));
   };
 
-  const submitTestEngine = async (currentAnswers: Record<string, string>, currentQuestions: any[], finalName: string, finalEmail: string) => {
+  const submitTestEngine = async (currentAnswers: Record<string, number | null>, currentQuestions: any[], finalName: string, finalEmail: string) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     let correctCount = 0;
-    currentQuestions.forEach(q => { if (currentAnswers[q.id] === q.answer) correctCount++; });
+    currentQuestions.forEach(q => {
+      const selectedIndex = currentAnswers[q.id];
+      if (selectedIndex === null || selectedIndex === undefined) {
+        return; // Unanswered
+      }
+
+      // Try to get the correct option index using the helper function
+      const correctIndex = getCorrectOptionIndex(q);
+
+      if (correctIndex !== null) {
+        // New format: compare indices
+        if (selectedIndex === correctIndex) {
+          correctCount++;
+        }
+      } else {
+        // Fallback for old format: if we couldn't get index, try text comparison
+        // Get the selected option text
+        const selectedOptionText = q.options?.[selectedIndex];
+        if (selectedOptionText && selectedOptionText === q.answer) {
+          correctCount++;
+        }
+      }
+    });
+    
     const finalScore = Math.round((correctCount / currentQuestions.length) * 100);
     const wrongCount = currentQuestions.length - correctCount;
     setScoreData({ score: finalScore, correct: correctCount, total: currentQuestions.length });
@@ -242,20 +267,21 @@ const TakeTest: React.FC = () => {
                 </div>
 
                 <div className="bg-atlas-soft border border-gray-800 rounded-2xl p-8 mb-8 shadow-xl">
-                  <p className="text-xl font-medium text-gray-200 leading-relaxed mb-8">{currentQ.question}</p>
+                  <div className="text-xl font-medium text-gray-200 leading-relaxed mb-8 prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: replacePlaceholdersWithImages(currentQ.question, currentQ.inline_images) }} />
                   <div className="space-y-3">
                     {(() => {
                       let opts = currentQ.options;
                       if (typeof opts === 'string') { try { opts = JSON.parse(opts); } catch (e) { opts = []; } }
                       return (opts || []).map((opt: string, i: number) => {
-                        const isSelected = answers[currentQ.id] === opt;
+                        const isSelected = answers[currentQ.id] === i;
+                        const optImages = currentQ.option_inline_images?.[i] || [];
                         return (
                           <label key={i} className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'bg-green-900/20 border-atlas-green shadow-[0_0_15px_rgba(46,204,113,0.15)]' : 'bg-gray-900/50 border-gray-700 hover:border-gray-500'}`}>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-atlas-green' : 'border-gray-500'}`}>
                               {isSelected && <div className="w-2.5 h-2.5 bg-atlas-green rounded-full" />}
                             </div>
-                            <input type="radio" className="sr-only" checked={isSelected} onChange={() => handleOptionSelect(currentQ.id, opt)} />
-                            <span className={`text-base ${isSelected ? 'text-white font-medium' : 'text-gray-300'}`}>{opt}</span>
+                            <input type="radio" className="sr-only" checked={isSelected} onChange={() => handleOptionSelect(currentQ.id, i)} />
+                            <div className={`text-base flex items-center gap-2 prose prose-invert max-w-none ${isSelected ? 'text-white font-medium' : 'text-gray-300'}`} dangerouslySetInnerHTML={{ __html: replacePlaceholdersWithImages(opt || '[Image option]', optImages) }} />
                           </label>
                         );
                       });

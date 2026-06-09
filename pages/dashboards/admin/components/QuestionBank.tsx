@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../../../../contexts/DataContext';
 import { MCQ } from '../../../../types';
+import { getCorrectOptionIndex } from '../../../../utils/mcqAnswer';
 import {
   FlagIcon,
   PencilSquareIcon,
@@ -883,23 +884,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
             ) : (
               questions.map(q => {
                 const isExpanded = expandedRows.has(q.id!);
-                const rawCorrect =
-                  (q as any).correct_answer ??
-                  (q as any).correctAnswer ??
-                  (q as any).correct_option ??
-                  (q as any).answer;
-
-                const correctIndexByLetter =
-                  typeof rawCorrect === 'string' && /^[A-D]$/i.test(rawCorrect.trim())
-                    ? rawCorrect.trim().toUpperCase().charCodeAt(0) - 65
-                    : null;
-
-                const correctIndexByNumericString =
-                  typeof rawCorrect === 'string' && /^\\d+$/.test(rawCorrect.trim())
-                    ? Number(rawCorrect.trim())
-                    : null;
-
-                const correctIndexByNumber = typeof rawCorrect === 'number' ? rawCorrect : null;
+                const correctOptionIndex = getCorrectOptionIndex(q);
 
                 return (
                   <React.Fragment key={q.id}>
@@ -938,12 +923,11 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
                           )}
 
                           <div>
-                            <p
-                              className="text-sm text-gray-200 line-clamp-2 font-medium leading-relaxed cursor-pointer hover:text-green-400 transition-colors"
+                            <div
+                              className="text-sm text-gray-200 line-clamp-2 font-medium leading-relaxed cursor-pointer hover:text-green-400 transition-colors prose prose-invert max-w-none"
                               onClick={() => toggleRowExpansion(q.id!)}
-                            >
-                              {q.question}
-                            </p>
+                              dangerouslySetInnerHTML={{ __html: q.question }}
+                            />
                             <div className="flex flex-wrap items-center gap-2 mt-2">
                               <span className="bg-gray-800 text-[10px] text-gray-400 px-1.5 py-0.5 rounded font-mono border border-gray-700">
                                 {q.question_code || 'No Code'}
@@ -1034,11 +1018,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
                             {q.options && q.options.length > 0 ? (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                                 {q.options.map((opt, idx) => {
-                                  const exact = normalize(opt) === normalize(rawCorrect);
-                                  const byLetter = correctIndexByLetter === idx;
-                                  const byNumber =
-                                    correctIndexByNumericString === idx || correctIndexByNumber === idx;
-                                  const isCorrect = exact || byLetter || byNumber;
+                                  const isCorrect = correctOptionIndex === idx;
 
                                   return (
                                     <div
@@ -1193,9 +1173,9 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
               {selectedQuestions.map((q, index) => (
                 <div key={q.id} className="bg-gray-800/50 border border-gray-700 rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-4">
-                    <div>
+                    <div className="flex-1">
                       <div className="text-xs text-gray-400 mb-1">Question {index + 1}</div>
-                      <div className="text-sm text-white font-medium">{q.question}</div>
+                      <div className="text-sm text-white font-medium prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: q.question }} />
                     </div>
                     <div className="text-xs text-gray-500 bg-gray-900 px-2 py-1 rounded-lg">
                       {q.question_code || 'No Code'}

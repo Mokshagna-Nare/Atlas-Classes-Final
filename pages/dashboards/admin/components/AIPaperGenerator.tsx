@@ -193,7 +193,7 @@ const AIPaperGenerator: React.FC = () => {
                                             <span className="bg-atlas-black text-atlas-primary font-bold w-8 h-8 flex items-center justify-center rounded-lg text-sm">{index + 1}</span>
                                             <span className="text-xs text-gray-500 uppercase tracking-wider">{q.type}</span>
                                         </div>
-                                        <p className="text-lg text-gray-200 font-medium mb-4">{q.question}</p>
+                                        <div className="text-lg text-gray-200 font-medium mb-4 prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: q.question }} />
                                         
                                         {/* SVG Diagram Rendering */}
                                         {q.diagramSvg ? (

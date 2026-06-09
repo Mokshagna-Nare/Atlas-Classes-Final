@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../../../../services/supabase';
 import { MCQ } from '../../../../types';
+import { getCorrectOptionIndex, getCorrectAnswerText } from '../../../../utils/mcqAnswer';
 import { InformationCircleIcon, FunnelIcon, TrashIcon } from '../../../../components/icons';
 import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, BorderStyle } from 'docx';
@@ -568,8 +569,10 @@ const QuestionPaperGenerator: React.FC = () => {
       }
 
       if (copyType === 'teacher') {
-        const ans = (q as any).answer || (q as any).correct_answer || (q as any).correct_option || 'Not specified';
-        const qIdStr = q.question_code || q.id.substring(0, 8); 
+        const correctOptionIndex = getCorrectOptionIndex(q);
+        const answerText = getCorrectAnswerText(q);
+        const ans = correctOptionIndex !== null ? `Option ${correctOptionIndex + 1}: ${answerText || '[Image option]'}` : 'Not specified';
+        const qIdStr = q.question_code || q.id.substring(0, 8);
 
         doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(22, 163, 74);
         doc.text(`Correct Answer: ${ans}`, margin + 10, yPosition + 2);
@@ -602,8 +605,10 @@ const QuestionPaperGenerator: React.FC = () => {
         });
       }
       if (copyType === 'teacher') {
-        const ans = (q as any).answer || (q as any).correct_answer || (q as any).correct_option || 'Not specified';
-        const qIdStr = q.question_code || q.id.substring(0, 8); 
+        const correctOptionIndex = getCorrectOptionIndex(q);
+        const answerText = getCorrectAnswerText(q);
+        const ans = correctOptionIndex !== null ? `Option ${correctOptionIndex + 1}: ${answerText || '[Image option]'}` : 'Not specified';
+        const qIdStr = q.question_code || q.id.substring(0, 8);
         sections.push(new Paragraph({ spacing: { before: 100, after: 40 }, indent: { left: 400 }, children: [new TextRun({ text: `Correct Answer: ${ans}`, bold: true, size: 20, font: "Helvetica", color: "16A34A" })] }));
         sections.push(new Paragraph({ spacing: { after: 200 }, indent: { left: 400 }, children: [new TextRun({ text: `[ID: ${qIdStr} | Diff: ${q.difficulty || 'N/A'} | Subj: ${q.subject} | Topic: ${q.topic || 'General'}]`, size: 16, font: "Helvetica", color: "777777" })] }));
       } else {
@@ -1109,7 +1114,7 @@ const QuestionPaperGenerator: React.FC = () => {
                             <tr key={q.id} className="hover:bg-white/[0.02] transition-colors">
                               <td className="p-5 text-center text-gray-500 font-mono text-sm">{index + 1}</td>
                               <td className="p-5">
-                                <p className="text-sm text-gray-200 font-medium leading-relaxed">{q.question}</p>
+                                <div className="text-sm text-gray-200 font-medium leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: q.question }} />
                                 <p className="text-[10px] text-gray-500 mt-3 flex items-center gap-2">
                                   {q.question_code && <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded font-mono">{q.question_code}</span>}
                                   <span className="bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">{q.type}</span>
@@ -1276,7 +1281,7 @@ const QuestionPaperGenerator: React.FC = () => {
                          <div key={q.id} className="p-5 bg-gray-800/60 rounded-xl border border-gray-700/50 flex gap-4 hover:border-gray-600 transition-colors">
                            <span className="text-gray-500 font-mono font-bold mt-0.5 w-6 text-right select-none">{i + 1}.</span>
                            <div className="flex-1">
-                             <p className="text-[15px] text-gray-200 font-medium leading-relaxed">{q.question}</p>
+                             <div className="text-[15px] text-gray-200 font-medium leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: q.question }} />
                              <div className="flex gap-2.5 mt-3">
                                {(q as any)._trackContext && <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold uppercase tracking-wider">{(q as any)._trackContext}</span>}
                                <span className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase tracking-wider ${q.difficulty === 'Easy' ? 'bg-green-500/10 text-green-400 border-green-500/20' : q.difficulty === 'Medium' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : q.difficulty === 'Hard' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-gray-700/30 text-gray-400 border-gray-600/50'}`}>{q.difficulty}</span>
@@ -1437,8 +1442,9 @@ const QuestionPaperGenerator: React.FC = () => {
                   {historyQuestions.map((q, idx) => (
                     <div key={q.id} className="rounded-2xl border border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50 transition-colors p-5 md:p-6">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="text-[15px] text-gray-200 font-medium leading-relaxed flex-1">
-                          <span className="text-green-500 font-bold mr-2 select-none">Q{idx + 1}.</span>{q.question}
+                        <div className="text-[15px] text-gray-200 font-medium leading-relaxed flex-1 prose prose-invert max-w-none">
+                          <span className="text-green-500 font-bold mr-2 select-none">Q{idx + 1}.</span>
+                          <span dangerouslySetInnerHTML={{ __html: q.question }} />
                         </div>
                         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                           <span className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase tracking-wider ${q.difficulty === 'Easy' ? 'bg-green-500/10 text-green-400 border-green-500/20' : q.difficulty === 'Medium' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : q.difficulty === 'Hard' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-gray-700/30 text-gray-400 border-gray-600/50'}`}>{q.difficulty || 'N/A'}</span>
