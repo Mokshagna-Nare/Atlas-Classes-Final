@@ -99,19 +99,23 @@ export interface AdminQuestionPaper {
 export interface MCQ {
   id?: string;
   createdAt?: string;
-  updatedAt?: string; // You likely added this earlier
+  updatedAt?: string;
+
   question: string;
   options: string[];
-  
-  // --- Inline image support (Placeholder Array Method) ---
-  inline_images?: string[];  // Array of image URLs in order: ["url1", "url2", ...]
-  option_images?: (string | null)[]; 
-  option_inline_images?: string[][];  // Array of image URL arrays for each option
-  // ---------------------------
+
+  inline_images?: string[];
+  option_images?: (string | null)[];
+  option_inline_images?: string[][];
 
   answer: string;
   answer_index?: number | null;
   explanation?: string;
+
+  // New fields from the DOCX format
+  source?: string;
+  remarks?: string;
+
   grade?: string;
   subject: string;
   topic?: string;
@@ -124,8 +128,16 @@ export interface MCQ {
   type?: "Multiple Choice" | "Short Answer" | "True/False";
   isFlagged?: boolean;
   flagReason?: string;
-}
 
+  parser_meta?: {
+    unresolved_question_object?: boolean;
+    unresolved_option_objects?: boolean[];
+    unresolved_math_objects?: number;
+    has_omml?: boolean;
+    option_has_omml?: boolean[];
+    warnings?: string[];
+  };
+}
 
 
 export interface Question {

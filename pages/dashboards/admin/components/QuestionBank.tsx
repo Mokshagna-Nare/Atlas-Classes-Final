@@ -11,6 +11,8 @@ import {
   PhotoIcon,
   MagnifyingGlassIcon
 } from '../../../../components/icons';
+import { getQuestionImages, getOptionImages, McqImageList } from '../../../../utils/mcqContent';
+
 import { supabase } from '../../../../services/supabase';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
@@ -926,8 +928,24 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
                             <div
                               className="text-sm text-gray-200 line-clamp-2 font-medium leading-relaxed cursor-pointer hover:text-green-400 transition-colors prose prose-invert max-w-none"
                               onClick={() => toggleRowExpansion(q.id!)}
-                              dangerouslySetInnerHTML={{ __html: q.question }}
-                            />
+                            >
+                              {q.question ? (
+                                <span dangerouslySetInnerHTML={{ __html: q.question }} />
+                              ) : (
+                                <span className="italic text-gray-500">(Image-based question)</span>
+                              )}
+                            </div>
+
+                            {getQuestionImages(q as any).length > 0 ? (
+                              <div className="mt-2">
+                                <McqImageList
+                                  images={getQuestionImages(q as any)}
+                                  alt="Question"
+                                  className="flex flex-wrap gap-2"
+                                />
+                              </div>
+                            ) : null}
+
                             <div className="flex flex-wrap items-center gap-2 mt-2">
                               <span className="bg-gray-800 text-[10px] text-gray-400 px-1.5 py-0.5 rounded font-mono border border-gray-700">
                                 {q.question_code || 'No Code'}
@@ -1018,39 +1036,62 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
                             {q.options && q.options.length > 0 ? (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                                 {q.options.map((opt, idx) => {
+                                  // Keep consistent correctness + option highlighting even when option text is empty.
+                                  const optionText = opt;
+                                  const optionImages = getOptionImages(q as any, idx);
+                                  const hasTextOpt = !!String(optionText ?? '').trim();
+
+                                  // Keep text-only MCQ behavior, but do NOT hide image-only options.
+                                  if (!hasTextOpt && optionImages.length === 0) return null;
+
                                   const isCorrect = correctOptionIndex === idx;
 
                                   return (
                                     <div
                                       key={idx}
-                                      className={`relative flex items-center p-3.5 rounded-xl border transition-all ${
+                                      className={`relative flex flex-col p-3.5 rounded-xl border transition-all ${
                                         isCorrect
                                           ? 'bg-green-500/10 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.08)]'
                                           : 'bg-gray-800/30 border-gray-700/50 hover:bg-gray-800/60'
                                       }`}
                                     >
-                                      <span
-                                        className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold mr-4 shrink-0 shadow-sm ${
-                                          isCorrect ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300'
-                                        }`}
-                                      >
-                                        {String.fromCharCode(65 + idx)}
-                                      </span>
+                                      <div className="flex items-start gap-3">
+                                        <span
+                                          className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold shrink-0 shadow-sm mt-1 ${
+                                            isCorrect ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300'
+                                          }`}
+                                        >
+                                          {String.fromCharCode(65 + idx)}
+                                        </span>
 
-                                      <span
-                                        className={`text-sm pr-6 leading-relaxed ${
-                                          isCorrect ? 'text-green-400 font-semibold' : 'text-gray-300'
-                                        }`}
-                                      >
-                                        {opt}
-                                      </span>
+                                        <div className="flex-1">
+                                          {hasTextOpt ? (
+                                            <span
+                                              className={`text-sm leading-relaxed block ${
+                                                isCorrect ? 'text-green-400 font-semibold' : 'text-gray-300'
+                                              }`}
+                                            >
+                                              {optionText}
+                                            </span>
+                                          ) : null}
+
+                                          {optionImages.length > 0 ? (
+                                            <McqImageList
+                                              images={optionImages}
+                                              alt={`Option ${String.fromCharCode(65 + idx)}`}
+                                              className="flex flex-wrap gap-2 mt-2"
+                                            />
+                                          ) : null}
+                                        </div>
+                                      </div>
 
                                       {isCorrect && (
                                         <svg
-                                          className="w-5 h-5 text-green-500 absolute right-4 drop-shadow-md"
+                                          className="w-5 h-5 text-green-500 absolute right-4 top-4 drop-shadow-md"
                                           fill="none"
                                           stroke="currentColor"
                                           viewBox="0 0 24 24"
+                                          aria-hidden="true"
                                         >
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                         </svg>
