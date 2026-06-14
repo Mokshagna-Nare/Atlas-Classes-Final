@@ -39,19 +39,40 @@ def bytes_to_data_url(blob: bytes, ext: str) -> str:
     encoded = base64.b64encode(blob).decode("utf-8")
     return f"data:{mime};base64,{encoded}"
 
+def clean_math_spacing(text: str) -> str:
+    """Formats raw math strings to ensure spacing around operators and commas."""
+    if not text:
+        return text
+    
+    # Add spaces around operators if they don't have them
+    text = re.sub(r'([+\-=\<\>])', r' \1 ', text)
+    # Add space after comma
+    text = re.sub(r',([^\s])', r', \1', text)
+    # Ensure no space before comma
+    text = re.sub(r'\s+,', ',', text)
+    # Clean up double spaces
+    text = re.sub(r'\s+', ' ', text)
+    # Clean up spaces inside curly brackets if any
+    text = re.sub(r'\{\s+', '{', text)
+    text = re.sub(r'\s+\}', '}', text)
+    
+    return text.strip()
+
 def restore_fraction_spacing(text: str) -> str:
     if not isinstance(text, str) or not text.strip():
         return text
     text = text.replace("\u00a0", " ")
-    text = re.sub(r"\s+", " ", text).strip()
+    text = clean_math_spacing(text)
+    
+    # Fix fraction spacing specific issues
     text = re.sub(r"(?<=\d)\s+(?=\d\s*[a-zA-Z(]\b)", "/", text)
     text = re.sub(r"(?<=\d)\s+(?=\d\b)", "/", text)
-    text = re.sub(r"-\s+(\d+)/(\d+)", r"-\1/\2", text)
-    text = re.sub(r"\+\s+(\d+)/(\d+)", r"+\1/\2", text)
-    text = re.sub(r"=\s*-\s*(\d+)/(\d+)", r"= -\1/\2", text)
-    text = re.sub(r"=\s*(\d+)/(\d+)", r"= \1/\2", text)
-    text = re.sub(r"\(\s*-\s*(\d+)/(\d+)", r"(-\1/\2", text)
-    text = re.sub(r"\(\s*(\d+)/(\d+)", r"(\1/\2", text)
+    text = re.sub(r"-\s+(\d+)\s*/\s*(\d+)", r"-\1/\2", text)
+    text = re.sub(r"\+\s+(\d+)\s*/\s*(\d+)", r"+\1/\2", text)
+    text = re.sub(r"=\s*-\s*(\d+)\s*/\s*(\d+)", r"= -\1/\2", text)
+    text = re.sub(r"=\s*(\d+)\s*/\s*(\d+)", r"= \1/\2", text)
+    text = re.sub(r"\(\s*-\s*(\d+)\s*/\s*(\d+)", r"(-\1/\2", text)
+    text = re.sub(r"\(\s*(\d+)\s*/\s*(\d+)", r"(\1/\2", text)
     return re.sub(r"\s+", " ", text).strip()
 
 def clean_key(raw: str) -> str:
@@ -117,14 +138,17 @@ def extract_run_images(run, rid_to_data_url: dict) -> List[str]:
         pass
     return dedupe_str_list(images)
 
-# NEW: Recursively pull ALL text from raw XML to catch hidden math and revision tracking
 def extract_xml_text(element) -> str:
     texts = []
+    # Add spacing between distinct XML text runs so variables don't smash together
     for node in element.iter():
         if node.tag.endswith('}t'): # w:t or m:t (Word text or Math text)
             if node.text:
                 texts.append(node.text)
-    return "".join(texts)
+    
+    # Join with a space, then clean it up
+    raw_text = " ".join(texts)
+    return clean_math_spacing(raw_text)
 
 def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
     text_parts: List[str] = []
@@ -155,9 +179,9 @@ def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
             except Exception:
                 pass
 
-        # If python-docx's native run.text is empty, but we suspect math/objects are there, fallback to raw XML extraction
+        # If python-docx's native run.text is empty or too short, but we suspect math/objects are there, fallback to raw XML
         para_text = "".join(para_parts).strip()
-        if not para_text and (has_omml or has_object):
+        if (not para_text or has_omml) and (has_omml or has_object):
              para_text = extract_xml_text(paragraph._p).strip()
 
         if para_text: text_parts.append(para_text)
