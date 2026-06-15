@@ -9,6 +9,7 @@ from zipfile import ZipFile
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from docx import Document
+from lxml import etree
 
 app = FastAPI()
 
@@ -21,6 +22,10 @@ app.add_middleware(
 )
 
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+# XML Namespaces
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 
 def bytes_to_data_url(blob: bytes, ext: str) -> str:
     ext = (ext or "png").lower().replace(".", "")
@@ -40,22 +45,14 @@ def bytes_to_data_url(blob: bytes, ext: str) -> str:
     return f"data:{mime};base64,{encoded}"
 
 def clean_math_spacing(text: str) -> str:
-    """Formats raw math strings to ensure spacing around operators and commas."""
     if not text:
         return text
-    
-    # Add spaces around operators if they don't have them
     text = re.sub(r'([+\-=\<\>])', r' \1 ', text)
-    # Add space after comma
     text = re.sub(r',([^\s])', r', \1', text)
-    # Ensure no space before comma
     text = re.sub(r'\s+,', ',', text)
-    # Clean up double spaces
     text = re.sub(r'\s+', ' ', text)
-    # Clean up spaces inside curly brackets if any
     text = re.sub(r'\{\s+', '{', text)
     text = re.sub(r'\s+\}', '}', text)
-    
     return text.strip()
 
 def restore_fraction_spacing(text: str) -> str:
@@ -63,8 +60,6 @@ def restore_fraction_spacing(text: str) -> str:
         return text
     text = text.replace("\u00a0", " ")
     text = clean_math_spacing(text)
-    
-    # Fix fraction spacing specific issues
     text = re.sub(r"(?<=\d)\s+(?=\d\s*[a-zA-Z(]\b)", "/", text)
     text = re.sub(r"(?<=\d)\s+(?=\d\b)", "/", text)
     text = re.sub(r"-\s+(\d+)\s*/\s*(\d+)", r"-\1/\2", text)
@@ -138,17 +133,203 @@ def extract_run_images(run, rid_to_data_url: dict) -> List[str]:
         pass
     return dedupe_str_list(images)
 
-def extract_xml_text(element) -> str:
-    texts = []
-    # Add spacing between distinct XML text runs so variables don't smash together
-    for node in element.iter():
-        if node.tag.endswith('}t'): # w:t or m:t (Word text or Math text)
-            if node.text:
-                texts.append(node.text)
+
+# ─── NEW: OMML-aware paragraph text extractor ────────────────────────────────
+
+def extract_omml_as_text(omml_node) -> str:
+    """
+    Recursively extract human-readable text from an OMML (Office Math) node.
+    Handles fractions, superscripts, subscripts, radicals, and plain runs.
+    """
+    tag = omml_node.tag.split("}")[-1] if "}" in omml_node.tag else omml_node.tag
+
+    # Fraction: numerator / denominator
+    if tag == "f":
+        num_node = omml_node.find(f"{{{M_NS}}}num")
+        den_node = omml_node.find(f"{{{M_NS}}}den")
+        num = extract_omml_as_text(num_node) if num_node is not None else ""
+        den = extract_omml_as_text(den_node) if den_node is not None else ""
+        return f"({num}/{den})"
+
+    # Superscript: base ^ exp
+    if tag in ("sSup", "sSupPr"):
+        if tag == "sSup":
+            e_node = omml_node.find(f"{{{M_NS}}}e")
+            sup_node = omml_node.find(f"{{{M_NS}}}sup")
+            base = extract_omml_as_text(e_node) if e_node is not None else ""
+            sup = extract_omml_as_text(sup_node) if sup_node is not None else ""
+            return f"{base}^{sup}"
+
+    # Subscript: base _ sub
+    if tag in ("sSub", "sSubPr"):
+        if tag == "sSub":
+            e_node = omml_node.find(f"{{{M_NS}}}e")
+            sub_node = omml_node.find(f"{{{M_NS}}}sub")
+            base = extract_omml_as_text(e_node) if e_node is not None else ""
+            sub = extract_omml_as_text(sub_node) if sub_node is not None else ""
+            return f"{base}_{sub}"
+
+    # Superscript+Subscript combined
+    if tag == "sSubSup":
+        e_node = omml_node.find(f"{{{M_NS}}}e")
+        sub_node = omml_node.find(f"{{{M_NS}}}sub")
+        sup_node = omml_node.find(f"{{{M_NS}}}sup")
+        base = extract_omml_as_text(e_node) if e_node is not None else ""
+        sub = extract_omml_as_text(sub_node) if sub_node is not None else ""
+        sup = extract_omml_as_text(sup_node) if sup_node is not None else ""
+        return f"{base}_{sub}^{sup}"
+
+    # Radical: √(degree, base)
+    if tag == "rad":
+        deg_node = omml_node.find(f"{{{M_NS}}}deg")
+        e_node = omml_node.find(f"{{{M_NS}}}e")
+        deg = extract_omml_as_text(deg_node).strip() if deg_node is not None else ""
+        base = extract_omml_as_text(e_node) if e_node is not None else ""
+        if deg and deg != "":
+            return f"{deg}√({base})"
+        return f"√({base})"
+
+    # Delimiter: ( ... ) or [ ... ] etc.
+    if tag == "d":
+        e_nodes = omml_node.findall(f"{{{M_NS}}}e")
+        inner = " ".join(extract_omml_as_text(e) for e in e_nodes)
+        # Try to get actual delimiter chars from dPr
+        dpr = omml_node.find(f"{{{M_NS}}}dPr")
+        beg, end = "(", ")"
+        if dpr is not None:
+            beg_node = dpr.find(f"{{{M_NS}}}begChr")
+            end_node = dpr.find(f"{{{M_NS}}}endChr")
+            if beg_node is not None:
+                beg = beg_node.get(f"{{{M_NS}}}val", "(")
+            if end_node is not None:
+                end = end_node.get(f"{{{M_NS}}}val", ")")
+        return f"{beg}{inner}{end}"
+
+    # N-ary (summation Σ, integral ∫, product Π)
+    if tag == "nary":
+        nary_pr = omml_node.find(f"{{{M_NS}}}naryPr")
+        chr_node = nary_pr.find(f"{{{M_NS}}}chr") if nary_pr is not None else None
+        symbol = chr_node.get(f"{{{M_NS}}}val", "∫") if chr_node is not None else "∫"
+        sub_node = omml_node.find(f"{{{M_NS}}}sub")
+        sup_node = omml_node.find(f"{{{M_NS}}}sup")
+        e_node = omml_node.find(f"{{{M_NS}}}e")
+        sub = extract_omml_as_text(sub_node) if sub_node is not None else ""
+        sup = extract_omml_as_text(sup_node) if sup_node is not None else ""
+        body = extract_omml_as_text(e_node) if e_node is not None else ""
+        return f"{symbol}_{{{sub}}}^{{{sup}}} {body}"
+
+    # Function application: sin, cos, lim etc.
+    if tag == "func":
+        fname_node = omml_node.find(f"{{{M_NS}}}fName")
+        e_node = omml_node.find(f"{{{M_NS}}}e")
+        fname = extract_omml_as_text(fname_node) if fname_node is not None else ""
+        arg = extract_omml_as_text(e_node) if e_node is not None else ""
+        return f"{fname}({arg})"
+
+    # Matrix
+    if tag == "m":
+        rows = omml_node.findall(f"{{{M_NS}}}mr")
+        row_texts = []
+        for row in rows:
+            cells = row.findall(f"{{{M_NS}}}e")
+            row_texts.append(", ".join(extract_omml_as_text(c) for c in cells))
+        return "[" + "; ".join(row_texts) + "]"
+
+    # Plain math run — the actual text content
+    if tag == "r":
+        t_node = omml_node.find(f"{{{M_NS}}}t")
+        if t_node is not None and t_node.text:
+            return t_node.text
+        return ""
+
+    # Generic: recurse into all children and join
+    parts = []
+    for child in omml_node:
+        child_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+        # Skip property nodes — they don't contain displayable content
+        if child_tag.endswith("Pr"):
+            continue
+        parts.append(extract_omml_as_text(child))
+    return "".join(parts)
+
+
+def extract_paragraph_text_with_math(paragraph, rid_to_data_url: dict) -> Tuple[str, List[str], bool]:
+    """
+    Walk a paragraph's XML children IN ORDER, collecting:
+      - w:r  → plain text run (via run.text) or image
+      - m:oMath / m:oMathPara → OMML equation → converted to readable text
     
-    # Join with a space, then clean it up
-    raw_text = " ".join(texts)
-    return clean_math_spacing(raw_text)
+    Returns (combined_text, images, has_omml)
+    
+    This is the KEY fix: we process children in document order so math
+    is interleaved with surrounding text correctly.
+    """
+    p_elem = paragraph._p
+    parts: List[str] = []
+    images: List[str] = []
+    has_omml = False
+
+    for child in p_elem:
+        local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+
+        # ── Plain word run ──────────────────────────────────────────────────
+        if local == "r":
+            # Text
+            t_node = child.find(f"{{{W_NS}}}t")
+            if t_node is not None and t_node.text:
+                parts.append(t_node.text)
+
+            # Images inside this run
+            try:
+                blips = child.xpath(".//*[local-name()='blip']")
+                for blip in blips:
+                    rid = blip.get(f"{{{R_NS}}}embed")
+                    if rid and rid in rid_to_data_url:
+                        images.append(rid_to_data_url[rid])
+            except Exception:
+                pass
+            try:
+                imagedata_nodes = child.xpath(".//*[local-name()='imagedata']")
+                for node in imagedata_nodes:
+                    rid = node.get(f"{{{R_NS}}}id")
+                    if rid and rid in rid_to_data_url:
+                        images.append(rid_to_data_url[rid])
+            except Exception:
+                pass
+
+        # ── Hyperlink (contains w:r children) ──────────────────────────────
+        elif local == "hyperlink":
+            for sub_run in child:
+                sub_local = sub_run.tag.split("}")[-1] if "}" in sub_run.tag else sub_run.tag
+                if sub_local == "r":
+                    t_node = sub_run.find(f"{{{W_NS}}}t")
+                    if t_node is not None and t_node.text:
+                        parts.append(t_node.text)
+
+        # ── OMML math (inline or block) ─────────────────────────────────────
+        elif local in ("oMath", "oMathPara"):
+            has_omml = True
+            if local == "oMathPara":
+                # oMathPara wraps one or more oMath nodes
+                for omath in child.findall(f"{{{M_NS}}}oMath"):
+                    math_text = extract_omml_as_text(omath).strip()
+                    if math_text:
+                        parts.append(math_text)
+            else:
+                math_text = extract_omml_as_text(child).strip()
+                if math_text:
+                    parts.append(math_text)
+
+        # ── Bookmarks, proofErr, etc. — skip ───────────────────────────────
+        # (no else needed; unknown tags are silently ignored)
+
+    combined = " ".join(p for p in parts if p).strip()
+    # Clean up extra whitespace while preserving intentional spacing
+    combined = re.sub(r" {2,}", " ", combined)
+    return combined, dedupe_str_list(images), has_omml
+
+
+# ─── UPDATED: extract_cell_content uses the new paragraph walker ─────────────
 
 def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
     text_parts: List[str] = []
@@ -158,39 +339,28 @@ def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
     warnings: List[str] = []
 
     for paragraph in cell.paragraphs:
-        para_parts: List[str] = []
+        # Check for embedded OLE objects
         try:
-            omml_nodes = paragraph._p.xpath(".//*[local-name()='oMath' or local-name()='oMathPara']")
-            if omml_nodes: has_omml = True
+            if (paragraph._p.xpath(".//*[local-name()='OLEObject']") or
+                    paragraph._p.xpath(".//*[local-name()='object']")):
+                has_object = True
         except Exception:
             pass
 
-        for run in paragraph.runs:
-            run_text = (run.text or "").replace("\xa0", " ")
-            if run_text: 
-                para_parts.append(run_text)
+        # Use the new order-preserving, OMML-aware extractor
+        para_text, para_images, para_has_omml = extract_paragraph_text_with_math(
+            paragraph, rid_to_data_url
+        )
 
-            run_images = extract_run_images(run, rid_to_data_url)
-            if run_images: images.extend(run_images)
+        if para_has_omml:
+            has_omml = True
 
-            try:
-                if run._element.xpath(".//*[local-name()='OLEObject']") or run._element.xpath(".//*[local-name()='object']"):
-                    has_object = True
-            except Exception:
-                pass
+        if para_text:
+            text_parts.append(para_text)
+        if para_images:
+            images.extend(para_images)
 
-        # If python-docx's native run.text is empty or too short, but we suspect math/objects are there, fallback to raw XML
-        para_text = "".join(para_parts).strip()
-        if (not para_text or has_omml) and (has_omml or has_object):
-             para_text = extract_xml_text(paragraph._p).strip()
-
-        if para_text: text_parts.append(para_text)
-
-    # Finally, if paragraph iteration failed to get anything, try extracting from the whole cell xml
     text = "\n".join([t for t in text_parts if t]).strip()
-    if not text and (has_omml or has_object):
-         text = extract_xml_text(cell._tc).strip()
-
     text = restore_fraction_spacing(text)
     images = dedupe_str_list(images)
 
@@ -206,6 +376,7 @@ def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
         "has_omml": has_omml,
         "warnings": warnings,
     }
+
 
 def normalize_row_text_fields(row: dict) -> dict:
     for field in ["question", "explanation", "answer", "source", "remarks"]:
@@ -244,10 +415,10 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
 
         for row in table.rows:
             if len(row.cells) < 2: continue
-            
+
             key_data = extract_cell_content(row.cells[0], rid_to_data_url)
             key = clean_key(key_data["text"])
-            
+
             val = extract_cell_content(row.cells[1], rid_to_data_url)
             val_text = val["text"]
             val_images = val["images"]
@@ -281,7 +452,7 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
                     while len(item["options"]) <= idx: item["options"].append("")
                     while len(item["option_images"]) <= idx: item["option_images"].append(None)
                     while len(item["option_inline_images"]) <= idx: item["option_inline_images"].append([])
-                    
+
                     item["options"][idx] = val_text
                     item["option_images"][idx] = first_image
                     item["option_inline_images"][idx] = val_images
@@ -312,6 +483,7 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
         rows.append(normalize_row_text_fields(item))
 
     return rows, errors, unresolved_object_count
+
 
 @app.post("/parse-docx")
 async def parse_docx(file: UploadFile = File(...)):
