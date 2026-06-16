@@ -435,9 +435,10 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
     unresolved_object_count = 0
 
     for table_index, table in enumerate(doc.tables):
-        item = {
-            "grade": "", "subject": "", "topic": "", "sub_topic": "",
-            "question_type": "", "difficulty": "Medium",
+        iitem = {
+    "grade": "", "subject": "", "topic": "", "sub_topic": "",
+    "skill_type": "",           # ← ADD THIS LINE
+    "question_type": "", "difficulty": "Medium",
             "question": "", "inline_images": [], "imageUrl": None,
             "question_code": "", "marks": 4, "explanation": "",
             "options": [], "option_images": [], "option_inline_images": [],
@@ -475,7 +476,9 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
                 item["topic"] = val_text
             elif key in ["sub-topic", "sub topic", "sub_topic"]:
                 item["sub_topic"] = val_text
-            elif key in ["question type", "skill type", "question skill type"]:
+            elif key == "skill type":
+                item["skill_type"] = val_text
+            elif key in ["question type", "question skill type"]:
                 item["question_type"] = val_text
             elif key in ["question difficulty", "difficulty"]:
                 item["difficulty"] = val_text or "Medium"

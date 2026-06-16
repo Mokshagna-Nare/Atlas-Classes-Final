@@ -15,7 +15,9 @@ export { replacePlaceholdersWithImages };
 
 const ensureFourStrings = (value: any): string[] => {
   const source = Array.isArray(value) ? value : [];
-  const normalized = source.map((item) => typeof item === "string" ? item : item == null ? "" : String(item));
+  const normalized = source.map((item) =>
+    typeof item === "string" ? item : item == null ? "" : String(item)
+  );
   while (normalized.length < 4) normalized.push("");
   return normalized.slice(0, 4);
 };
@@ -35,7 +37,9 @@ const ensureFourImageLists = (value: any): string[][] => {
   const source = Array.isArray(value) ? value : [];
   const normalized = source.map((item) => {
     if (!Array.isArray(item)) return [];
-    return item.map((img) => (typeof img === "string" ? img : img == null ? "" : String(img))).filter((img) => img.trim().length > 0);
+    return item
+      .map((img) => (typeof img === "string" ? img : img == null ? "" : String(img)))
+      .filter((img) => img.trim().length > 0);
   });
   while (normalized.length < 4) normalized.push([]);
   return normalized.slice(0, 4);
@@ -54,6 +58,16 @@ const normalizeString = (value: any, fallback = ""): string => {
   return String(value);
 };
 
+const normalizeSkillType = (
+  value: any
+): "Understanding" | "Knowledge Based" | "Application" | "Analytical" | undefined => {
+  const valid = ["Understanding", "Knowledge Based", "Application", "Analytical"];
+  const str = normalizeString(value, "").trim();
+  return valid.includes(str)
+    ? (str as "Understanding" | "Knowledge Based" | "Application" | "Analytical")
+    : undefined;
+};
+
 const normalizeAnswerIndex = (value: any): number | undefined => {
   if (value === undefined || value === null || value === "") return undefined;
   const num = Number(value);
@@ -62,12 +76,18 @@ const normalizeAnswerIndex = (value: any): number | undefined => {
   return num;
 };
 
-export async function parseDocxOneTablePerQuestion(file: File): Promise<ParsedResult> {
+export async function parseDocxOneTablePerQuestion(
+  file: File
+): Promise<ParsedResult> {
   const formData = new FormData();
   formData.append("file", file);
 
   try {
-    const response = await fetch(DOCX_PARSE_API, { method: "POST", body: formData });
+    const response = await fetch(DOCX_PARSE_API, {
+      method: "POST",
+      body: formData,
+    });
+
     if (!response.ok) {
       let message = `Parser service failed (${response.status})`;
       try {
@@ -80,7 +100,9 @@ export async function parseDocxOneTablePerQuestion(file: File): Promise<ParsedRe
     const data = await response.json();
     const nowIso = () => new Date().toISOString();
 
-    const rows: MCQInsert[] = (Array.isArray(data.rows) ? data.rows : []).map((row: any) => {
+    const rows: MCQInsert[] = (
+      Array.isArray(data.rows) ? data.rows : []
+    ).map((row: any) => {
       const options = ensureFourStrings(row.options);
       const answer_index = normalizeAnswerIndex(row.answer_index);
       let answer = normalizeString(row.answer, "").trim();
@@ -88,14 +110,28 @@ export async function parseDocxOneTablePerQuestion(file: File): Promise<ParsedRe
         answer = options[answer_index];
       }
 
-      const parser_meta = row?.parser_meta ? {
-        unresolved_question_object: Boolean(row.parser_meta.unresolved_question_object),
-        unresolved_option_objects: ensureBooleanArray4(row.parser_meta.unresolved_option_objects),
-        unresolved_math_objects: Number.isFinite(Number(row.parser_meta.unresolved_math_objects)) ? Number(row.parser_meta.unresolved_math_objects) : 0,
-        has_omml: Boolean(row.parser_meta.has_omml),
-        option_has_omml: ensureBooleanArray4(row.parser_meta.option_has_omml),
-        warnings: Array.isArray(row.parser_meta.warnings) ? row.parser_meta.warnings.map((w: any) => String(w)) : [],
-      } : undefined;
+      const parser_meta = row?.parser_meta
+        ? {
+            unresolved_question_object: Boolean(
+              row.parser_meta.unresolved_question_object
+            ),
+            unresolved_option_objects: ensureBooleanArray4(
+              row.parser_meta.unresolved_option_objects
+            ),
+            unresolved_math_objects: Number.isFinite(
+              Number(row.parser_meta.unresolved_math_objects)
+            )
+              ? Number(row.parser_meta.unresolved_math_objects)
+              : 0,
+            has_omml: Boolean(row.parser_meta.has_omml),
+            option_has_omml: ensureBooleanArray4(
+              row.parser_meta.option_has_omml
+            ),
+            warnings: Array.isArray(row.parser_meta.warnings)
+              ? row.parser_meta.warnings.map((w: any) => String(w))
+              : [],
+          }
+        : undefined;
 
       return {
         id: crypto.randomUUID(),
@@ -109,6 +145,7 @@ export async function parseDocxOneTablePerQuestion(file: File): Promise<ParsedRe
         subject: normalizeString(row.subject, ""),
         topic: normalizeString(row.topic, ""),
         sub_topic: normalizeString(row.sub_topic, ""),
+        skill_type: normalizeSkillType(row.skill_type),   // ← NEW
         question_type: normalizeString(row.question_type, ""),
         difficulty: normalizeString(row.difficulty, "Medium") || "Medium",
         marks: Number.isFinite(Number(row.marks)) ? Number(row.marks) : 4,
@@ -118,11 +155,12 @@ export async function parseDocxOneTablePerQuestion(file: File): Promise<ParsedRe
         answer_index,
         explanation: normalizeString(row.explanation, ""),
         question_code: normalizeString(row.question_code, ""),
-        
         source: normalizeString(row.source, ""),
         remarks: normalizeString(row.remarks, ""),
-
-        imageUrl: typeof row.imageUrl === "string" && row.imageUrl.trim().length > 0 ? row.imageUrl : undefined,
+        imageUrl:
+          typeof row.imageUrl === "string" && row.imageUrl.trim().length > 0
+            ? row.imageUrl
+            : undefined,
         options,
         option_images: ensureFourNullableStrings(row.option_images),
         option_inline_images: ensureFourImageLists(row.option_inline_images),
@@ -130,8 +168,14 @@ export async function parseDocxOneTablePerQuestion(file: File): Promise<ParsedRe
       };
     });
 
-    return { rows, errors: Array.isArray(data.errors) ? data.errors : [] };
+    return {
+      rows,
+      errors: Array.isArray(data.errors) ? data.errors : [],
+    };
   } catch (error: any) {
-    return { rows: [], errors: [error?.message || "Failed to parse document"] };
+    return {
+      rows: [],
+      errors: [error?.message || "Failed to parse document"],
+    };
   }
 }

@@ -120,6 +120,7 @@ export interface MCQ {
   subject: string;
   topic?: string;
   sub_topic?: string;
+  skill_type?: 'Understanding' | 'Knowledge Based' | 'Application' | 'Analytical';
   question_type?: string;
   difficulty?: string;
   marks?: number;
