@@ -11,9 +11,8 @@ import { getCorrectOptionIndex } from '../../../../utils/mcqAnswer';
 export const getQuestionPrefix = (subject: string, grade: string) => {
   const yearStr = new Date().getFullYear().toString().slice(-2);
   const subjChar = subject ? subject.charAt(0).toUpperCase() : 'X';
-  // If the user selects Grade 6, it will become 26P6-
-  const gCode = grade || '11'; 
-  return `${yearStr}${subjChar}${gCode}-`; 
+  const gCode = grade || '11';
+  return `${yearStr}${subjChar}${gCode}-`;
 };
 
 // --- HELPER 2: Query DB for next Sequence Number ---
@@ -22,23 +21,22 @@ export const getNextSequenceNumber = async (prefix: string) => {
     .from('mcqs')
     .select('question_code')
     .ilike('question_code', `${prefix}%`);
-    
+
   if (error) {
     console.error("Error fetching sequence:", error);
     return 0;
   }
-    
+
   let maxSuffix = 0;
   if (data && data.length > 0) {
-     for (const item of data) {
-        const code = item.question_code || '';
-        const suffixStr = code.slice(prefix.length); 
-        const suffixNum = parseInt(suffixStr, 10);
-        
-        if (!isNaN(suffixNum) && suffixNum > maxSuffix) {
-           maxSuffix = suffixNum;
-        }
-     }
+    for (const item of data) {
+      const code = item.question_code || '';
+      const suffixStr = code.slice(prefix.length);
+      const suffixNum = parseInt(suffixStr, 10);
+      if (!isNaN(suffixNum) && suffixNum > maxSuffix) {
+        maxSuffix = suffixNum;
+      }
+    }
   }
   return maxSuffix;
 };
@@ -53,64 +51,66 @@ export const checkDuplicate = async (questionText: string, optionsArr: string[])
       .limit(1);
     if (data && data.length > 0) return data[0];
   }
-  
+
   const validOptions = optionsArr.filter(o => o && o.trim().length > 0);
   if (validOptions.length >= 2) {
-     const { data } = await supabase
-       .from('mcqs')
-       .select('id, question, options')
-       .contains('options', [validOptions[0], validOptions[1]])
-       .limit(1);
-     if (data && data.length > 0) return data[0];
+    const { data } = await supabase
+      .from('mcqs')
+      .select('id, question, options')
+      .contains('options', [validOptions[0], validOptions[1]])
+      .limit(1);
+    if (data && data.length > 0) return data[0];
   }
   return null;
 };
 
-// --- HELPER 4: Safe Image Renderer (Fixes WMF/MathType Broken Previews) ---
+// --- HELPER 4: Safe Image Renderer ---
 export const SafeImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
   if (!src) return null;
 
   const lowerSrc = src.toLowerCase();
   const lowerAlt = (alt || '').toLowerCase();
 
-  // Detect clearly unsupported/proprietary binary images
-  const isUnsupported = lowerSrc.includes('image/wmf') || lowerSrc.includes('image/x-wmf') || lowerSrc.includes('image/emf') || lowerSrc.includes('octet-stream');
+  const isUnsupported =
+    lowerSrc.includes('image/wmf') ||
+    lowerSrc.includes('image/x-wmf') ||
+    lowerSrc.includes('image/emf') ||
+    lowerSrc.includes('octet-stream');
 
-  // Heuristics to identify MathType/formula images (filename, content-type hints, or alt text)
-  const isLikelyFormula = isUnsupported
-    || lowerSrc.includes('.wmf')
-    || lowerSrc.includes('.emf')
-    || lowerSrc.includes('mathtype')
-    || lowerSrc.includes('equation')
-    || lowerSrc.includes('formula')
-    || lowerAlt.includes('formula')
-    || lowerAlt.includes('math')
-    || lowerAlt.includes('equation');
+  const isLikelyFormula =
+    isUnsupported ||
+    lowerSrc.includes('.wmf') ||
+    lowerSrc.includes('.emf') ||
+    lowerSrc.includes('mathtype') ||
+    lowerSrc.includes('equation') ||
+    lowerSrc.includes('formula') ||
+    lowerAlt.includes('formula') ||
+    lowerAlt.includes('math') ||
+    lowerAlt.includes('equation');
 
-  // If it's a proprietary format we can't render client-side yet, show a neutral placeholder
   if (isUnsupported) {
     return (
-      <div className={`flex flex-col items-center justify-center bg-gray-800 border border-gray-700 text-gray-400 rounded-lg ${className}`} title="MathType Formula (Will process on backend)">
+      <div
+        className={`flex flex-col items-center justify-center bg-gray-800 border border-gray-700 text-gray-400 rounded-lg ${className}`}
+        title="MathType Formula (Will process on backend)"
+      >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-1 opacity-50">
-          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>
-          <path d="M9 10h6"/><path d="M12 7v6"/>
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+          <path d="M9 10h6" /><path d="M12 7v6" />
         </svg>
         <span className="text-[9px] font-bold uppercase tracking-wider">Formula</span>
       </div>
     );
   }
 
-  // For likely formula images, render them inside a light wrapper so they stay visible on dark backgrounds
   if (isLikelyFormula) {
     return (
-      <div className={`inline-block bg-white rounded-md p-1 shadow-sm`} title={alt || 'Formula'}>
-        {/* Force transparent background on the inner img to avoid conflicting bg classes; keep provided sizing classes */}
+      <div className="inline-block bg-white rounded-md p-1 shadow-sm" title={alt || 'Formula'}>
         <img src={src} alt={alt} className={className} style={{ backgroundColor: 'transparent' }} />
       </div>
     );
   }
 
-  // Default: render normally
   return <img src={src} alt={alt} className={className} />;
 };
 
@@ -123,72 +123,72 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const { addMCQ, updateMCQ } = useData();
 
   const [uploadMode, setUploadMode] = useState<'single' | 'bulk'>('single');
+
+  // ── Core fields ──────────────────────────────────────────────────────────
   const [grade, setGrade] = useState('11');
   const [subject, setSubject] = useState('Physics');
   const [topic, setTopic] = useState('');
   const [subTopic, setSubTopic] = useState('');
+  const [skillType, setSkillType] = useState<'Understanding' | 'Knowledge Based' | 'Application' | 'Analytical'>('Understanding');
+  const [questionType, setQuestionType] = useState('');
   const [difficulty, setDifficulty] = useState('Medium');
-  // Updated default to match new Skill Types
-  const [questionType, setQuestionType] = useState('Understanding');
-  const [marks, setMarks] = useState('4');
   const [question, setQuestion] = useState('');
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [correctAnswerIndex, setCorrectAnswerIndex] = useState<number | null>(null);
   const [explanation, setExplanation] = useState('');
   const [questionCode, setQuestionCode] = useState('');
+  const [source, setSource] = useState('');
+  const [remarks, setRemarks] = useState('');
 
+  // ── Options ──────────────────────────────────────────────────────────────
   const [options, setOptions] = useState<string[]>(['', '', '', '']);
   const [optionImageFiles, setOptionImageFiles] = useState<(File | null)[]>([null, null, null, null]);
   const [optionImagePreviews, setOptionImagePreviews] = useState<(string | null)[]>([null, null, null, null]);
 
+  // ── Question image ───────────────────────────────────────────────────────
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // ── Flags ────────────────────────────────────────────────────────────────
   const [isFlagged, setIsFlagged] = useState(false);
   const [flagReason, setFlagReason] = useState('');
 
+  // ── Duplicate modal ──────────────────────────────────────────────────────
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<any>(null);
 
   const questionImageInputRef = useRef<HTMLInputElement | null>(null);
   const optionImageInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // ── Cleanup blob URLs ────────────────────────────────────────────────────
   const clearLocalPreviewUrls = () => {
-    if (previewUrl && previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(previewUrl);
-    }
-
+    if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
     optionImagePreviews.forEach((url) => {
-      if (url && url.startsWith('blob:')) {
-        URL.revokeObjectURL(url);
-      }
+      if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
     });
   };
 
   const resetForm = () => {
     clearLocalPreviewUrls();
-
     setQuestion('');
     setOptions(['', '', '', '']);
     setCorrectAnswer('');
     setCorrectAnswerIndex(null);
     setExplanation('');
     setQuestionCode('');
+    setSource('');
+    setRemarks('');
     setPreviewUrl(null);
     setSelectedImage(null);
     setOptionImagePreviews([null, null, null, null]);
     setOptionImageFiles([null, null, null, null]);
     setIsFlagged(false);
     setFlagReason('');
-
-    if (questionImageInputRef.current) {
-      questionImageInputRef.current.value = '';
-    }
-
-    optionImageInputRefs.current.forEach((input) => {
-      if (input) input.value = '';
-    });
+    if (questionImageInputRef.current) questionImageInputRef.current.value = '';
+    optionImageInputRefs.current.forEach((input) => { if (input) input.value = ''; });
   };
 
+  // ── Populate form when editing ───────────────────────────────────────────
   useEffect(() => {
     if (editingMcq) {
       setUploadMode('single');
@@ -201,16 +201,17 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
       setSubject(editingMcq.subject);
       setTopic(editingMcq.topic || '');
       setSubTopic(editingMcq.sub_topic || '');
-      setQuestionType(editingMcq.question_type || 'Understanding');
+      setSkillType((editingMcq.skill_type as any) || 'Understanding');
+      setQuestionType(editingMcq.question_type || '');
       setDifficulty(editingMcq.difficulty || 'Medium');
-      setMarks(editingMcq.marks?.toString() ?? '4');
       setQuestionCode(editingMcq.question_code || '');
+      setSource((editingMcq as any).source || '');
+      setRemarks((editingMcq as any).remarks || '');
       setPreviewUrl(editingMcq.imageUrl || null);
 
       const rawMcq = editingMcq as any;
       const rawOptionImages = rawMcq.option_images || rawMcq.optionImages || rawMcq.option_image || [null, null, null, null];
       const validOptionImages = Array.isArray(rawOptionImages) ? rawOptionImages : [null, null, null, null];
-
       setOptionImagePreviews(validOptionImages);
       setOptionImageFiles(new Array(validOptionImages.length).fill(null));
       setIsFlagged(editingMcq.isFlagged || false);
@@ -220,17 +221,14 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
 
   useEffect(() => {
     return () => {
-      if (previewUrl && previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(previewUrl);
-      }
+      if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
       optionImagePreviews.forEach((url) => {
-        if (url && url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
+        if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
       });
     };
   }, [previewUrl, optionImagePreviews]);
 
+  // ── Option handlers ──────────────────────────────────────────────────────
   const handleAddOption = () => {
     setOptions([...options, '']);
     setOptionImageFiles([...optionImageFiles, null]);
@@ -240,13 +238,13 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const handleRemoveOption = (index: number) => {
     setOptions(options.filter((_, i) => i !== index));
     if (correctAnswerIndex !== null) {
-  if (correctAnswerIndex === index) {
-    setCorrectAnswerIndex(null);
-    setCorrectAnswer('');
-  } else if (correctAnswerIndex > index) {
-    setCorrectAnswerIndex(correctAnswerIndex - 1);
-  }
-}
+      if (correctAnswerIndex === index) {
+        setCorrectAnswerIndex(null);
+        setCorrectAnswer('');
+      } else if (correctAnswerIndex > index) {
+        setCorrectAnswerIndex(correctAnswerIndex - 1);
+      }
+    }
     setOptionImageFiles(optionImageFiles.filter((_, i) => i !== index));
     setOptionImagePreviews(optionImagePreviews.filter((_, i) => i !== index));
   };
@@ -286,81 +284,52 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
     return data.publicUrl;
   };
 
+  // ── Validation & submit ──────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!question && !selectedImage) {
       alert("Please provide text or an image for the question.");
       return;
     }
+    if (!grade.trim()) { alert("Please select the grade."); return; }
+    if (!subject.trim()) { alert("Please select the subject."); return; }
+    if (!topic.trim()) { alert("Please enter the topic."); return; }
+    if (!subTopic.trim()) { alert("Please enter the sub-topic."); return; }
+    if (!skillType.trim()) { alert("Please select the skill type."); return; }
+    if (!difficulty.trim()) { alert("Please select the difficulty."); return; }
 
-    if (!grade.trim()) {
-  alert("Please select the grade.");
-  return;
-}
+    const hasAtLeastTwoValidOptions = options.filter((opt, idx) => {
+      const hasText = opt?.trim().length > 0;
+      const hasImage = optionImageFiles[idx] !== null || optionImagePreviews[idx] !== null;
+      return hasText || hasImage;
+    }).length >= 2;
 
-if (!subject.trim()) {
-  alert("Please select the subject.");
-  return;
-}
+    if (!hasAtLeastTwoValidOptions) {
+      alert("Please provide at least two valid options.");
+      return;
+    }
+    if (correctAnswerIndex === null) {
+      alert("Please select the correct option.");
+      return;
+    }
 
-if (!topic.trim()) {
-  alert("Please enter the topic.");
-  return;
-}
-
-if (!subTopic.trim()) {
-  alert("Please enter the sub-topic.");
-  return;
-}
-
-if (!questionType.trim()) {
-  alert("Please select the question skill type.");
-  return;
-}
-
-if (!difficulty.trim()) {
-  alert("Please select the difficulty.");
-  return;
-}
-
-if (!marks || Number(marks) <= 0) {
-  alert("Please enter valid marks.");
-  return;
-}
-
-const hasAtLeastTwoValidOptions = options.filter((opt, idx) => {
-  const hasText = opt?.trim().length > 0;
-  const hasImage = optionImageFiles[idx] !== null || optionImagePreviews[idx] !== null;
-  return hasText || hasImage;
-}).length >= 2;
-
-if (!hasAtLeastTwoValidOptions) {
-  alert("Please provide at least two valid options using text or images.");
-  return;
-}
-
-if (correctAnswerIndex === null) {
-  alert("Please select the correct option from the dropdown.");
-  return;
-}
-
-const hasText = options[correctAnswerIndex]?.trim().length > 0;
-const hasImage = optionImageFiles[correctAnswerIndex] !== null || optionImagePreviews[correctAnswerIndex] !== null;
-
-if (!hasText && !hasImage) {
-  alert(`Option ${correctAnswerIndex + 1} is selected as correct, but it is completely empty. Please add text or an image to it.`);
-  return;
-}
+    const hasText = options[correctAnswerIndex]?.trim().length > 0;
+    const hasImage = optionImageFiles[correctAnswerIndex] !== null || optionImagePreviews[correctAnswerIndex] !== null;
+    if (!hasText && !hasImage) {
+      alert(`Option ${correctAnswerIndex + 1} is selected as correct but is empty.`);
+      return;
+    }
 
     if (!editingMcq) {
       const dup = await checkDuplicate(question, options);
       if (dup) {
         setDuplicateWarning(dup);
         setDuplicateModalOpen(true);
-        return; 
+        return;
       }
     }
-    
+
     await executeSubmit();
   };
 
@@ -384,27 +353,29 @@ if (!hasText && !hasImage) {
       }
 
       const resolvedCorrectAnswer =
-  correctAnswerIndex !== null ? (options[correctAnswerIndex] || '') : correctAnswer;
+        correctAnswerIndex !== null ? (options[correctAnswerIndex] || '') : correctAnswer;
 
       const mcqData = {
         question,
         options,
         answer: resolvedCorrectAnswer,
-         answer_index: correctAnswerIndex,
+        answer_index: correctAnswerIndex,
         explanation,
         grade,
         subject,
         topic,
         sub_topic: subTopic,
-        question_type: questionType, // Saves as the backend column name
+        skill_type: skillType,
+        question_type: questionType || null,
         difficulty,
-        marks: parseInt(marks) || 4,
         question_code: finalQuestionCode,
         imageUrl: finalImageUrl,
         option_images: finalOptionImages,
+        source: source || null,
+        remarks: remarks || null,
         type: 'Multiple Choice' as "Multiple Choice",
         isFlagged,
-        flagReason: isFlagged ? flagReason : ''
+        flagReason: isFlagged ? flagReason : '',
       };
 
       if (editingMcq) {
@@ -421,7 +392,6 @@ if (!hasText && !hasImage) {
       }
 
       resetForm();
-      
       onFinished?.();
     } catch (error) {
       console.error("Error saving MCQ:", error);
@@ -429,31 +399,35 @@ if (!hasText && !hasImage) {
     }
   };
 
+  // ── Shared input styles ──────────────────────────────────────────────────
+  const inputCls = "w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors text-white";
+  const labelCls = "text-xs font-bold text-gray-500 uppercase tracking-wider ml-1";
+
   return (
     <div className="max-w-4xl mx-auto reveal-on-scroll text-white relative">
-      
-      {/* DUPLICATE MODAL */}
+
+      {/* ── Duplicate Modal ─────────────────────────────────────────────── */}
       {duplicateModalOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
           <div className="bg-gray-900 border border-red-500/50 rounded-2xl p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200">
             <h3 className="text-xl font-bold text-red-500 mb-2 flex items-center gap-2">⚠️ Potential Duplicate Found</h3>
-            <p className="text-gray-300 text-sm mb-4">A question with similar text or options already exists in the database. Are you sure you want to add this?</p>
+            <p className="text-gray-300 text-sm mb-4">A question with similar text or options already exists. Are you sure you want to add this?</p>
             <div className="bg-gray-800 p-4 rounded-xl text-sm text-gray-400 mb-6 italic border border-gray-700 max-h-32 overflow-y-auto">
               "{duplicateWarning?.question || 'Image-based question'}"
             </div>
             <div className="flex justify-end gap-3">
               <button type="button" onClick={() => setDuplicateModalOpen(false)} className="px-5 py-2 text-gray-300 hover:text-white border border-gray-700 rounded-xl transition">Cancel</button>
-              <button type="button" onClick={() => { setDuplicateModalOpen(false); executeSubmit(); }} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition shadow-lg shadow-red-900/20">Add Anyway</button>
+              <button type="button" onClick={() => { setDuplicateModalOpen(false); executeSubmit(); }} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition">Add Anyway</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* FIXED: STATIC HEADER (Prevents Glitching when switching modes) */}
+      {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div className="flex items-end justify-between gap-4 mb-6">
         <div>
           <h2 className="text-3xl font-extrabold mb-2">
-             {editingMcq ? 'Edit Question' : (uploadMode === 'bulk' ? 'Bulk Upload Panel' : 'MCQ Upload Panel')}
+            {editingMcq ? 'Edit Question' : (uploadMode === 'bulk' ? 'Bulk Upload Panel' : 'MCQ Upload Panel')}
           </h2>
           <p className="text-gray-400 text-sm uppercase tracking-widest font-semibold">
             {editingMcq ? 'Modify existing repository item' : (uploadMode === 'bulk' ? 'Upload via .docx' : 'New Online Quiz Item')}
@@ -467,34 +441,33 @@ if (!hasText && !hasImage) {
         )}
       </div>
 
-      {/* DYNAMIC CONTENT WRAPPER WITH ANIMATIONS */}
+      {/* ── Main Content ────────────────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-3xl bg-gray-900/60 backdrop-blur-xl border border-gray-800 shadow-2xl">
         {uploadMode === 'bulk' && !editingMcq ? (
           <div className="animate-in fade-in zoom-in-95 duration-300">
-             <BulkUploadDocx onDone={() => { setUploadMode('single'); if(onFinished) onFinished(); }} />
+            <BulkUploadDocx onDone={() => { setUploadMode('single'); if (onFinished) onFinished(); }} />
           </div>
         ) : (
           <div className="animate-in fade-in zoom-in-95 duration-300 p-8">
             <form className="space-y-6" onSubmit={handleSubmit}>
-              {/* ... The rest of your Single Form inputs remain exactly the same ... */}
-              
-              {/* Row 1 */}
+
+              {/* ── Row 1: Grade | Subject | Topic ──────────────────────── */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Grade</label>
-                                  <select value={grade} onChange={(e) => setGrade(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors">
-                  <option value="6">Grade 6</option>
-                  <option value="7">Grade 7</option>
-                  <option value="8">Grade 8</option>
-                  <option value="9">Grade 9</option>
-                  <option value="10">Grade 10</option>
-                  <option value="11">Grade 11</option>
-                  <option value="12">Grade 12</option>
-                </select>
+                  <label className={labelCls}>Grade</label>
+                  <select value={grade} onChange={(e) => setGrade(e.target.value)} className={inputCls}>
+                    <option value="6">Grade 6</option>
+                    <option value="7">Grade 7</option>
+                    <option value="8">Grade 8</option>
+                    <option value="9">Grade 9</option>
+                    <option value="10">Grade 10</option>
+                    <option value="11">Grade 11</option>
+                    <option value="12">Grade 12</option>
+                  </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Subject</label>
-                  <select value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors">
+                  <label className={labelCls}>Subject</label>
+                  <select value={subject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
                     <option value="Physics">Physics</option>
                     <option value="Chemistry">Chemistry</option>
                     <option value="Biology">Biology</option>
@@ -502,21 +475,20 @@ if (!hasText && !hasImage) {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Topic</label>
-                  <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Thermodynamics" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                  <label className={labelCls}>Topic</label>
+                  <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Thermodynamics" className={inputCls} />
                 </div>
               </div>
 
-              {/* Row 2 */}
+              {/* ── Row 2: Sub-topic | Skill Type | Difficulty ──────────── */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Sub-topic</label>
-                  <input type="text" value={subTopic} onChange={(e) => setSubTopic(e.target.value)} placeholder="e.g. Carnot Engine" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                  <label className={labelCls}>Sub-topic</label>
+                  <input type="text" value={subTopic} onChange={(e) => setSubTopic(e.target.value)} placeholder="e.g. Carnot Engine" className={inputCls} />
                 </div>
                 <div className="space-y-2">
-                  {/* CHANGED LABEL TO SKILL TYPE */}
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question Skill Type</label>
-                  <select value={questionType} onChange={(e) => setQuestionType(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors">
+                  <label className={labelCls}>Skill Type</label>
+                  <select value={skillType} onChange={(e) => setSkillType(e.target.value as any)} className={inputCls}>
                     <option value="Understanding">Understanding</option>
                     <option value="Knowledge Based">Knowledge Based</option>
                     <option value="Application">Application</option>
@@ -524,8 +496,8 @@ if (!hasText && !hasImage) {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Difficulty</label>
-                  <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors">
+                  <label className={labelCls}>Difficulty</label>
+                  <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className={inputCls}>
                     <option value="Easy">Easy</option>
                     <option value="Medium">Medium</option>
                     <option value="Hard">Hard</option>
@@ -533,34 +505,40 @@ if (!hasText && !hasImage) {
                 </div>
               </div>
 
-              {/* Row 3 */}
+              {/* ── Row 3: Question Type | Question ID ──────────────────── */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question ID/Code (Optional)</label>
-                  <input type="text" value={questionCode} onChange={(e) => setQuestionCode(e.target.value)} placeholder="e.g. 26P10-01 (Auto-generated if blank)" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                  <label className={labelCls}>Question Type <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
+                  <input
+                    type="text"
+                    value={questionType}
+                    onChange={(e) => setQuestionType(e.target.value)}
+                    placeholder="e.g. MCQ, Fill in the blanks......"
+                    className={inputCls}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Marks</label>
-                  <input type="number" value={marks} onChange={(e) => setMarks(e.target.value)} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                  <label className={labelCls}>Question ID / Code <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
+                  <input type="text" value={questionCode} onChange={(e) => setQuestionCode(e.target.value)} placeholder="e.g. 26P10-01 (Auto-generated if blank)" className={inputCls} />
                 </div>
               </div>
 
-              {/* Question Text */}
+              {/* ── Question Text ────────────────────────────────────────── */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Question Text</label>
-                <textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Type the question here..." className="w-full px-4 py-4 bg-gray-800 border border-gray-700 rounded-2xl focus:border-green-500 outline-none resize-none transition-colors" />
+                <label className={labelCls}>Question Text</label>
+                <textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Type the question here..." className={`${inputCls} resize-none`} />
               </div>
 
-              {/* Question Image (Uses SafeImage for fallback) */}
+              {/* ── Diagram / Image ──────────────────────────────────────── */}
               <div className="space-y-2 border border-dashed border-gray-700 p-5 rounded-2xl bg-gray-800/30">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1 block mb-2">Diagram / Image (Optional)</label>
+                <label className={`${labelCls} block mb-2`}>Diagram / Image <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
                 <input
-  ref={questionImageInputRef}
-  type="file"
-  accept="image/*"
-  onChange={handleImageSelect}
-  className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 transition-colors cursor-pointer"
-/>
+                  ref={questionImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 transition-colors cursor-pointer"
+                />
                 {previewUrl && (
                   <div className="mt-4 bg-gray-900 p-2 rounded-xl inline-block border border-gray-700">
                     <p className="text-xs text-gray-500 mb-2 font-semibold">Preview:</p>
@@ -569,23 +547,29 @@ if (!hasText && !hasImage) {
                 )}
               </div>
 
-              {/* Options */}
+              {/* ── Options ──────────────────────────────────────────────── */}
               <div className="space-y-4">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1 block">Options</label>
+                <label className={`${labelCls} block`}>Options</label>
                 <div className="grid gap-4">
                   {options.map((opt, idx) => (
                     <div key={idx} className="flex items-start gap-3">
                       <span className="w-8 pt-3 text-xs font-bold text-green-500">{idx + 1}</span>
-                      <textarea rows={2} value={opt} onChange={(e) => handleOptionChange(idx, e.target.value)} placeholder={`Option ${idx + 1} text...`} className="flex-1 px-4 py-3 bg-gray-800 border border-gray-800 rounded-xl focus:border-green-500 outline-none resize-none transition-colors" />
+                      <textarea
+                        rows={2}
+                        value={opt}
+                        onChange={(e) => handleOptionChange(idx, e.target.value)}
+                        placeholder={`Option ${idx + 1} text...`}
+                        className="flex-1 px-4 py-3 bg-gray-800 border border-gray-800 rounded-xl focus:border-green-500 outline-none resize-none transition-colors text-white"
+                      />
                       <div className="relative shrink-0">
-                       <input
-  ref={(el) => { optionImageInputRefs.current[idx] = el; }}
-  type="file"
-  accept="image/*"
-  id={`opt-img-${idx}`}
-  className="hidden"
-  onChange={(e) => handleOptionImageSelect(idx, e)}
-/>
+                        <input
+                          ref={(el) => { optionImageInputRefs.current[idx] = el; }}
+                          type="file"
+                          accept="image/*"
+                          id={`opt-img-${idx}`}
+                          className="hidden"
+                          onChange={(e) => handleOptionImageSelect(idx, e)}
+                        />
                         <label htmlFor={`opt-img-${idx}`} className={`h-20 w-20 flex flex-col items-center justify-center rounded-xl cursor-pointer transition-all border border-dashed ${optionImagePreviews[idx] ? 'bg-gray-900 border-green-500' : 'bg-gray-800 border-gray-600 hover:border-gray-400 hover:bg-gray-700'}`}>
                           {optionImagePreviews[idx] ? (
                             <SafeImage src={optionImagePreviews[idx]!} alt="Opt" className="h-full w-full object-contain rounded-xl p-1" />
@@ -608,33 +592,58 @@ if (!hasText && !hasImage) {
                 </button>
               </div>
 
-              {/* Row 4 */}
-              <div className="grid md:grid-cols-2 gap-8 pt-4">
+              {/* ── Correct Answer | Explanation ─────────────────────────── */}
+              <div className="grid md:grid-cols-2 gap-6 pt-2">
                 <div className="space-y-2">
-  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Correct Answer</label>
-  <select
-    value={correctAnswerIndex ?? ''}
-    onChange={(e) => {
-      const idx = e.target.value === '' ? null : Number(e.target.value);
-      setCorrectAnswerIndex(idx);
-      setCorrectAnswer(idx !== null ? (options[idx] || '') : '');
-    }}
-    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors"
-  >
-    <option value="">Select correct option</option>
-    {options.map((opt, idx) => (
-     <option key={idx} value={idx}>
-  {`Option ${idx + 1}${opt?.trim() ? ` — ${opt.slice(0, 60)}` : optionImagePreviews[idx] ? ' — [Image option]' : ''}`}
-</option>
-    ))}
-  </select>
-</div>
+                  <label className={labelCls}>Correct Answer</label>
+                  <select
+                    value={correctAnswerIndex ?? ''}
+                    onChange={(e) => {
+                      const idx = e.target.value === '' ? null : Number(e.target.value);
+                      setCorrectAnswerIndex(idx);
+                      setCorrectAnswer(idx !== null ? (options[idx] || '') : '');
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="">Select correct option</option>
+                    {options.map((opt, idx) => (
+                      <option key={idx} value={idx}>
+                        {`Option ${idx + 1}${opt?.trim() ? ` — ${opt.slice(0, 60)}` : optionImagePreviews[idx] ? ' — [Image option]' : ''}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Explanation</label>
-                  <input type="text" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="Brief solution..." className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors" />
+                  <label className={labelCls}>Explanation <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
+                  <input type="text" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="Brief solution..." className={inputCls} />
                 </div>
               </div>
 
+              {/* ── Source | Remarks ─────────────────────────────────────── */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className={labelCls}>Source <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
+                  <input
+                    type="text"
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                    placeholder="e.g. MTG, Web..."
+                    className={inputCls}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className={labelCls}>Remarks <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
+                  <input
+                    type="text"
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    placeholder="Any internal notes..."
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              {/* ── Flag for review ──────────────────────────────────────── */}
               <div className="pt-6 border-t border-gray-800 space-y-4">
                 <label className="flex items-center gap-3 cursor-pointer group w-max">
                   <input type="checkbox" checked={isFlagged} onChange={(e) => setIsFlagged(e.target.checked)} className="sr-only peer" />
@@ -645,17 +654,24 @@ if (!hasText && !hasImage) {
                 </label>
                 {isFlagged && (
                   <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                     <textarea rows={2} value={flagReason} onChange={(e) => setFlagReason(e.target.value)} placeholder="Why is this flagged?" className="w-full px-4 py-3 bg-red-900/10 border border-red-900/30 rounded-xl focus:border-red-500 text-white outline-none transition-colors" />
+                    <textarea rows={2} value={flagReason} onChange={(e) => setFlagReason(e.target.value)} placeholder="Why is this flagged?" className={`${inputCls} border-red-900/30 focus:border-red-500 bg-red-900/10`} />
                   </div>
                 )}
               </div>
 
+              {/* ── Submit ───────────────────────────────────────────────── */}
               <div className="flex justify-end gap-4 pt-6 border-t border-gray-800">
-                <button type="button" onClick={() => onFinished?.()} className="px-8 py-3 text-gray-400 font-bold uppercase tracking-widest text-sm hover:text-white hover:bg-gray-800 rounded-xl transition-colors">Cancel</button>
-                <button type="submit" className={`px-10 py-4 font-bold uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg active:scale-95 ${editingMcq ? 'bg-white text-black hover:bg-gray-200' : 'bg-green-600 text-white shadow-emerald-900/40 hover:bg-emerald-600'}`}>
+                <button type="button" onClick={() => onFinished?.()} className="px-8 py-3 text-gray-400 font-bold uppercase tracking-widest text-sm hover:text-white hover:bg-gray-800 rounded-xl transition-colors">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={`px-10 py-4 font-bold uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg active:scale-95 ${editingMcq ? 'bg-white text-black hover:bg-gray-200' : 'bg-green-600 text-white shadow-emerald-900/40 hover:bg-emerald-600'}`}
+                >
                   {editingMcq ? 'Update Question' : 'Save to Bank'}
                 </button>
               </div>
+
             </form>
           </div>
         )}

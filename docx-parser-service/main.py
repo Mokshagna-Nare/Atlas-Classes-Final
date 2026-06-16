@@ -164,7 +164,6 @@ SUBSCRIPT_MAP = {
 
 
 def to_superscript(text: str) -> str:
-    """Convert a string to Unicode superscript characters where possible."""
     result = []
     for ch in text.strip():
         if ch in SUPERSCRIPT_MAP:
@@ -175,7 +174,6 @@ def to_superscript(text: str) -> str:
 
 
 def to_subscript(text: str) -> str:
-    """Convert a string to Unicode subscript characters where possible."""
     result = []
     for ch in text.strip():
         if ch in SUBSCRIPT_MAP:
@@ -188,13 +186,8 @@ def to_subscript(text: str) -> str:
 # ── OMML → readable text converter ───────────────────────────────────────────
 
 def extract_omml_as_text(omml_node) -> str:
-    """
-    Recursively extract human-readable text from an OMML (Office Math) node.
-    Uses Unicode superscripts/subscripts for industry-standard display (x², x₂).
-    """
     tag = omml_node.tag.split("}")[-1] if "}" in omml_node.tag else omml_node.tag
 
-    # Fraction: (numerator/denominator)
     if tag == "f":
         num_node = omml_node.find(f"{{{M_NS}}}num")
         den_node = omml_node.find(f"{{{M_NS}}}den")
@@ -202,7 +195,6 @@ def extract_omml_as_text(omml_node) -> str:
         den = extract_omml_as_text(den_node) if den_node is not None else ""
         return f"({num}/{den})"
 
-    # Superscript: x²
     if tag == "sSup":
         e_node = omml_node.find(f"{{{M_NS}}}e")
         sup_node = omml_node.find(f"{{{M_NS}}}sup")
@@ -210,7 +202,6 @@ def extract_omml_as_text(omml_node) -> str:
         sup_raw = extract_omml_as_text(sup_node) if sup_node is not None else ""
         return f"{base}{to_superscript(sup_raw)}"
 
-    # Subscript: x₁
     if tag == "sSub":
         e_node = omml_node.find(f"{{{M_NS}}}e")
         sub_node = omml_node.find(f"{{{M_NS}}}sub")
@@ -218,7 +209,6 @@ def extract_omml_as_text(omml_node) -> str:
         sub_raw = extract_omml_as_text(sub_node) if sub_node is not None else ""
         return f"{base}{to_subscript(sub_raw)}"
 
-    # Superscript + Subscript combined: xₙ²
     if tag == "sSubSup":
         e_node = omml_node.find(f"{{{M_NS}}}e")
         sub_node = omml_node.find(f"{{{M_NS}}}sub")
@@ -228,7 +218,6 @@ def extract_omml_as_text(omml_node) -> str:
         sup_raw = extract_omml_as_text(sup_node) if sup_node is not None else ""
         return f"{base}{to_subscript(sub_raw)}{to_superscript(sup_raw)}"
 
-    # Radical: √(base) or ³√(base)
     if tag == "rad":
         deg_node = omml_node.find(f"{{{M_NS}}}deg")
         e_node = omml_node.find(f"{{{M_NS}}}e")
@@ -238,7 +227,6 @@ def extract_omml_as_text(omml_node) -> str:
             return f"{to_superscript(deg_raw)}√({base})"
         return f"√({base})"
 
-    # Delimiter: brackets ( ), [ ], { } etc.
     if tag == "d":
         e_nodes = omml_node.findall(f"{{{M_NS}}}e")
         inner = " ".join(extract_omml_as_text(e) for e in e_nodes)
@@ -253,7 +241,6 @@ def extract_omml_as_text(omml_node) -> str:
                 end = end_node.get(f"{{{M_NS}}}val", ")")
         return f"{beg}{inner}{end}"
 
-    # N-ary: Σ (summation), ∫ (integral), Π (product)
     if tag == "nary":
         nary_pr = omml_node.find(f"{{{M_NS}}}naryPr")
         chr_node = nary_pr.find(f"{{{M_NS}}}chr") if nary_pr is not None else None
@@ -266,7 +253,6 @@ def extract_omml_as_text(omml_node) -> str:
         body = extract_omml_as_text(e_node) if e_node is not None else ""
         return f"{symbol}({sub} to {sup}) {body}"
 
-    # Function: sin(x), cos(x), lim etc.
     if tag == "func":
         fname_node = omml_node.find(f"{{{M_NS}}}fName")
         e_node = omml_node.find(f"{{{M_NS}}}e")
@@ -274,23 +260,20 @@ def extract_omml_as_text(omml_node) -> str:
         arg = extract_omml_as_text(e_node) if e_node is not None else ""
         return f"{fname}({arg})"
 
-    # Matrix
     if tag == "m":
-        rows = omml_node.findall(f"{{{M_NS}}}mr")
+        mat_rows = omml_node.findall(f"{{{M_NS}}}mr")
         row_texts = []
-        for row in rows:
-            cells = row.findall(f"{{{M_NS}}}e")
+        for mat_row in mat_rows:
+            cells = mat_row.findall(f"{{{M_NS}}}e")
             row_texts.append(", ".join(extract_omml_as_text(c) for c in cells))
         return "[" + "; ".join(row_texts) + "]"
 
-    # Plain math text run
     if tag == "r":
         t_node = omml_node.find(f"{{{M_NS}}}t")
         if t_node is not None and t_node.text:
             return t_node.text
         return ""
 
-    # Generic fallback: recurse all children, skip property nodes
     parts = []
     for child in omml_node:
         child_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
@@ -300,18 +283,9 @@ def extract_omml_as_text(omml_node) -> str:
     return "".join(parts)
 
 
-# ── Order-preserving paragraph walker (text + math interleaved) ───────────────
+# ── Order-preserving paragraph walker ────────────────────────────────────────
 
 def extract_paragraph_text_with_math(paragraph, rid_to_data_url: dict) -> Tuple[str, List[str], bool]:
-    """
-    Walk a paragraph's XML children IN ORDER, collecting:
-      - w:r        → plain text run or image
-      - m:oMath    → inline OMML equation → converted to readable Unicode text
-      - m:oMathPara→ block OMML equation  → converted to readable Unicode text
-
-    This is the KEY fix: math is interleaved with surrounding text correctly,
-    preserving the full sentence structure.
-    """
     p_elem = paragraph._p
     parts: List[str] = []
     images: List[str] = []
@@ -320,12 +294,10 @@ def extract_paragraph_text_with_math(paragraph, rid_to_data_url: dict) -> Tuple[
     for child in p_elem:
         local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
-        # ── Plain word run ──────────────────────────────────────────────────
         if local == "r":
             t_node = child.find(f"{{{W_NS}}}t")
             if t_node is not None and t_node.text:
                 parts.append(t_node.text)
-
             try:
                 blips = child.xpath(".//*[local-name()='blip']")
                 for blip in blips:
@@ -343,7 +315,6 @@ def extract_paragraph_text_with_math(paragraph, rid_to_data_url: dict) -> Tuple[
             except Exception:
                 pass
 
-        # ── Hyperlink (wraps w:r children) ─────────────────────────────────
         elif local == "hyperlink":
             for sub_run in child:
                 sub_local = sub_run.tag.split("}")[-1] if "}" in sub_run.tag else sub_run.tag
@@ -352,7 +323,6 @@ def extract_paragraph_text_with_math(paragraph, rid_to_data_url: dict) -> Tuple[
                     if t_node is not None and t_node.text:
                         parts.append(t_node.text)
 
-        # ── OMML math (inline or block) ─────────────────────────────────────
         elif local in ("oMath", "oMathPara"):
             has_omml = True
             if local == "oMathPara":
@@ -435,15 +405,29 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
     unresolved_object_count = 0
 
     for table_index, table in enumerate(doc.tables):
-        iitem = {
-    "grade": "", "subject": "", "topic": "", "sub_topic": "",
-    "skill_type": "",           # ← ADD THIS LINE
-    "question_type": "", "difficulty": "Medium",
-            "question": "", "inline_images": [], "imageUrl": None,
-            "question_code": "", "marks": 4, "explanation": "",
-            "options": [], "option_images": [], "option_inline_images": [],
-            "answer": "", "answer_index": None,
-            "source": "", "remarks": "",
+
+        # ── Fresh question dictionary for each table ──────────────────────
+        item = {
+            "grade": "",
+            "subject": "",
+            "topic": "",
+            "sub_topic": "",
+            "skill_type": "",
+            "question_type": "",
+            "difficulty": "Medium",
+            "question": "",
+            "inline_images": [],
+            "imageUrl": None,
+            "question_code": "",
+            "marks": 4,
+            "explanation": "",
+            "options": [],
+            "option_images": [],
+            "option_inline_images": [],
+            "answer": "",
+            "answer_index": None,
+            "source": "",
+            "remarks": "",
             "parser_meta": {
                 "unresolved_question_object": False,
                 "unresolved_option_objects": [False, False, False, False],
@@ -479,7 +463,14 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
             elif key == "skill type":
                 item["skill_type"] = val_text
             elif key in ["question type", "question skill type"]:
+                # Also auto-fill skill_type if it matches a valid value
+                # and skill_type was not explicitly set via a #Skill type* row
                 item["question_type"] = val_text
+                valid_skill_types = [
+                    "Understanding", "Knowledge Based", "Application", "Analytical"
+                ]
+                if not item["skill_type"] and val_text in valid_skill_types:
+                    item["skill_type"] = val_text
             elif key in ["question difficulty", "difficulty"]:
                 item["difficulty"] = val_text or "Medium"
             elif key == "question":
@@ -532,6 +523,7 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
                 except Exception:
                     correct_index = None
 
+        # ── Pad arrays to length 4 ────────────────────────────────────────
         max_len = max(
             len(item["options"]),
             len(item["option_images"]),
@@ -551,7 +543,9 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
             item["answer_index"] = correct_index
             item["answer"] = item["options"][correct_index]
         else:
-            errors.append(f"Table {table_index + 1}: Invalid/missing Key (correct option number).")
+            errors.append(
+                f"Table {table_index + 1}: Invalid/missing Key (correct option number)."
+            )
 
         item["parser_meta"]["warnings"] = dedupe_str_list(item["parser_meta"]["warnings"])
         rows.append(normalize_row_text_fields(item))
