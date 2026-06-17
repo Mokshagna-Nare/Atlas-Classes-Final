@@ -29,15 +29,9 @@ M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 def bytes_to_data_url(blob: bytes, ext: str) -> str:
     ext = (ext or "png").lower().replace(".", "")
     mime = {
-        "png": "image/png",
-        "jpg": "image/jpeg",
-        "jpeg": "image/jpeg",
-        "gif": "image/gif",
-        "svg": "image/svg+xml",
-        "webp": "image/webp",
-        "bmp": "image/bmp",
-        "wmf": "image/wmf",
-        "emf": "image/emf",
+        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+        "gif": "image/gif", "svg": "image/svg+xml", "webp": "image/webp",
+        "bmp": "image/bmp", "wmf": "image/wmf", "emf": "image/emf",
         "bin": "application/octet-stream",
     }.get(ext, f"image/{ext}")
     encoded = base64.b64encode(blob).decode("utf-8")
@@ -54,22 +48,6 @@ def clean_math_spacing(text: str) -> str:
     text = re.sub(r'\{\s+', '{', text)
     text = re.sub(r'\s+\}', '}', text)
     return text.strip()
-
-
-def restore_fraction_spacing(text: str) -> str:
-    if not isinstance(text, str) or not text.strip():
-        return text
-    text = text.replace("\u00a0", " ")
-    text = clean_math_spacing(text)
-    text = re.sub(r"(?<=\d)\s+(?=\d\s*[a-zA-Z(]\b)", "/", text)
-    text = re.sub(r"(?<=\d)\s+(?=\d\b)", "/", text)
-    text = re.sub(r"-\s+(\d+)\s*/\s*(\d+)", r"-\1/\2", text)
-    text = re.sub(r"\+\s+(\d+)\s*/\s*(\d+)", r"+\1/\2", text)
-    text = re.sub(r"=\s*-\s*(\d+)\s*/\s*(\d+)", r"= -\1/\2", text)
-    text = re.sub(r"=\s*(\d+)\s*/\s*(\d+)", r"= \1/\2", text)
-    text = re.sub(r"\(\s*-\s*(\d+)\s*/\s*(\d+)", r"(-\1/\2", text)
-    text = re.sub(r"\(\s*(\d+)\s*/\s*(\d+)", r"(\1/\2", text)
-    return re.sub(r"\s+", " ", text).strip()
 
 
 def clean_key(raw: str) -> str:
@@ -103,42 +81,19 @@ def build_docx_image_maps(docx_path: str) -> Tuple[dict, dict]:
             if "image" in rel.reltype:
                 part = rel.target_part
                 ext = os.path.splitext(part.partname)[1].replace(".", "").lower() or "png"
-                blob = part.blob
-                rid_to_data_url[rel_id] = bytes_to_data_url(blob, ext)
+                rid_to_data_url[rel_id] = bytes_to_data_url(part.blob, ext)
         except Exception:
             continue
     return rid_to_data_url, target_to_data_url
 
 
 def dedupe_str_list(items: List[str]) -> List[str]:
-    out = []
-    seen = set()
+    out, seen = [], set()
     for item in items:
         if item and item not in seen:
             seen.add(item)
             out.append(item)
     return out
-
-
-def extract_run_images(run, rid_to_data_url: dict) -> List[str]:
-    images = []
-    try:
-        blips = run._element.xpath(".//*[local-name()='blip']")
-        for blip in blips:
-            rid = blip.get(f"{{{R_NS}}}embed")
-            if rid and rid in rid_to_data_url:
-                images.append(rid_to_data_url[rid])
-    except Exception:
-        pass
-    try:
-        imagedata_nodes = run._element.xpath(".//*[local-name()='imagedata']")
-        for node in imagedata_nodes:
-            rid = node.get(f"{{{R_NS}}}id")
-            if rid and rid in rid_to_data_url:
-                images.append(rid_to_data_url[rid])
-    except Exception:
-        pass
-    return dedupe_str_list(images)
 
 
 # ── Unicode superscript / subscript maps ─────────────────────────────────────
@@ -147,11 +102,10 @@ SUPERSCRIPT_MAP = {
     "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
     "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
     "+": "⁺", "-": "⁻", "=": "⁼", "(": "⁽", ")": "⁾",
-    "n": "ⁿ", "i": "ⁱ", "a": "ᵃ", "b": "ᵇ", "c": "ᶜ",
-    "d": "ᵈ", "e": "ᵉ", "f": "ᶠ", "g": "ᵍ", "h": "ʰ",
-    "j": "ʲ", "k": "ᵏ", "l": "ˡ", "m": "ᵐ", "o": "ᵒ",
-    "p": "ᵖ", "r": "ʳ", "s": "ˢ", "t": "ᵗ", "u": "ᵘ",
-    "v": "ᵛ", "w": "ʷ", "x": "ˣ", "y": "ʸ", "z": "ᶻ",
+    "n": "ⁿ", "i": "ⁱ", "a": "ᵃ", "b": "ᵇ", "c": "ᶜ", "d": "ᵈ",
+    "e": "ᵉ", "f": "ᶠ", "g": "ᵍ", "h": "ʰ", "j": "ʲ", "k": "ᵏ",
+    "l": "ˡ", "m": "ᵐ", "o": "ᵒ", "p": "ᵖ", "r": "ʳ", "s": "ˢ",
+    "t": "ᵗ", "u": "ᵘ", "v": "ᵛ", "w": "ʷ", "x": "ˣ", "y": "ʸ", "z": "ᶻ",
 }
 
 SUBSCRIPT_MAP = {
@@ -165,36 +119,50 @@ SUBSCRIPT_MAP = {
 
 def to_superscript(text: str) -> str:
     result = []
-    for ch in text.strip():
+    for ch in text:
         if ch in SUPERSCRIPT_MAP:
             result.append(SUPERSCRIPT_MAP[ch])
         else:
-            return f"^({text.strip()})"
+            return f"^({text})"
     return "".join(result)
 
 
 def to_subscript(text: str) -> str:
     result = []
-    for ch in text.strip():
+    for ch in text:
         if ch in SUBSCRIPT_MAP:
             result.append(SUBSCRIPT_MAP[ch])
         else:
-            return f"_({text.strip()})"
+            return f"_({text})"
     return "".join(result)
+
+
+def get_vert_align(run_elem) -> Optional[str]:
+    """Get vertAlign value (superscript/subscript) from a w:r element."""
+    rpr = run_elem.find(f"{{{W_NS}}}rPr")
+    if rpr is not None:
+        va = rpr.find(f"{{{W_NS}}}vertAlign")
+        if va is not None:
+            return va.get(f"{{{W_NS}}}val")
+    return None
 
 
 # ── OMML → readable text converter ───────────────────────────────────────────
 
 def extract_omml_as_text(omml_node) -> str:
+    """Recursively extract human-readable text from OMML nodes."""
     tag = omml_node.tag.split("}")[-1] if "}" in omml_node.tag else omml_node.tag
 
+    # Fraction → numerator/denominator
     if tag == "f":
         num_node = omml_node.find(f"{{{M_NS}}}num")
         den_node = omml_node.find(f"{{{M_NS}}}den")
         num = extract_omml_as_text(num_node) if num_node is not None else ""
         den = extract_omml_as_text(den_node) if den_node is not None else ""
-        return f"({num}/{den})"
+        # Use fraction bar unicode or clear notation
+        return f"({num})/({den})"
 
+    # Superscript
     if tag == "sSup":
         e_node = omml_node.find(f"{{{M_NS}}}e")
         sup_node = omml_node.find(f"{{{M_NS}}}sup")
@@ -202,6 +170,7 @@ def extract_omml_as_text(omml_node) -> str:
         sup_raw = extract_omml_as_text(sup_node) if sup_node is not None else ""
         return f"{base}{to_superscript(sup_raw)}"
 
+    # Subscript
     if tag == "sSub":
         e_node = omml_node.find(f"{{{M_NS}}}e")
         sub_node = omml_node.find(f"{{{M_NS}}}sub")
@@ -209,6 +178,7 @@ def extract_omml_as_text(omml_node) -> str:
         sub_raw = extract_omml_as_text(sub_node) if sub_node is not None else ""
         return f"{base}{to_subscript(sub_raw)}"
 
+    # Superscript + Subscript combined
     if tag == "sSubSup":
         e_node = omml_node.find(f"{{{M_NS}}}e")
         sub_node = omml_node.find(f"{{{M_NS}}}sub")
@@ -218,6 +188,7 @@ def extract_omml_as_text(omml_node) -> str:
         sup_raw = extract_omml_as_text(sup_node) if sup_node is not None else ""
         return f"{base}{to_subscript(sub_raw)}{to_superscript(sup_raw)}"
 
+    # Radical
     if tag == "rad":
         deg_node = omml_node.find(f"{{{M_NS}}}deg")
         e_node = omml_node.find(f"{{{M_NS}}}e")
@@ -227,6 +198,7 @@ def extract_omml_as_text(omml_node) -> str:
             return f"{to_superscript(deg_raw)}√({base})"
         return f"√({base})"
 
+    # Delimiter
     if tag == "d":
         e_nodes = omml_node.findall(f"{{{M_NS}}}e")
         inner = " ".join(extract_omml_as_text(e) for e in e_nodes)
@@ -241,6 +213,7 @@ def extract_omml_as_text(omml_node) -> str:
                 end = end_node.get(f"{{{M_NS}}}val", ")")
         return f"{beg}{inner}{end}"
 
+    # N-ary: Σ ∫ Π
     if tag == "nary":
         nary_pr = omml_node.find(f"{{{M_NS}}}naryPr")
         chr_node = nary_pr.find(f"{{{M_NS}}}chr") if nary_pr is not None else None
@@ -253,6 +226,7 @@ def extract_omml_as_text(omml_node) -> str:
         body = extract_omml_as_text(e_node) if e_node is not None else ""
         return f"{symbol}({sub} to {sup}) {body}"
 
+    # Function: sin cos lim etc.
     if tag == "func":
         fname_node = omml_node.find(f"{{{M_NS}}}fName")
         e_node = omml_node.find(f"{{{M_NS}}}e")
@@ -260,6 +234,7 @@ def extract_omml_as_text(omml_node) -> str:
         arg = extract_omml_as_text(e_node) if e_node is not None else ""
         return f"{fname}({arg})"
 
+    # Matrix
     if tag == "m":
         mat_rows = omml_node.findall(f"{{{M_NS}}}mr")
         row_texts = []
@@ -268,12 +243,14 @@ def extract_omml_as_text(omml_node) -> str:
             row_texts.append(", ".join(extract_omml_as_text(c) for c in cells))
         return "[" + "; ".join(row_texts) + "]"
 
+    # Plain math run
     if tag == "r":
         t_node = omml_node.find(f"{{{M_NS}}}t")
         if t_node is not None and t_node.text:
             return t_node.text
         return ""
 
+    # Generic: recurse children, skip property nodes
     parts = []
     for child in omml_node:
         child_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
@@ -283,9 +260,16 @@ def extract_omml_as_text(omml_node) -> str:
     return "".join(parts)
 
 
-# ── Order-preserving paragraph walker ────────────────────────────────────────
+# ── Order-preserving paragraph walker (handles vertAlign superscript/subscript) ──
 
 def extract_paragraph_text_with_math(paragraph, rid_to_data_url: dict) -> Tuple[str, List[str], bool]:
+    """
+    Walk paragraph XML in document order:
+    - w:r with vertAlign=superscript/subscript → Unicode super/subscript chars
+    - w:r plain text → as-is
+    - m:oMath / m:oMathPara → OMML converter
+    - images in runs → collected
+    """
     p_elem = paragraph._p
     parts: List[str] = []
     images: List[str] = []
@@ -294,35 +278,53 @@ def extract_paragraph_text_with_math(paragraph, rid_to_data_url: dict) -> Tuple[
     for child in p_elem:
         local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
+        # ── Plain word run ──────────────────────────────────────────────
         if local == "r":
             t_node = child.find(f"{{{W_NS}}}t")
-            if t_node is not None and t_node.text:
-                parts.append(t_node.text)
+            text = t_node.text if t_node is not None and t_node.text else ""
+
+            if text:
+                va = get_vert_align(child)
+                if va == "superscript":
+                    parts.append(to_superscript(text))
+                elif va == "subscript":
+                    parts.append(to_subscript(text))
+                else:
+                    parts.append(text)
+
+            # Images inside run
             try:
-                blips = child.xpath(".//*[local-name()='blip']")
-                for blip in blips:
+                for blip in child.xpath(".//*[local-name()='blip']"):
                     rid = blip.get(f"{{{R_NS}}}embed")
                     if rid and rid in rid_to_data_url:
                         images.append(rid_to_data_url[rid])
             except Exception:
                 pass
             try:
-                imagedata_nodes = child.xpath(".//*[local-name()='imagedata']")
-                for node in imagedata_nodes:
+                for node in child.xpath(".//*[local-name()='imagedata']"):
                     rid = node.get(f"{{{R_NS}}}id")
                     if rid and rid in rid_to_data_url:
                         images.append(rid_to_data_url[rid])
             except Exception:
                 pass
 
+        # ── Hyperlink ───────────────────────────────────────────────────
         elif local == "hyperlink":
             for sub_run in child:
                 sub_local = sub_run.tag.split("}")[-1] if "}" in sub_run.tag else sub_run.tag
                 if sub_local == "r":
                     t_node = sub_run.find(f"{{{W_NS}}}t")
-                    if t_node is not None and t_node.text:
-                        parts.append(t_node.text)
+                    text = t_node.text if t_node is not None and t_node.text else ""
+                    if text:
+                        va = get_vert_align(sub_run)
+                        if va == "superscript":
+                            parts.append(to_superscript(text))
+                        elif va == "subscript":
+                            parts.append(to_subscript(text))
+                        else:
+                            parts.append(text)
 
+        # ── OMML math ───────────────────────────────────────────────────
         elif local in ("oMath", "oMathPara"):
             has_omml = True
             if local == "oMathPara":
@@ -335,7 +337,7 @@ def extract_paragraph_text_with_math(paragraph, rid_to_data_url: dict) -> Tuple[
                 if math_text:
                     parts.append(math_text)
 
-    combined = " ".join(p for p in parts if p).strip()
+    combined = "".join(parts).strip()
     combined = re.sub(r" {2,}", " ", combined)
     return combined, dedupe_str_list(images), has_omml
 
@@ -369,9 +371,9 @@ def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
             images.extend(para_images)
 
     text = "\n".join([t for t in text_parts if t]).strip()
-    text = restore_fraction_spacing(text)
     images = dedupe_str_list(images)
 
+    # Only warn if math/object detected AND we got nothing out
     if has_omml and not text and not images:
         warnings.append("Math equation detected but could not be extracted as text.")
     if has_object and not text and not images:
@@ -387,13 +389,18 @@ def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
 
 
 def normalize_row_text_fields(row: dict) -> dict:
+    """Clean up whitespace in text fields — NO regex that corrupts math."""
     for field in ["question", "explanation", "answer", "source", "remarks"]:
-        row[field] = restore_fraction_spacing(row.get(field, ""))
+        val = row.get(field, "") or ""
+        row[field] = re.sub(r" {2,}", " ", val.replace("\u00a0", " ")).strip()
     if isinstance(row.get("options"), list):
-        row["options"] = [
-            restore_fraction_spacing(opt) if isinstance(opt, str) else opt
-            for opt in row["options"]
-        ]
+        cleaned = []
+        for opt in row["options"]:
+            if isinstance(opt, str):
+                cleaned.append(re.sub(r" {2,}", " ", opt.replace("\u00a0", " ")).strip())
+            else:
+                cleaned.append(opt)
+        row["options"] = cleaned
     return row
 
 
@@ -406,7 +413,6 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
 
     for table_index, table in enumerate(doc.tables):
 
-        # ── Fresh question dictionary for each table ──────────────────────
         item = {
             "grade": "",
             "subject": "",
@@ -463,12 +469,9 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
             elif key == "skill type":
                 item["skill_type"] = val_text
             elif key in ["question type", "question skill type"]:
-                # Also auto-fill skill_type if it matches a valid value
-                # and skill_type was not explicitly set via a #Skill type* row
                 item["question_type"] = val_text
-                valid_skill_types = [
-                    "Understanding", "Knowledge Based", "Application", "Analytical"
-                ]
+                # Auto-fill skill_type if valid and not already set
+                valid_skill_types = ["Understanding", "Knowledge Based", "Application", "Analytical"]
                 if not item["skill_type"] and val_text in valid_skill_types:
                     item["skill_type"] = val_text
             elif key in ["question difficulty", "difficulty"]:
@@ -512,7 +515,6 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
                     item["parser_meta"]["warnings"].extend(
                         [f"Option {idx + 1}: {w}" for w in val["warnings"]]
                     )
-
                     if (val["has_object"] or val["has_omml"]) and not val_text and not val_images:
                         item["parser_meta"]["unresolved_option_objects"][idx] = True
                         unresolved_object_count += 1
@@ -523,12 +525,9 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
                 except Exception:
                     correct_index = None
 
-        # ── Pad arrays to length 4 ────────────────────────────────────────
         max_len = max(
-            len(item["options"]),
-            len(item["option_images"]),
-            len(item["option_inline_images"]),
-            4,
+            len(item["options"]), len(item["option_images"]),
+            len(item["option_inline_images"]), 4,
         )
         while len(item["options"]) < max_len:
             item["options"].append("")
@@ -543,9 +542,7 @@ def parse_docx_tables(docx_path: str) -> Tuple[List[dict], List[str], int]:
             item["answer_index"] = correct_index
             item["answer"] = item["options"][correct_index]
         else:
-            errors.append(
-                f"Table {table_index + 1}: Invalid/missing Key (correct option number)."
-            )
+            errors.append(f"Table {table_index + 1}: Invalid/missing Key (correct option number).")
 
         item["parser_meta"]["warnings"] = dedupe_str_list(item["parser_meta"]["warnings"])
         rows.append(normalize_row_text_fields(item))
@@ -563,11 +560,7 @@ async def parse_docx(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, f)
         try:
             rows, errors, unresolved_object_count = parse_docx_tables(docx_path)
-            return {
-                "rows": rows,
-                "errors": errors,
-                "unresolved_math_objects": unresolved_object_count,
-            }
+            return {"rows": rows, "errors": errors, "unresolved_math_objects": unresolved_object_count}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
