@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { MathText } from "../../../../../utils/renderMath";
 import { supabase } from "../../../../../services/supabase";
 import { parseDocxOneTablePerQuestion, MCQInsert } from "./parseDocxQuestions";
 import {
@@ -624,8 +625,10 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
 
                           {/* ── Question text ──────────────────────────── */}
                           <div className="mb-4">
-                            {hasText(q.question) ? (
-                              <p className="text-gray-200 font-medium leading-relaxed whitespace-pre-wrap">{q.question}</p>
+                         {hasText(q.question) ? (
+  <p className="text-gray-200 font-medium leading-relaxed">
+    <MathText text={q.question} />
+  </p>
                             ) : q.parser_meta?.unresolved_question_object ? (
                               <p className="text-yellow-300 text-sm italic">⚠ Question math could not be extracted. Review carefully.</p>
                             ) : null}
@@ -658,7 +661,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
                                     <div className="flex items-start gap-3 min-w-0">
                                       <span className="text-xs opacity-50 font-mono shrink-0 pt-0.5">{i + 1}.</span>
                                       <span className="whitespace-pre-wrap break-words min-w-0">
-                                        {hasText(opt) ? opt : unresolved ? (
+                                        {hasText(opt) ? <MathText text={opt} /> : unresolved ? (
                                           <span className="italic text-xs text-yellow-300">(Math option — could not extract)</span>
                                         ) : (
                                           <span className="italic text-xs opacity-70">(Image option)</span>
