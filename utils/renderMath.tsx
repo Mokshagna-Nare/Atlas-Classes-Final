@@ -1,16 +1,5 @@
 import React from "react";
 
-/**
- * Renders math marker strings as proper HTML elements.
- *
- * Markers from the parser:
- *   [SUP]x[/SUP]                     → <sup> styled for readability
- *   [SUB]x[/SUB]                     → <sub> styled for readability
- *   [FRAC]num[SEP]den[/FRAC]         → stacked fraction with horizontal bar
- *
- * Nested markers inside FRAC num/den are supported recursively.
- */
-
 type MathNode =
   | { type: "text"; value: string }
   | { type: "sup"; value: string }
@@ -22,12 +11,10 @@ export function tokenize(input: string): MathNode[] {
   let remaining = input;
 
   while (remaining.length > 0) {
-    // [FRAC]...[SEP]...[/FRAC] — must check before SUP/SUB
     const fracIdx = remaining.indexOf("[FRAC]");
     const supIdx = remaining.indexOf("[SUP]");
     const subIdx = remaining.indexOf("[SUB]");
 
-    // Find which marker comes first
     const firstIdx = Math.min(
       fracIdx === -1 ? Infinity : fracIdx,
       supIdx === -1 ? Infinity : supIdx,
@@ -35,27 +22,24 @@ export function tokenize(input: string): MathNode[] {
     );
 
     if (firstIdx === Infinity) {
-      // No more markers — rest is plain text
       nodes.push({ type: "text", value: remaining });
       break;
     }
 
-    // Push any plain text before the first marker
     if (firstIdx > 0) {
       nodes.push({ type: "text", value: remaining.slice(0, firstIdx) });
       remaining = remaining.slice(firstIdx);
       continue;
     }
 
-    // Now remaining starts with a marker
     if (remaining.startsWith("[FRAC]")) {
       const sepIdx = remaining.indexOf("[SEP]");
       const endIdx = remaining.indexOf("[/FRAC]");
       if (sepIdx !== -1 && endIdx !== -1 && sepIdx < endIdx) {
-        const num = remaining.slice(6, sepIdx); // after [FRAC]
-        const den = remaining.slice(sepIdx + 5, endIdx); // after [SEP]
+        const num = remaining.slice(6, sepIdx);
+        const den = remaining.slice(sepIdx + 5, endIdx);
         nodes.push({ type: "frac", num, den });
-        remaining = remaining.slice(endIdx + 7); // after [/FRAC]
+        remaining = remaining.slice(endIdx + 7);
         continue;
       }
     }
@@ -63,9 +47,8 @@ export function tokenize(input: string): MathNode[] {
     if (remaining.startsWith("[SUP]")) {
       const endIdx = remaining.indexOf("[/SUP]");
       if (endIdx !== -1) {
-        const value = remaining.slice(5, endIdx); // after [SUP]
-        nodes.push({ type: "sup", value });
-        remaining = remaining.slice(endIdx + 6); // after [/SUP]
+        nodes.push({ type: "sup", value: remaining.slice(5, endIdx) });
+        remaining = remaining.slice(endIdx + 6);
         continue;
       }
     }
@@ -73,14 +56,13 @@ export function tokenize(input: string): MathNode[] {
     if (remaining.startsWith("[SUB]")) {
       const endIdx = remaining.indexOf("[/SUB]");
       if (endIdx !== -1) {
-        const value = remaining.slice(5, endIdx); // after [SUB]
-        nodes.push({ type: "sub", value });
-        remaining = remaining.slice(endIdx + 6); // after [/SUB]
+        nodes.push({ type: "sub", value: remaining.slice(5, endIdx) });
+        remaining = remaining.slice(endIdx + 6);
         continue;
       }
     }
 
-    // Malformed marker — treat the bracket as plain text and move on
+    // Malformed marker — treat as plain text
     nodes.push({ type: "text", value: remaining[0] });
     remaining = remaining.slice(1);
   }
@@ -94,7 +76,6 @@ export function renderNode(node: MathNode, key: number): React.ReactNode {
   }
 
   if (node.type === "sup") {
-    // Recursively render — sup content may itself contain markers
     const inner = tokenize(node.value);
     return (
       <sup
@@ -148,26 +129,32 @@ export function renderNode(node: MathNode, key: number): React.ReactNode {
           margin: "0 3px",
           fontSize: "0.9em",
           lineHeight: 1.3,
-          gap: 0,
         }}
       >
+        {/* Numerator — extra paddingTop prevents tall chars like √ from being clipped */}
         <span
           style={{
             borderBottom: "1.5px solid currentColor",
+            paddingTop: "6px",        // ← KEY FIX: gives √ room above the bar
             paddingBottom: "2px",
             paddingLeft: "3px",
             paddingRight: "3px",
             textAlign: "center",
+            overflow: "visible",      // ← prevents clipping of ascenders
+            display: "block",
           }}
         >
           {numNodes.map((n, i) => renderNode(n, i))}
         </span>
+        {/* Denominator */}
         <span
           style={{
             paddingTop: "2px",
+            paddingBottom: "2px",
             paddingLeft: "3px",
             paddingRight: "3px",
             textAlign: "center",
+            display: "block",
           }}
         >
           {denNodes.map((n, i) => renderNode(n, i))}
@@ -184,17 +171,9 @@ interface MathTextProps {
   className?: string;
 }
 
-/**
- * Renders a string with math markers as properly formatted React elements.
- *
- * Usage:
- *   <MathText text={q.question} className="text-gray-200 font-medium" />
- *   <MathText text={option} />
- */
 export const MathText: React.FC<MathTextProps> = ({ text, className }) => {
   if (!text) return null;
 
-  // Fast path: no markers at all
   if (
     !text.includes("[SUP]") &&
     !text.includes("[SUB]") &&
@@ -211,17 +190,12 @@ export const MathText: React.FC<MathTextProps> = ({ text, className }) => {
   );
 };
 
-/** Returns true if the string contains any math markers */
 export const hasMathMarkers = (text: string): boolean =>
   Boolean(text) &&
   (text.includes("[SUP]") ||
     text.includes("[SUB]") ||
     text.includes("[FRAC]"));
 
-/**
- * Strips all math markers and returns plain readable text.
- * Used for search, duplicate checks, select dropdowns etc.
- */
 export const stripMathMarkers = (text: string): string => {
   if (!text) return "";
   return text

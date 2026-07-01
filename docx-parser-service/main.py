@@ -24,6 +24,8 @@ app.add_middleware(
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+V_NS = "urn:schemas-microsoft-com:vml"
+O_NS = "urn:schemas-microsoft-com:office:office"
 
 
 def bytes_to_data_url(blob: bytes, ext: str) -> str:
@@ -73,6 +75,8 @@ def build_docx_image_maps(docx_path: str) -> Tuple[dict, dict]:
             target_to_data_url[os.path.basename(media_path)] = data_url
 
     doc = Document(docx_path)
+
+    # Main document rels
     for rel_id, rel in doc.part.rels.items():
         try:
             if "image" in rel.reltype:
@@ -85,7 +89,7 @@ def build_docx_image_maps(docx_path: str) -> Tuple[dict, dict]:
         except Exception:
             continue
 
-    # Also collect image rels from all embedded parts (for MathType/OLE images)
+    # All embedded parts (catches MathType and other OLE image rels)
     for part in doc.part.package.iter_parts():
         for rel_id, rel in part.rels.items():
             try:
@@ -97,7 +101,9 @@ def build_docx_image_maps(docx_path: str) -> Tuple[dict, dict]:
                         .lower()
                         or "png"
                     )
-                    rid_to_data_url[rel_id] = bytes_to_data_url(target_part.blob, ext)
+                    rid_to_data_url[rel_id] = bytes_to_data_url(
+                        target_part.blob, ext
+                    )
             except Exception:
                 continue
 
@@ -115,7 +121,6 @@ def dedupe_str_list(items: List[str]) -> List[str]:
 
 
 def get_vert_align(run_elem) -> Optional[str]:
-    """Return vertAlign value (superscript/subscript) from a w:r element."""
     rpr = run_elem.find(f"{{{W_NS}}}rPr")
     if rpr is not None:
         va = rpr.find(f"{{{W_NS}}}vertAlign")
@@ -125,7 +130,6 @@ def get_vert_align(run_elem) -> Optional[str]:
 
 
 def extract_run_images(run_elem, rid_to_data_url: dict) -> List[str]:
-    """Extract all images from a w:r element."""
     images: List[str] = []
     try:
         for blip in run_elem.xpath(".//*[local-name()='blip']"):
@@ -144,16 +148,9 @@ def extract_run_images(run_elem, rid_to_data_url: dict) -> List[str]:
     return images
 
 
-# ── OMML → marker-based text ──────────────────────────────────────────────────
-#
-# Markers used:
-#   [SUP]x[/SUP]                         → superscript (rendered as <sup>)
-#   [SUB]x[/SUB]                         → subscript  (rendered as <sub>)
-#   [FRAC]numerator[SEP]denominator[/FRAC] → stacked fraction with bar
-
+# ── OMML → marker text ───────────────────────────────────────────────────────
 
 def extract_omml_as_text(omml_node) -> str:
-    """Recursively convert an OMML node to marker-annotated readable text."""
     tag = omml_node.tag.split("}")[-1] if "}" in omml_node.tag else omml_node.tag
 
     if tag == "f":
@@ -233,9 +230,7 @@ def extract_omml_as_text(omml_node) -> str:
         row_texts = []
         for mat_row in mat_rows:
             cells = mat_row.findall(f"{{{M_NS}}}e")
-            row_texts.append(
-                ", ".join(extract_omml_as_text(c) for c in cells)
-            )
+            row_texts.append(", ".join(extract_omml_as_text(c) for c in cells))
         return "[" + "; ".join(row_texts) + "]"
 
     if tag == "r":
@@ -253,19 +248,69 @@ def extract_omml_as_text(omml_node) -> str:
     return "".join(parts)
 
 
+# ── Nested table extractor ────────────────────────────────────────────────────
+
+def extract_nested_table_as_text(tbl_elem) -> str:
+    """
+    Convert a nested w:tbl element inside a question cell into readable
+    text. Preserves superscripts/subscripts and OMML math markers.
+    Formats as pipe-separated rows so the structure is clear.
+    """
+    rows = tbl_elem.findall(f".//{{{W_NS}}}tr")
+    result_rows: List[str] = []
+
+    for row_elem in rows:
+        # Get direct tc children only (not nested ones)
+        cells = row_elem.findall(f"{{{W_NS}}}tc")
+        cell_texts: List[str] = []
+
+        for tc in cells:
+            paras = tc.findall(f".//{{{W_NS}}}p")
+            para_parts: List[str] = []
+
+            for para in paras:
+                parts: List[str] = []
+                for child in para:
+                    local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+
+                    if local == "r":
+                        t_node = child.find(f"{{{W_NS}}}t")
+                        text = t_node.text if t_node is not None and t_node.text else ""
+                        if text:
+                            va = get_vert_align(child)
+                            if va == "superscript":
+                                parts.append(f"[SUP]{text}[/SUP]")
+                            elif va == "subscript":
+                                parts.append(f"[SUB]{text}[/SUB]")
+                            else:
+                                parts.append(text)
+
+                    elif local in ("oMath", "oMathPara"):
+                        if local == "oMathPara":
+                            for omath in child.findall(f"{{{M_NS}}}oMath"):
+                                parts.append(extract_omml_as_text(omath))
+                        else:
+                            parts.append(extract_omml_as_text(child))
+
+                joined = "".join(parts).strip()
+                if joined:
+                    para_parts.append(joined)
+
+            cell_texts.append(" ".join(para_parts))
+
+        # Filter empty cells and join
+        non_empty = [c for c in cell_texts if c.strip()]
+        if non_empty:
+            result_rows.append(" | ".join(non_empty))
+
+    return "\n".join(result_rows)
+
+
 # ── Paragraph walker ──────────────────────────────────────────────────────────
 
 def extract_paragraph_text_with_math(
     paragraph, rid_to_data_url: dict
 ) -> Tuple[str, List[str], bool]:
-    """
-    Walk paragraph XML in document order:
-    - w:r with vertAlign=superscript → [SUP]text[/SUP]
-    - w:r with vertAlign=subscript  → [SUB]text[/SUB]
-    - w:r plain text                → as-is
-    - m:oMath / m:oMathPara         → extract_omml_as_text()
-    - images in runs                → collected separately
-    """
     p_elem = paragraph._p
     parts: List[str] = []
     images: List[str] = []
@@ -285,7 +330,6 @@ def extract_paragraph_text_with_math(
                     parts.append(f"[SUB]{text}[/SUB]")
                 else:
                     parts.append(text)
-            # Collect images from run
             imgs = extract_run_images(child, rid_to_data_url)
             images.extend(imgs)
 
@@ -326,6 +370,14 @@ def extract_paragraph_text_with_math(
 # ── Cell content extractor ────────────────────────────────────────────────────
 
 def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
+    """
+    Extract all content from a table cell including:
+    - Plain text with superscript/subscript markers
+    - OMML math as markers
+    - Inline images
+    - Nested tables (converted to readable pipe-separated text)
+    - MathType OLE objects (extracted as alt text or skipped gracefully)
+    """
     text_parts: List[str] = []
     images: List[str] = []
     has_object = False
@@ -333,11 +385,19 @@ def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
     warnings: List[str] = []
 
     for paragraph in cell.paragraphs:
+        # Check for OLE objects (MathType etc.)
         try:
-            if paragraph._p.xpath(
-                ".//*[local-name()='OLEObject']"
-            ) or paragraph._p.xpath(".//*[local-name()='object']"):
+            ole_nodes = paragraph._p.xpath(".//*[local-name()='OLEObject']")
+            obj_nodes = paragraph._p.xpath(".//*[local-name()='object']")
+            if ole_nodes or obj_nodes:
                 has_object = True
+                # Try to get alt text from the OLE object's shape
+                # MathType stores a preview image - try to find it
+                ole_images = paragraph._p.xpath(".//*[local-name()='imagedata']")
+                for img_node in ole_images:
+                    rid = img_node.get(f"{{{R_NS}}}id")
+                    if rid and rid in rid_to_data_url:
+                        images.append(rid_to_data_url[rid])
         except Exception:
             pass
 
@@ -352,17 +412,32 @@ def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
         if para_images:
             images.extend(para_images)
 
+    # ── Handle nested tables inside the cell ─────────────────────────────────
+    # python-docx's cell.paragraphs skips nested tables entirely.
+    # We walk the cell XML directly to find w:tbl children.
+    try:
+        nested_tables = cell._tc.findall(f".//{{{W_NS}}}tbl")
+        for nested_tbl in nested_tables:
+            # Skip tables that are nested more than one level deep
+            # (we only want direct nested tables, not tables inside tables inside tables)
+            nested_text = extract_nested_table_as_text(nested_tbl)
+            if nested_text.strip():
+                text_parts.append(nested_text)
+    except Exception:
+        pass
+
     text = "\n".join([t for t in text_parts if t]).strip()
     images = dedupe_str_list(images)
 
-    # Only warn when we got NOTHING out despite math/objects being present
+    # Only warn if nothing was extracted despite math/objects being present
     if has_omml and not text and not images:
         warnings.append(
             "Math equation detected but could not be extracted as text."
         )
     if has_object and not text and not images:
         warnings.append(
-            "Embedded object detected but could not be extracted as text."
+            "Embedded MathType object detected but could not be extracted. "
+            "Consider retyping using Word's native equation editor."
         )
 
     return {
@@ -376,11 +451,8 @@ def extract_cell_content(cell, rid_to_data_url: dict) -> dict:
 
 def merge_consecutive_markers(text: str) -> str:
     """
-    Merge consecutive same-type markers produced by multi-run Word superscripts.
-    Word splits '-15' across two runs both with vertAlign=superscript, producing:
-      [SUP]-1[/SUP][SUP]5[/SUP]
-    This merges them into:
-      [SUP]-15[/SUP]
+    Merge consecutive same-type markers from multi-run Word superscripts.
+    e.g. [SUP]-1[/SUP][SUP]5[/SUP] → [SUP]-15[/SUP]
     """
     if not text:
         return text
@@ -390,7 +462,7 @@ def merge_consecutive_markers(text: str) -> str:
 
 
 def normalize_row_text_fields(row: dict) -> dict:
-    """Clean extra whitespace and merge split math markers. Never alter marker content."""
+    """Clean extra whitespace and merge split math markers."""
     for field in ["question", "explanation", "answer", "source", "remarks"]:
         val = row.get(field, "") or ""
         val = re.sub(r" {2,}", " ", val.replace("\u00a0", " ")).strip()
