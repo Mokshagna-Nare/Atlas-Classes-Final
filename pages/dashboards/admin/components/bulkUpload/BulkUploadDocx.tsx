@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { MathText } from "../../../../../utils/renderMath";
 import { supabase } from "../../../../../services/supabase";
 import { parseDocxOneTablePerQuestion, MCQInsert } from "./parseDocxQuestions";
 import {
@@ -15,6 +14,7 @@ import {
   getOptionImages,
   McqImageList,
 } from "../../../../../utils/mcqContent";
+import { MathText, stripMathMarkers } from "../../../../../utils/renderMath";
 
 type Props = { onDone?: () => void };
 
@@ -55,17 +55,6 @@ const normalizeOptions = (q: MCQInsert): string[] => {
   );
   while (normalized.length < 4) normalized.push("");
   return normalized.slice(0, 4);
-};
-
-const hasParserMathFallback = (q: MCQInsert): boolean => {
-  const meta = q.parser_meta;
-  if (!meta) return false;
-  return Boolean(
-    meta.unresolved_question_object ||
-    (Array.isArray(meta.unresolved_option_objects) && meta.unresolved_option_objects.some(Boolean)) ||
-    meta.has_omml ||
-    (Array.isArray(meta.option_has_omml) && meta.option_has_omml.some(Boolean))
-  );
 };
 
 const hasUnresolvedMath = (q: MCQInsert): boolean => {
@@ -118,14 +107,24 @@ const EditQuestionModal: React.FC<{
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Question text */}
+          {/* Preview of how it will render */}
+          <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Live Preview</p>
+            <p className="text-gray-200">
+              <MathText text={q.question || ""} />
+            </p>
+          </div>
+
+          {/* Question text - raw editable with markers visible */}
           <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Question</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">
+              Question <span className="text-gray-600 normal-case font-normal">(edit raw text — [SUP]/[SUB]/[FRAC] markers control formatting)</span>
+            </label>
             <textarea
               rows={4}
               value={q.question || ""}
               onChange={(e) => setQ({ ...q, question: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white outline-none focus:border-green-500 resize-none"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white outline-none focus:border-green-500 resize-none font-mono text-sm"
             />
           </div>
 
@@ -135,11 +134,14 @@ const EditQuestionModal: React.FC<{
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">
                 Option {i + 1} {q.answer_index === i ? "✓ Correct" : ""}
               </label>
+              <div className="mb-1 px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm text-gray-300">
+                <MathText text={options[i]} />
+              </div>
               <input
                 type="text"
                 value={options[i]}
                 onChange={(e) => setOption(i, e.target.value)}
-                className={`w-full px-4 py-3 bg-gray-800 border rounded-xl text-white outline-none focus:border-green-500 ${
+                className={`w-full px-4 py-3 bg-gray-800 border rounded-xl text-white outline-none focus:border-green-500 font-mono text-sm ${
                   q.answer_index === i ? "border-green-600" : "border-gray-700"
                 }`}
               />
@@ -159,7 +161,9 @@ const EditQuestionModal: React.FC<{
             >
               <option value="">Select correct option</option>
               {[0, 1, 2, 3].map((i) => (
-                <option key={i} value={i}>Option {i + 1}{options[i] ? ` — ${options[i].slice(0, 50)}` : ""}</option>
+                <option key={i} value={i}>
+                  Option {i + 1}{options[i] ? ` — ${stripMathMarkers(options[i]).slice(0, 50)}` : ""}
+                </option>
               ))}
             </select>
           </div>
@@ -227,8 +231,6 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
         const validQuestions = rows.filter((q) => isValidQuestion(q));
         const invalidCount = rows.length - validQuestions.length;
 
-        // Only warn about UNRESOLVED math (where we got nothing out)
-        // NOT about successfully extracted OMML
         const unresolvedWarnings = validQuestions
           .filter((q) => hasUnresolvedMath(q))
           .map((_, idx) => `Question ${idx + 1}: Math/object content could not be extracted. Verify preview before upload.`);
@@ -267,9 +269,10 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
       const q = questions[i];
       const questionImages = getQuestionImages(q);
       const duplicateLabel = hasText(q.question)
-        ? q.question
+        ? stripMathMarkers(q.question)
         : questionImages.length > 0 ? "Image-based question"
         : "Math/object-based question";
+      // Strip markers before duplicate-check against DB (DB also stores markers, so compare raw)
       const isDup = await checkDuplicate(q.question || "", normalizeOptions(q));
       if (isDup) dups.push({ index: i, q: duplicateLabel });
     }
@@ -319,7 +322,6 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
         results.forEach(({ prefix, num }) => { prefixTrackers[prefix] = num; });
       }
 
-      // Collect and upload images
       const imagesToUpload: string[] = [];
       finalQuestions.forEach((q) => {
         getQuestionImages(q).forEach((img) => { if (img?.startsWith("data:image")) imagesToUpload.push(img); });
@@ -493,7 +495,6 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
           <h4 className="text-2xl font-bold" style={{ color: THEME_COLOR }}>Upload Successful!</h4>
           <p className="text-gray-400">Your questions have been added to the bank.</p>
 
-          {/* Undo button */}
           {uploadedIds.length > 0 && (
             <button
               onClick={handleUndo}
@@ -625,10 +626,10 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
 
                           {/* ── Question text ──────────────────────────── */}
                           <div className="mb-4">
-                         {hasText(q.question) ? (
-  <p className="text-gray-200 font-medium leading-relaxed">
-    <MathText text={q.question} />
-  </p>
+                            {hasText(q.question) ? (
+                              <p className="text-gray-200 font-medium leading-relaxed">
+                                <MathText text={q.question} />
+                              </p>
                             ) : q.parser_meta?.unresolved_question_object ? (
                               <p className="text-yellow-300 text-sm italic">⚠ Question math could not be extracted. Review carefully.</p>
                             ) : null}
@@ -660,8 +661,10 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="flex items-start gap-3 min-w-0">
                                       <span className="text-xs opacity-50 font-mono shrink-0 pt-0.5">{i + 1}.</span>
-                                      <span className="whitespace-pre-wrap break-words min-w-0">
-                                        {hasText(opt) ? <MathText text={opt} /> : unresolved ? (
+                                      <span className="break-words min-w-0">
+                                        {hasText(opt) ? (
+                                          <MathText text={opt} />
+                                        ) : unresolved ? (
                                           <span className="italic text-xs text-yellow-300">(Math option — could not extract)</span>
                                         ) : (
                                           <span className="italic text-xs opacity-70">(Image option)</span>
@@ -684,7 +687,6 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
 
                         {/* ── Action buttons ────────────────────────── */}
                         <div className="flex flex-col gap-2 shrink-0">
-                          {/* Edit */}
                           <button
                             onClick={() => setEditingQuestion({ q, idx })}
                             className="p-2.5 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-xl transition-all"
@@ -695,7 +697,6 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                           </button>
-                          {/* Delete */}
                           <button
                             onClick={() => removeQuestion(idx)}
                             className="p-2.5 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded-xl transition-all"
