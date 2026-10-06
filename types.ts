@@ -2,8 +2,11 @@
 export interface User {
   id: string;
   name: string;
+  email?: string;
   role: 'institute' | 'student' | 'admin';
   institute_id?: string;
+  class_id?: string | null;
+  roll_no?: string | null;
   batch?: 'COMPASS' | 'AXIS' | 'NEXUS';
   logo_url?: string;
 }
@@ -11,6 +14,7 @@ export interface User {
 
 export interface AcademicClass {
   id: string;
+  institute_id?: string;
   name: string;
   subjects: string[];
 }
@@ -53,7 +57,21 @@ export interface Testimonial {
 export interface Student {
   id: string;
   name: string;
+  email?: string;
   institute_id: string;
+  class_id?: string | null;
+  roll_no?: string | null;
+  password?: string;
+  created_at?: string;
+}
+
+export interface TestAssignment {
+  id: string;
+  test_id: string;
+  class_id: string;
+  assigned_at?: string;
+  opens_at?: string | null;
+  closes_at?: string | null;
 }
 
 export interface TestMark {
@@ -168,15 +186,21 @@ export interface Question {
 export type Test = {
   id?: string;                 // DB will generate this
   title: string;
-  duration: number;
-  institute_id: string | null; // institute id from dropdown
-  question_ids: string[];      // array of MCQ ids
-  total_marks: number;
-  date: string;                // 'YYYY-MM-DD'
-  status?: 'scheduled' | 'completed' | 'cancelled' | 'Upcoming'; // optional, frontend only
-  subject?: string; // <-- add this line
-  batch: 'COMPASS' | 'AXIS' | 'NEXUS';
-  pdfFileName?: string; // optional, name of the uploaded PDF file
+  duration?: number | null;
+  institute_id: string | null;
+  question_ids: string[];      // array of MCQ ids (empty for offline/paper tests)
+  date?: string | null;        // 'YYYY-MM-DD'
+  status?: 'scheduled' | 'completed' | 'cancelled' | 'Upcoming';
+  subject?: string | null;
+  // Online-test scheduling (set by admin's Create Online Test)
+  start_window?: string | null;
+  end_window?: string | null;
+  duration_minutes?: number | null;
+  created_at?: string;
+  // Legacy frontend-only fields — not columns on the live `tests` table.
+  total_marks?: number;
+  batch?: 'COMPASS' | 'AXIS' | 'NEXUS';
+  pdfFileName?: string;
   questions?: Question[];
 };
 

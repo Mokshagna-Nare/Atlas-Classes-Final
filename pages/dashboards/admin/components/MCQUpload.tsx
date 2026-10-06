@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PlusIcon, TrashIcon, FlagIcon, PhotoIcon } from '../../../../components/icons';
+import ModalPortal from '../../../../components/ModalPortal';
 import { useData } from '../../../../contexts/DataContext';
 import { MCQ } from '../../../../types';
 import { supabase } from '../../../../services/supabase';
@@ -408,6 +409,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
 
       {/* ── Duplicate Modal ─────────────────────────────────────────────── */}
       {duplicateModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
           <div className="bg-gray-900 border border-red-500/50 rounded-2xl p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200">
             <h3 className="text-xl font-bold text-red-500 mb-2 flex items-center gap-2">⚠️ Potential Duplicate Found</h3>
@@ -421,6 +423,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ── Page Header ─────────────────────────────────────────────────── */}

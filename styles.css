@@ -217,6 +217,25 @@ body {
     transform: translateY(0);
 }
 
+/* Dashboard scroll reveal: each top-level section of a page eases in as it enters
+   the scroll viewport. Progressive enhancement — browsers without scroll-driven
+   animations just render content normally. Ends at transform:none so it never
+   leaves a containing block that would trap fixed-position children. */
+@keyframes dashReveal {
+    from { opacity: 0; transform: translateY(28px) scale(0.99); }
+    to   { opacity: 1; transform: none; }
+}
+
+@supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+        .scroll-reveal > * > * {
+            animation: dashReveal linear both;
+            animation-timeline: view();
+            animation-range: entry 0% entry 30%;
+        }
+    }
+}
+
 /* Ripple Effect */
 .ripple-effect {
     position: absolute;

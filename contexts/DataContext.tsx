@@ -4,9 +4,9 @@ import {
   Test, TestResult, Payment, Institute, AdminQuestionPaper, 
   AcademicClass, WeeklySchedule, Student, TestMark, MCQ 
 } from '../types';
-import { 
-  STUDENT_TESTS, ALL_RESULTS, STUDENT_PAYMENTS, 
-  ADMIN_QUESTION_PAPERS, INSTITUTE_STUDENTS 
+import {
+  STUDENT_TESTS, ALL_RESULTS, STUDENT_PAYMENTS,
+  ADMIN_QUESTION_PAPERS
 } from '../constants';
 import { createClient } from '@supabase/supabase-js';
 
@@ -31,9 +31,11 @@ interface DataContextType {
   marks: TestMark[];
 
   refreshInstitutes: () => Promise<void>;
+  refreshClasses: () => Promise<void>;
+  refreshStudents: () => Promise<void>;
 
   addTest: (test: Test) => Promise<void>;
-  editTest: (test: Test) => void;
+  editTest: (test: Test) => Promise<void>;
   deleteTest: (testId: string) => Promise<void>;
   updateTestStatus: (testId: string, status: Test['status']) => void;
   addTestResult: (result: TestResult) => void;
@@ -46,17 +48,16 @@ interface DataContextType {
   
   addAdminQuestionPaper: (paper: AdminQuestionPaper) => void;
   
-  addClass: (cls: AcademicClass) => void;
-  updateClass: (cls: AcademicClass) => void;
-  deleteClass: (id: string) => void;
-  
+  addClass: (cls: AcademicClass) => Promise<void>;
+  updateClass: (cls: AcademicClass) => Promise<void>;
+  deleteClass: (id: string) => Promise<void>;
+
   addSchedule: (sch: WeeklySchedule) => void;
   deleteSchedule: (id: string) => void;
-  
-  addStudent: (std: Student) => void;
-  updateStudent: (std: Student) => void;
-  deleteStudent: (id: string) => void;
-  bulkAddStudents: (stds: Student[]) => void;
+
+  createStudent: (std: { name: string; email: string; password: string; institute_id: string; class_id?: string | null; roll_no?: string | null }) => Promise<void>;
+  updateStudent: (id: string, updates: { name?: string; email?: string; password?: string; class_id?: string | null; roll_no?: string | null }) => Promise<void>;
+  deleteStudent: (id: string) => Promise<void>;
   
   addMark: (mark: TestMark) => void;
   bulkAddMarks: (marks: TestMark[]) => void;
@@ -80,18 +81,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [adminQuestionPapers, setAdminQuestionPapers] = useState<AdminQuestionPaper[]>(ADMIN_QUESTION_PAPERS);
   const [mcqBank, setMcqBank] = useState<MCQ[]>([]);
 
-  const [classes, setClasses] = useState<AcademicClass[]>([
-    { id: 'c6', name: 'Class 6', subjects: ['Mathematics', 'Science', 'Social'] },
-    { id: 'c7', name: 'Class 7', subjects: ['Mathematics', 'Science', 'Social'] },
-    { id: 'c8', name: 'Class 8', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'] },
-    { id: 'c9', name: 'Class 9', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'] },
-    { id: 'c10', name: 'Class 10', subjects: ['Physics', 'Chemistry', 'Biology', 'Mathematics'] },
-  ]);
+  // classes/students start empty and load from Supabase (see refreshClasses/refreshStudents below).
+  // Falls back to the legacy mock lists only if Supabase is unreachable, so existing demos still render.
+  const [classes, setClasses] = useState<AcademicClass[]>([]);
   const [schedules, setSchedules] = useState<WeeklySchedule[]>([
     { id: 'sc1', classId: 'c10', weekNumber: 1, subject: 'Physics', topic: 'Light Reflection and Refraction' },
     { id: 'sc2', classId: 'c9', weekNumber: 1, subject: 'Mathematics', topic: 'Number Systems' },
   ]);
-  const [students, setStudents] = useState<Student[]>(INSTITUTE_STUDENTS);
+  const [students, setStudents] = useState<Student[]>([]);
   const [marks, setMarks] = useState<TestMark[]>([]);
 
    const refreshInstitutes = async () => {
@@ -125,7 +122,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 };
 
+  const refreshClasses = async () => {
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase.from('classes').select('*').order('name');
+      if (error) throw error;
+      if (data) {
+        setClasses(data.map((row: any) => ({
+          id: row.id,
+          institute_id: row.institute_id,
+          name: row.name,
+          subjects: row.subjects || [],
+        })) as AcademicClass[]);
+      }
+    } catch (e) {
+      console.warn('Failed to load classes from Supabase (has migration 001 been run yet?)');
+    }
+  };
 
+  const refreshStudents = async () => {
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, email, institute_id, class_id, roll_no, password, created_at')
+        .eq('role', 'student');
+      if (error) throw error;
+      if (data) setStudents(data as Student[]);
+    } catch (e) {
+      console.warn('Failed to load students from Supabase (has migration 001 been run yet?)');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -137,7 +164,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: mcqData } = await supabase.from('mcqs').select('*');
         if (mcqData) setMcqBank(mcqData as MCQ[]);
 
-        await refreshInstitutes();
+        await Promise.all([refreshInstitutes(), refreshClasses(), refreshStudents()]);
       } catch (e) {
         console.warn('Supabase connection failed, using local defaults.');
       }
@@ -183,24 +210,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 
 
+  // Only columns that exist on the live `tests` table — extra fields (batch, total_marks,
+  // pdfFileName…) make PostgREST reject the whole insert.
+  const toTestRow = (t: Test) => ({
+    title: t.title,
+    subject: t.subject ?? null,
+    date: t.date || null,
+    duration: t.duration ?? null,
+    institute_id: t.institute_id,
+    status: t.status ?? 'Upcoming',
+    question_ids: t.question_ids ?? [],
+  });
+
   const addTest = async (newTest: Test) => {
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.from('tests').insert([newTest]).select();
-        if (error) throw error;
-        if (data) return setTests(prev => [...prev, data[0] as Test]);
-      } catch (e) { console.warn(e); }
-    }
-    setTests(prev => [...prev, newTest]);
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { data, error } = await supabase.from('tests').insert([toTestRow(newTest)]).select().single();
+    if (error) throw error;
+    setTests(prev => [...prev, data as Test]);
   };
 
-  const editTest = (updatedTest: Test) => 
-    setTests(prev => prev.map(t => t.id === updatedTest.id ? updatedTest : t));
+  const editTest = async (updatedTest: Test) => {
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { title, subject, date, duration } = toTestRow(updatedTest);
+    const { error } = await supabase.from('tests').update({ title, subject, date, duration }).eq('id', updatedTest.id);
+    if (error) throw error;
+    setTests(prev => prev.map(t => t.id === updatedTest.id ? { ...t, ...updatedTest } : t));
+  };
   
   const deleteTest = async (testId: string) => {
-    if (supabase) {
-      try { await supabase.from('tests').delete().eq('id', testId); } catch (e) { console.warn(e); }
-    }
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { error } = await supabase.from('tests').delete().eq('id', testId);
+    if (error) throw error;
     setTests(prev => prev.filter(t => t.id !== testId));
   };
 
@@ -209,17 +249,65 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addTestResult = (res: TestResult) => setResults(prev => [...prev, res]);
 
-  const addClass = (cls: AcademicClass) => setClasses(prev => [...prev, cls]);
-  const updateClass = (cls: AcademicClass) => setClasses(prev => prev.map(c => c.id === cls.id ? cls : c));
-  const deleteClass = (id: string) => setClasses(prev => prev.filter(c => c.id !== id));
+  const addClass = async (cls: AcademicClass) => {
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { data, error } = await supabase
+      .from('classes')
+      .insert([{ institute_id: cls.institute_id, name: cls.name, subjects: cls.subjects }])
+      .select()
+      .single();
+    if (error) throw error;
+    setClasses(prev => [...prev, { id: data.id, institute_id: data.institute_id, name: data.name, subjects: data.subjects || [] }]);
+  };
+
+  const updateClass = async (cls: AcademicClass) => {
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { error } = await supabase
+      .from('classes')
+      .update({ name: cls.name, subjects: cls.subjects })
+      .eq('id', cls.id);
+    if (error) throw error;
+    setClasses(prev => prev.map(c => c.id === cls.id ? cls : c));
+  };
+
+  const deleteClass = async (id: string) => {
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { error } = await supabase.from('classes').delete().eq('id', id);
+    if (error) throw error;
+    setClasses(prev => prev.filter(c => c.id !== id));
+  };
 
   const addSchedule = (sch: WeeklySchedule) => setSchedules(prev => [...prev, sch]);
   const deleteSchedule = (id: string) => setSchedules(prev => prev.filter(s => s.id !== id));
 
-  const addStudent = (std: Student) => setStudents(prev => [...prev, std]);
-  const updateStudent = (std: Student) => setStudents(prev => prev.map(s => s.id === std.id ? std : s));
-  const deleteStudent = (id: string) => setStudents(prev => prev.filter(s => s.id !== id));
-  const bulkAddStudents = (stds: Student[]) => setStudents(prev => [...prev, ...stds]);
+  const createStudent = async (std: { name: string; email: string; password: string; institute_id: string; class_id?: string | null; roll_no?: string | null }) => {
+    const { data } = await api.post('/auth/create-student', std);
+    setStudents(prev => [...prev, {
+      id: data.user.id,
+      name: std.name,
+      email: std.email,
+      institute_id: std.institute_id,
+      class_id: std.class_id ?? null,
+      roll_no: std.roll_no ?? null,
+      password: std.password,
+    }]);
+  };
+
+  const updateStudent = async (id: string, updates: { name?: string; email?: string; password?: string; class_id?: string | null; roll_no?: string | null }) => {
+    await api.put(`/auth/update-student/${id}`, updates);
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const deleteStudent = async (id: string) => {
+    const previousStudents = [...students];
+    setStudents(prev => prev.filter(s => s.id !== id));
+    try {
+      await api.delete(`/auth/delete-student/${id}`);
+    } catch (e) {
+      setStudents(previousStudents);
+      throw e;
+    }
+  };
 
   const addMark = (mark: TestMark) => setMarks(prev => [...prev, mark]);
   const bulkAddMarks = (newMarks: TestMark[]) => setMarks(prev => [...prev, ...newMarks]);
@@ -269,15 +357,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <DataContext.Provider value={{ 
         tests, results, payments, institutes, adminQuestionPapers, mcqBank,
-        classes, schedules, students, marks, 
-        refreshInstitutes,
+        classes, schedules, students, marks,
+        refreshInstitutes, refreshClasses, refreshStudents,
         addTest, editTest, deleteTest, updateTestStatus, addTestResult,
         updatePaymentStatus,
         addInstitute, updateInstitute, deleteInstitute,
         addAdminQuestionPaper,
         addClass, updateClass, deleteClass,
         addSchedule, deleteSchedule,
-        addStudent, updateStudent, deleteStudent, bulkAddStudents,
+        createStudent, updateStudent, deleteStudent,
         addMark, bulkAddMarks,
         addMCQ, updateMCQ, deleteMCQ, flagMCQ, unflagMCQ
     }}>

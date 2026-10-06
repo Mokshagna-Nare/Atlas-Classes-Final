@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../services/supabase';
-import { InformationCircleIcon, FunnelIcon } from '../../../../components/icons';
+import { InformationCircleIcon, FunnelIcon, UserGroupIcon } from '../../../../components/icons';
 
 const CreateTest: React.FC = () => {
   // --- 1. Global Test Metadata ---
@@ -8,9 +8,37 @@ const CreateTest: React.FC = () => {
   const [duration, setDuration] = useState<number | string>(60);
   const [startWindow, setStartWindow] = useState('');
   const [endWindow, setEndWindow] = useState('');
-  
+
   const [finalQuestionIds, setFinalQuestionIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'custom' | 'existing'>('existing');
+
+  // --- Assignment (which institute/classes this test is released to) ---
+  const [institutes, setInstitutes] = useState<{ id: string; name: string }[]>([]);
+  const [assignInstituteId, setAssignInstituteId] = useState('');
+  const [availableClasses, setAvailableClasses] = useState<{ id: string; name: string }[]>([]);
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchInstitutes = async () => {
+      const { data } = await supabase.from('institutes').select('id, name').order('name');
+      if (data) setInstitutes(data);
+    };
+    fetchInstitutes();
+  }, []);
+
+  useEffect(() => {
+    setSelectedClassIds([]);
+    if (!assignInstituteId) { setAvailableClasses([]); return; }
+    const fetchClasses = async () => {
+      const { data } = await supabase.from('classes').select('id, name').eq('institute_id', assignInstituteId).order('name');
+      if (data) setAvailableClasses(data);
+    };
+    fetchClasses();
+  }, [assignInstituteId]);
+
+  const toggleClassSelection = (classId: string) => {
+    setSelectedClassIds(prev => prev.includes(classId) ? prev.filter(id => id !== classId) : [...prev, classId]);
+  };
 
   // --- 2. Existing Paper Tab ---
   const [offlinePapers, setOfflinePapers] = useState<any[]>([]);
@@ -166,19 +194,37 @@ const CreateTest: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('tests').insert({
+      const { data: insertedTest, error } = await supabase.from('tests').insert({
         title: title,
         duration_minutes: Number(duration),
         start_window: new Date(startWindow).toISOString(),
         end_window: new Date(endWindow).toISOString(),
         status: 'Upcoming',
-        question_ids: finalQuestionIds
-      });
+        question_ids: finalQuestionIds,
+        ...(assignInstituteId ? { institute_id: assignInstituteId } : {}),
+      }).select().single();
 
       if (error) throw error;
-      setMessage({ type: 'success', text: `Test "${title}" created successfully with ${finalQuestionIds.length} questions!` });
-      
+
+      if (assignInstituteId && selectedClassIds.length > 0) {
+        const { error: assignError } = await supabase.from('test_assignments').insert(
+          selectedClassIds.map(classId => ({
+            test_id: insertedTest.id,
+            class_id: classId,
+            opens_at: new Date(startWindow).toISOString(),
+            closes_at: new Date(endWindow).toISOString(),
+          }))
+        );
+        if (assignError) throw new Error(`Test was created, but assigning classes failed: ${assignError.message}`);
+      }
+
+      const assignmentNote = assignInstituteId && selectedClassIds.length > 0
+        ? ` Assigned to ${selectedClassIds.length} class${selectedClassIds.length > 1 ? 'es' : ''}.`
+        : ' No classes assigned — this test is only reachable via the shareable link in Manage Tests.';
+      setMessage({ type: 'success', text: `Test "${title}" created successfully with ${finalQuestionIds.length} questions!${assignmentNote}` });
+
       setTitle(''); setStartWindow(''); setEndWindow(''); setFinalQuestionIds([]); setPreviewQuestions([]); setSelectedPaperId('All');
+      setAssignInstituteId(''); setSelectedClassIds([]);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to create test.' });
     } finally {
@@ -356,6 +402,37 @@ const CreateTest: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800 space-y-6">
+        <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+          <h3 className="text-xl font-bold">3. Assign To (optional)</h3>
+          <span className="text-xs text-gray-500 flex items-center gap-1.5"><UserGroupIcon className="h-4 w-4" /> Leave blank to keep this a link-only public test</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-gray-400">Institute</label>
+            <select value={assignInstituteId} onChange={e => setAssignInstituteId(e.target.value)} className="bg-gray-800 border border-gray-700 rounded-xl py-2.5 px-4 focus:border-green-500 outline-none text-sm">
+              <option value="">-- No institute (public link only) --</option>
+              {institutes.map(inst => <option key={inst.id} value={inst.id}>{inst.name}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-gray-400">Classes {selectedClassIds.length > 0 && <span className="text-green-500">({selectedClassIds.length} selected)</span>}</label>
+            <div className={`flex flex-wrap gap-2 min-h-[46px] items-center ${!assignInstituteId ? 'opacity-40' : ''}`}>
+              {!assignInstituteId && <span className="text-xs text-gray-600">Select an institute first</span>}
+              {assignInstituteId && availableClasses.length === 0 && <span className="text-xs text-gray-600">This institute has no classes defined yet.</span>}
+              {availableClasses.map(cls => (
+                <button
+                  type="button" key={cls.id} onClick={() => toggleClassSelection(cls.id)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border transition ${selectedClassIds.includes(cls.id) ? 'bg-green-600 border-green-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-green-500'}`}
+                >
+                  {cls.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row items-center justify-between pt-4 gap-4 border-t border-gray-800">

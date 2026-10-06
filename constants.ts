@@ -72,10 +72,10 @@ export const INSTITUTES_DATA: Institute[] = [
 export const ADMIN_QUESTION_PAPERS: AdminQuestionPaper[] = [];
 
 export const INSTITUTE_STUDENTS: Student[] = [
-  { id: 's1', name: 'Riya Sharma', instituteId: 'i1' },
-  { id: 's2', name: 'Arjun Verma', instituteId: 'i1' },
-  { id: 's3', name: 'Priya Patel', instituteId: 'i1' },
-  { id: 's4', name: 'Rohan Kumar', instituteId: 'i1' },
+  { id: 's1', name: 'Riya Sharma', institute_id: 'i1' },
+  { id: 's2', name: 'Arjun Verma', institute_id: 'i1' },
+  { id: 's3', name: 'Priya Patel', institute_id: 'i1' },
+  { id: 's4', name: 'Rohan Kumar', institute_id: 'i1' },
 ];
 
 // Cleared dummy tests

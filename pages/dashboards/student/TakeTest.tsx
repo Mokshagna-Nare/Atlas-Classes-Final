@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../../services/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 import { getCorrectOptionIndex } from '../../../utils/mcqAnswer';
 import { replacePlaceholdersWithImages } from '../../../utils/imagePlaceholder';
 
@@ -14,16 +15,19 @@ const FlagIcon = ({ filled }: { filled?: boolean }) => (
 const TakeTest: React.FC = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
+  const auth = useAuth();
+  const student = auth?.user?.role === 'student' ? auth.user : null;
 
   // Core Data
   const [testDetails, setTestDetails] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
-  
+
   // UI States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [testStage, setTestStage] = useState<'registration' | 'instructions' | 'active' | 'completed'>('registration');
-  
+  const [priorAttempt, setPriorAttempt] = useState<{ score: number; total_correct: number; total_wrong: number } | null>(null);
+
   // CBT Engine States
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
@@ -33,6 +37,13 @@ const TakeTest: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [scoreData, setScoreData] = useState<{ score: number, correct: number, total: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Basic browser-lockdown proctoring (authenticated students only — guest/public
+  // practice-test links are untouched and never enter fullscreen or get monitored).
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [fullscreenExitCount, setFullscreenExitCount] = useState(0);
+  const [showFullscreenWarning, setShowFullscreenWarning] = useState(false);
+  const PROCTOR_VIOLATION_LIMIT = 3;
 
   // --- 1. Fetch Test & Restore Session ---
   useEffect(() => {
@@ -50,27 +61,59 @@ const TakeTest: React.FC = () => {
         if (now < start) throw new Error(`Test has not started yet. Opens at ${start.toLocaleString()}`);
         if (now > end) throw new Error(`Test has expired. Closed at ${end.toLocaleString()}`);
 
+        // Logged-in students taking an assigned test: verify their class is actually
+        // assigned before letting them in (tests with zero assignment rows stay public/guest-open).
+        if (student) {
+          const { data: assignments } = await supabase.from('test_assignments').select('class_id').eq('test_id', testId);
+          if (assignments && assignments.length > 0) {
+            const isAssignedToMe = student.class_id && assignments.some((a: any) => a.class_id === student.class_id);
+            if (!isAssignedToMe) throw new Error('This test has not been assigned to your class.');
+          }
+
+          const { data: existingAttempt } = await supabase
+            .from('test_attempts')
+            .select('score, total_correct, total_wrong')
+            .eq('test_id', testId)
+            .eq('student_id', student.id)
+            .maybeSingle();
+          if (existingAttempt) {
+            setPriorAttempt(existingAttempt);
+            setTestDetails(testData);
+            setLoading(false);
+            return;
+          }
+        }
+
         setTestDetails(testData);
 
         const { data: qData, error: qError } = await supabase.from('mcqs').select('*').in('id', testData.question_ids);
         if (qError) throw qError;
         setQuestions(qData || []);
 
+        if (student) {
+          // Authenticated students skip the guest registration screen entirely — go straight to instructions.
+          setGuestName(student.name);
+          setGuestEmail(student.email || '');
+          setTestStage('instructions');
+        }
+
         // RESTORE SESSION FROM LOCAL STORAGE
         const savedSession = localStorage.getItem(`test_session_${testId}`);
         if (savedSession) {
           const session = JSON.parse(savedSession);
-          setGuestName(session.guestName || '');
-          setGuestEmail(session.guestEmail || '');
+          if (!student) {
+            setGuestName(session.guestName || '');
+            setGuestEmail(session.guestEmail || '');
+          }
           if (session.flagged) setFlagged(new Set(session.flagged));
-          
+
           const currentTimestamp = Date.now();
           if (session.endTime && currentTimestamp < session.endTime) {
             setAnswers(session.answers || {});
             setTestStage('active');
           } else if (session.endTime && currentTimestamp >= session.endTime) {
             setAnswers(session.answers || {});
-            await submitTestEngine(session.answers || {}, qData || [], session.guestName, session.guestEmail);
+            await submitTestEngine(session.answers || {}, qData || [], student ? student.name : session.guestName, student ? (student.email || '') : session.guestEmail);
           }
         }
       } catch (err: any) {
@@ -119,6 +162,51 @@ const TakeTest: React.FC = () => {
       }
     }
   }, [answers, flagged]);
+
+  // --- 3. Proctoring: fullscreen-exit + tab-switch detection, copy/paste lockdown ---
+  useEffect(() => {
+    if (testStage !== 'active' || !student) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) setTabSwitchCount(c => c + 1);
+    };
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setFullscreenExitCount(c => c + 1);
+        setShowFullscreenWarning(true);
+      } else {
+        setShowFullscreenWarning(false);
+      }
+    };
+    const blockAction = (e: Event) => e.preventDefault();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('copy', blockAction);
+    document.addEventListener('cut', blockAction);
+    document.addEventListener('paste', blockAction);
+    document.addEventListener('contextmenu', blockAction);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('copy', blockAction);
+      document.removeEventListener('cut', blockAction);
+      document.removeEventListener('paste', blockAction);
+      document.removeEventListener('contextmenu', blockAction);
+    };
+  }, [testStage, student]);
+
+  const requestFullscreenLockdown = () => {
+    if (!student) return;
+    const el = document.documentElement as any;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (request) request.call(el).catch(() => { /* non-fatal: some environments block it */ });
+  };
+
+  const exitFullscreenLockdown = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  };
 
   // --- Handlers ---
   const handleRegister = (e: React.FormEvent) => {
@@ -176,15 +264,31 @@ const TakeTest: React.FC = () => {
     try {
       const { error: dbError } = await supabase.from('test_attempts').insert({
         test_id: testId,
-        guest_name: finalName,
-        guest_email: finalEmail,
+        ...(student
+          ? { student_id: student.id }
+          : { guest_name: finalName, guest_email: finalEmail }),
         score: finalScore,
         total_correct: correctCount,
         total_wrong: wrongCount,
         status: 'finished',
-        end_time: new Date().toISOString()
+        end_time: new Date().toISOString(),
+        answers: currentAnswers,
+        ...(student ? {
+          tab_switch_count: tabSwitchCount,
+          fullscreen_exit_count: fullscreenExitCount,
+          flagged: tabSwitchCount >= PROCTOR_VIOLATION_LIMIT || fullscreenExitCount >= PROCTOR_VIOLATION_LIMIT,
+        } : {}),
       });
-      if (dbError) throw dbError;
+      if (dbError) {
+        // Unique constraint (one attempt per student per test) tripped — most likely a double
+        // submit from two tabs. Treat it as already-submitted rather than a hard failure.
+        if (dbError.code === '23505') {
+          localStorage.removeItem(`test_session_${testId}`);
+          setTestStage('completed');
+          return;
+        }
+        throw dbError;
+      }
       localStorage.removeItem(`test_session_${testId}`);
       setTestStage('completed');
     } catch (err) {
@@ -192,6 +296,7 @@ const TakeTest: React.FC = () => {
       alert("Failed to save attempt to database, but results are shown locally.");
       setTestStage('completed');
     } finally {
+      exitFullscreenLockdown();
       setIsSubmitting(false);
     }
   };
@@ -205,6 +310,23 @@ const TakeTest: React.FC = () => {
 
   if (loading) return <div className="min-h-screen bg-atlas-dark flex items-center justify-center text-white font-mono">Loading Environment...</div>;
   if (error) return <div className="min-h-screen bg-atlas-dark flex items-center justify-center text-red-500 font-bold p-8 text-center">{error}</div>;
+
+  if (priorAttempt) {
+    return (
+      <div className="min-h-screen bg-atlas-dark flex items-center justify-center p-4">
+        <div className="bg-atlas-soft border border-gray-800 rounded-3xl p-10 max-w-md w-full text-center shadow-2xl">
+          <h2 className="text-2xl font-extrabold mb-2 text-white">Already Submitted</h2>
+          <p className="text-gray-400 text-sm mb-6">You've already completed {testDetails?.title || 'this test'}. Each test can only be attempted once.</p>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 mb-8">
+            <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Your Score</p>
+            <div className={`text-6xl font-extrabold mb-4 ${priorAttempt.score >= 50 ? 'text-atlas-green' : 'text-red-500'}`}>{priorAttempt.score}%</div>
+            <p className="text-gray-400 font-medium">{priorAttempt.total_correct} correct &middot; {priorAttempt.total_wrong} wrong</p>
+          </div>
+          <button onClick={() => navigate('/dashboard/student')} className="w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-bold transition">Back to Dashboard</button>
+        </div>
+      </div>
+    );
+  }
 
   const currentQ = questions[currentIndex];
 
@@ -235,9 +357,20 @@ const TakeTest: React.FC = () => {
                 <li>Time limit: {testDetails.duration_minutes} minutes.</li>
                 <li>Your progress is auto-saved. Do not clear browser cache.</li>
                 <li>You can navigate freely and flag questions for review.</li>
+                {student && (
+                  <>
+                    <li className="text-amber-400">This is a proctored test: it runs in fullscreen, and exiting fullscreen or switching tabs is recorded.</li>
+                    <li className="text-amber-400">Copy, paste, and right-click are disabled during the test.</li>
+                  </>
+                )}
               </ul>
             </div>
-            <button onClick={() => setTestStage('active')} className="w-full bg-atlas-green hover:bg-green-500 text-atlas-dark py-4 rounded-xl font-bold text-lg">Start Test</button>
+            <button
+              onClick={() => { requestFullscreenLockdown(); setTestStage('active'); }}
+              className="w-full bg-atlas-green hover:bg-green-500 text-atlas-dark py-4 rounded-xl font-bold text-lg"
+            >
+              Start Test
+            </button>
           </div>
         </div>
       )}
@@ -245,11 +378,36 @@ const TakeTest: React.FC = () => {
       {/* NEW CBT ACTIVE VIEW */}
       {testStage === 'active' && currentQ && (
         <div className="min-h-screen flex flex-col">
+          {/* Fullscreen-exit warning */}
+          {student && showFullscreenWarning && (
+            <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-atlas-soft border border-red-500/40 rounded-3xl p-10 max-w-md w-full text-center shadow-2xl">
+                <h3 className="text-xl font-extrabold text-red-400 mb-2">Fullscreen Exited</h3>
+                <p className="text-gray-400 text-sm mb-2">
+                  Leaving fullscreen during a proctored test is recorded as a violation.
+                </p>
+                <p className="text-xs text-gray-600 mb-6">
+                  Violations recorded: {fullscreenExitCount} / {PROCTOR_VIOLATION_LIMIT} allowed before this attempt is flagged for review.
+                </p>
+                <button onClick={requestFullscreenLockdown} className="w-full bg-atlas-green hover:bg-green-500 text-atlas-dark py-3 rounded-xl font-bold">
+                  Resume Fullscreen
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <header className="bg-atlas-soft border-b border-gray-800 p-4 sticky top-0 z-50 flex justify-between items-center px-6">
             <h2 className="font-bold text-lg text-gray-200 hidden md:block">{testDetails.title}</h2>
-            <div className={`font-mono text-xl font-bold px-4 py-2 rounded-xl border ${timeLeft && timeLeft < 60 ? 'bg-red-500/10 text-red-500 border-red-500/30 animate-pulse' : 'bg-gray-900 text-atlas-green border-gray-700'}`}>
-              {timeLeft !== null ? formatTime(timeLeft) : '--:--'}
+            <div className="flex items-center gap-3">
+              {student && (tabSwitchCount > 0 || fullscreenExitCount > 0) && (
+                <div className="text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl border bg-amber-500/10 text-amber-400 border-amber-500/30" title="Proctoring violations recorded on this attempt">
+                  {tabSwitchCount + fullscreenExitCount} Violation{tabSwitchCount + fullscreenExitCount === 1 ? '' : 's'}
+                </div>
+              )}
+              <div className={`font-mono text-xl font-bold px-4 py-2 rounded-xl border ${timeLeft && timeLeft < 60 ? 'bg-red-500/10 text-red-500 border-red-500/30 animate-pulse' : 'bg-gray-900 text-atlas-green border-gray-700'}`}>
+                {timeLeft !== null ? formatTime(timeLeft) : '--:--'}
+              </div>
             </div>
           </header>
 
@@ -363,7 +521,9 @@ const TakeTest: React.FC = () => {
               <div className={`text-6xl font-extrabold mb-4 ${scoreData.score >= 50 ? 'text-atlas-green' : 'text-red-500'}`}>{scoreData.score}%</div>
               <p className="text-gray-400 font-medium">{scoreData.correct} out of {scoreData.total} correct</p>
             </div>
-            <button onClick={() => navigate('/')} className="w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-bold transition">Return Home</button>
+            <button onClick={() => navigate(student ? '/dashboard/student' : '/')} className="w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-bold transition">
+              {student ? 'Back to Dashboard' : 'Return Home'}
+            </button>
           </div>
         </div>
       )}

@@ -1,10 +1,9 @@
 
 import React, { useState } from 'react';
 import { convertHtmlToTest } from '../../../../services/geminiService';
-import { Question, Test } from '../../../../types';
+import { supabase } from '../../../../services/supabase';
+import { Question } from '../../../../types';
 import { SparklesIcon, DocumentTextIcon, ArrowRightIcon, CodeBracketIcon } from '../../../../components/icons';
-import { useData } from '../../../../contexts/DataContext';
-import { useAuth } from '../../../../contexts/AuthContext';
 
 const AIPaperGenerator: React.FC = () => {
     // Upload State
@@ -17,9 +16,8 @@ const AIPaperGenerator: React.FC = () => {
     const [generatedTitle, setGeneratedTitle] = useState('');
     const [generatedSubject, setGeneratedSubject] = useState('');
     const [error, setError] = useState<string | null>(null);
-
-    const { addTest } = useData();
-    const { user } = useAuth()!;
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -79,37 +77,56 @@ const AIPaperGenerator: React.FC = () => {
         setIsLoading(false);
     };
 
+    // Persists the converted questions into the Question Bank, then saves them as a finalized
+    // paper in offline_papers (same shape QuestionPaperGenerator writes), so it can be scheduled
+    // and assigned from Create Online Test → "Load from Existing Paper".
     const handleSaveAsTest = async () => {
-        if (!generatedQuestions) return;
+        if (!generatedQuestions || isSaving) return;
+        setIsSaving(true);
+        setError(null);
+        setSaveMessage(null);
+        try {
+            const subject = generatedSubject || 'Mixed';
+            const rows = generatedQuestions
+                .map(q => {
+                    const options = q.options && q.options.length >= 2 ? q.options : (q.type === 'True/False' ? ['True', 'False'] : null);
+                    if (!options) return null; // online tests are multiple-choice only
+                    const idx = options.findIndex(o => o.trim().toLowerCase() === (q.answer || '').trim().toLowerCase());
+                    return {
+                        question: q.question, type: 'Multiple Choice', options, answer: q.answer || '',
+                        answer_index: idx >= 0 ? idx : null, explanation: q.explanation || '',
+                        subject, topic: generatedTitle, sub_topic: '', difficulty: 'Medium', marks: 4,
+                        question_type: 'MCQ', source: `HTML converter · ${filePreviewName}`, isFlagged: false,
+                    };
+                })
+                .filter((r): r is NonNullable<typeof r> => r !== null);
 
-        const newTest: Test = {
-  id: crypto.randomUUID(),
-  title: generatedTitle,
-  subject: generatedSubject,
-  date: new Date().toISOString().split('T')[0],
-  status: 'Upcoming',
-  institute_id: user!.id,
-  
-  // FIX: Add the missing properties below
-  duration: 60, // Default duration in minutes (or calculate from questions)
-  total_marks: 100, // Default total marks (or sum of question marks)
-  batch: 'AXIS', // Default batch (or get from form input)
-  
-  // FIX: Map your questions to IDs as required
-  question_ids: generatedQuestions ? generatedQuestions.map(q => q.id) : [], 
+            const skipped = generatedQuestions.length - rows.length;
+            if (rows.length === 0) throw new Error('None of the converted questions are multiple-choice, so they can’t be used in an online test.');
 
-  // Optional: Keep these if you updated your interface to allow them
-  pdfFileName: filePreviewName, 
-  questions: generatedQuestions 
-};
+            const { data: inserted, error: qErr } = await supabase.from('mcqs').insert(rows).select('id');
+            if (qErr) throw qErr;
+            const ids = (inserted || []).map((r: any) => r.id);
 
+            const { error: pErr } = await supabase.from('offline_papers').insert([{
+                title: generatedTitle, subject, duration: 60, question_ids: ids, total_marks: ids.length * 4,
+                exam_date: new Date().toISOString().split('T')[0], assessment_type: 'Test', status: 'Finalized',
+                tracks_enabled: false,
+                subject_config: { [subject]: { track1: ids.length, track2: 0 } },
+                question_allocations: { [subject]: { track1: ids, track2: [] } },
+                downloads: 0, student_downloads: 0, teacher_downloads: 0,
+            }]);
+            if (pErr) throw pErr;
 
-        await addTest(newTest);
-        alert('Test successfully created and assigned to dashboard!');
-        // Reset
-        setGeneratedQuestions(null);
-        setHtmlFile(null);
-        setFilePreviewName('');
+            setSaveMessage(`Saved ${ids.length} question${ids.length === 1 ? '' : 's'} to the Question Bank and created the paper “${generatedTitle}”.${skipped ? ` ${skipped} non-multiple-choice question${skipped === 1 ? ' was' : 's were'} skipped.` : ''} To schedule it for students, open Create Online Test → Load from Existing Paper.`);
+            setGeneratedQuestions(null);
+            setHtmlFile(null);
+            setFilePreviewName('');
+        } catch (err: any) {
+            setError(`Couldn't save: ${err.message || 'unknown error'}`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -160,15 +177,19 @@ const AIPaperGenerator: React.FC = () => {
                     <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-800">
                         <h3 className="text-xl font-bold text-white">Preview & Edit</h3>
                         {generatedQuestions && (
-                            <button 
+                            <button
                                 onClick={handleSaveAsTest}
-                                className="flex items-center space-x-2 bg-white text-black font-bold py-2 px-5 rounded-lg hover:bg-gray-200 transition-colors shadow-glow"
+                                disabled={isSaving}
+                                className="flex items-center space-x-2 bg-atlas-primary text-atlas-black font-bold py-2 px-5 rounded-lg hover:bg-emerald-400 transition-colors shadow-glow disabled:opacity-60 disabled:cursor-wait"
                             >
-                                <span>Save to Tests</span>
-                                <ArrowRightIcon className="h-4 w-4" />
+                                <span>{isSaving ? 'Saving…' : 'Save as Paper'}</span>
+                                {!isSaving && <ArrowRightIcon className="h-4 w-4" />}
                             </button>
                         )}
                     </div>
+                    {saveMessage && (
+                        <div role="status" className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-sm text-emerald-100/90">{saveMessage}</div>
+                    )}
                     
                     <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar">
                         {isLoading ? (

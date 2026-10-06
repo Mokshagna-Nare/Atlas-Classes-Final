@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../services/supabase';
 import { InformationCircleIcon, TrashIcon } from '../../../../components/icons';
+import ModalPortal from '../../../../components/ModalPortal';
 
 // Icons
 const CopyLinkIcon = ({ className }: { className?: string }) => (
@@ -31,6 +32,7 @@ const ManageTests: React.FC = () => {
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [assignmentsByTest, setAssignmentsByTest] = useState<Record<string, string[]>>({});
 
   // Results Modal States
   const [viewingResults, setViewingResults] = useState<{ id: string, title: string } | null>(null);
@@ -41,6 +43,16 @@ const ManageTests: React.FC = () => {
     setLoading(true);
     const { data, error } = await supabase.from('tests').select('*').order('created_at', { ascending: false });
     if (!error && data) setTests(data);
+
+    const { data: assignments } = await supabase.from('test_assignments').select('test_id, classes(name)');
+    if (assignments) {
+      const map: Record<string, string[]> = {};
+      assignments.forEach((a: any) => {
+        const className = a.classes?.name || 'Unknown Class';
+        map[a.test_id] = [...(map[a.test_id] || []), className];
+      });
+      setAssignmentsByTest(map);
+    }
     setLoading(false);
   };
 
@@ -65,11 +77,16 @@ const ManageTests: React.FC = () => {
     setLoadingAttempts(true);
     const { data, error } = await supabase
       .from('test_attempts')
-      .select('*')
+      .select('*, users(name, email)')
       .eq('test_id', testId)
       .order('score', { ascending: false }); // Show highest scores first
-    
+
     if (!error && data) setTestAttempts(data);
+    else if (error) {
+      // Fallback for projects where the students(id) FK embed isn't recognized yet
+      const { data: plain } = await supabase.from('test_attempts').select('*').eq('test_id', testId).order('score', { ascending: false });
+      if (plain) setTestAttempts(plain);
+    }
     setLoadingAttempts(false);
   };
 
@@ -82,8 +99,8 @@ const ManageTests: React.FC = () => {
     
     // 2. Map data to rows
     const rows = testAttempts.map(attempt => [
-      `"${attempt.guest_name || ''}"`, // Wrap strings in quotes to prevent comma issues
-      `"${attempt.guest_email || ''}"`,
+      `"${attempt.guest_name || attempt.users?.name || ''}"`, // Wrap strings in quotes to prevent comma issues
+      `"${attempt.guest_email || attempt.users?.email || ''}"`,
       attempt.score,
       attempt.total_correct,
       attempt.total_wrong,
@@ -135,15 +152,16 @@ const ManageTests: React.FC = () => {
               <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Test Title</th>
               <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Time Window</th>
               <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Questions</th>
+              <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Assigned To</th>
               <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Status</th>
               <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {loading ? (
-              <tr><td colSpan={5} className="p-10 text-center text-gray-500">Loading tests...</td></tr>
+              <tr><td colSpan={6} className="p-10 text-center text-gray-500">Loading tests...</td></tr>
             ) : tests.length === 0 ? (
-              <tr><td colSpan={5} className="p-10 text-center text-gray-500">No tests created yet.</td></tr>
+              <tr><td colSpan={6} className="p-10 text-center text-gray-500">No tests created yet.</td></tr>
             ) : (
               tests.map(test => {
                 const status = getTestStatus(test.start_window, test.end_window);
@@ -163,6 +181,17 @@ const ManageTests: React.FC = () => {
                       <span className="text-sm font-mono text-gray-300 bg-gray-800 px-3 py-1 rounded-lg border border-gray-700">
                         {test.question_ids ? test.question_ids.length : 0} Qs
                       </span>
+                    </td>
+                    <td className="p-5">
+                      {assignmentsByTest[test.id]?.length ? (
+                        <div className="flex flex-wrap gap-1.5 max-w-[180px]">
+                          {assignmentsByTest[test.id].map((name, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 text-[9px] font-black rounded uppercase tracking-widest">{name}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-600 italic">Public link only</span>
+                      )}
                     </td>
                     <td className="p-5">
                       <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${status.color}`}>
@@ -198,6 +227,7 @@ const ManageTests: React.FC = () => {
 
       {/* --- RESULTS OVERLAY MODAL --- */}
       {viewingResults && (
+        <ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-gray-900 border border-gray-700 rounded-3xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
             
@@ -243,8 +273,11 @@ const ManageTests: React.FC = () => {
                   <tbody className="divide-y divide-gray-800 bg-gray-800/20">
                     {testAttempts.map(attempt => (
                       <tr key={attempt.id} className="hover:bg-gray-800/50 transition">
-                        <td className="p-4 text-sm font-bold text-white">{attempt.guest_name}</td>
-                        <td className="p-4 text-sm text-gray-400">{attempt.guest_email}</td>
+                        <td className="p-4 text-sm font-bold text-white">
+                          {attempt.guest_name || attempt.users?.name || 'Unknown'}
+                          {attempt.student_id && <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-green-500 bg-green-500/10 px-2 py-0.5 rounded">Enrolled</span>}
+                        </td>
+                        <td className="p-4 text-sm text-gray-400">{attempt.guest_email || attempt.users?.email}</td>
                         <td className="p-4 text-center">
                           <span className={`px-3 py-1 rounded-xl text-xs font-bold ${attempt.score >= 50 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                             {attempt.score}%
@@ -265,6 +298,7 @@ const ManageTests: React.FC = () => {
             
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -1,91 +1,28 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import React from 'react';
+import AuthScreen from '../../components/auth/AuthScreen';
+import { UserGroupIcon, ChartBarIcon, DocumentDuplicateIcon } from '../../components/icons';
 
-const InstituteLogin: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [localError, setLocalError] = useState('');
-  const navigate = useNavigate();
-  const auth = useAuth();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError('');
-    
-    try {
-      if (auth) {
-        await auth.login({ email, password }, 'institute');
-        navigate('/dashboard/institute');
-      }
-    } catch (err: any) {
-      // Properly extract the error message thrown by AuthContext
-      setLocalError(err.message || 'Login failed. Please check your credentials.');
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-atlas-dark flex items-center justify-center">
-      <div className="bg-atlas-soft p-8 rounded-lg shadow-2xl w-full max-w-md border border-gray-800">
-        <div className="text-center mb-6">
-             {/* Logo Section */}
-             <div className="flex justify-center items-center gap-6 mb-4">
-                 <img 
-                    src="https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png" 
-                    alt="Atlas Classes" 
-                    className="h-16 sm:h-20 w-auto object-contain" 
-                />
-                {/* Vertical divider */}
-                <div className="h-12 w-px bg-gray-600 hidden sm:block"></div>
-                {/* iLearn Logo */}
-                <img 
-                    src="https://i.postimg.cc/Y9jSSdVL/Logo-(ilearn).png" 
-                    alt="iLearn" 
-                    className="h-auto w-32 sm:w-40 object-contain" 
-                />
-             </div>
-            <h2 className="text-3xl font-bold text-atlas-green">Institute Login</h2>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="text-sm font-bold text-gray-400 block mb-2">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 bg-atlas-dark border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-atlas-green text-white placeholder-gray-600"
-              placeholder="e.g., institute@atlas.com"
-              required
-            />
-          </div>
-          <div>
-            <label className="text-sm font-bold text-gray-400 block mb-2">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 bg-atlas-dark border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-atlas-green text-white placeholder-gray-600"
-              placeholder="e.g., password"
-              required
-            />
-          </div>
-          {(localError || auth?.error) && (
-            <p className="text-red-500 text-sm font-medium">{localError || auth?.error}</p>
-          )}
-          <button 
-            type="submit" 
-            disabled={auth?.isLoading} 
-            className="w-full bg-atlas-green text-white font-bold py-3 px-6 rounded-md hover:bg-green-600 transition duration-300 shadow-md shadow-green-900/20 disabled:opacity-50"
-          >
-            {auth?.isLoading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
-        <p className="text-center text-gray-500 mt-4 text-sm">
-            Go back to <Link to="/" className="text-atlas-green hover:underline font-medium">Home</Link>
-        </p>
+const InstituteLogin: React.FC = () => (
+  <AuthScreen
+    role="institute"
+    portalLabel="Institute Console"
+    title="Institute sign-in"
+    subtitle="Manage your students, classes, and results."
+    emailPlaceholder="institute@example.com"
+    brand={
+      <div className="flex items-center gap-4">
+        <img src="https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png" alt="Atlas Classes" className="h-12 w-auto object-contain" />
+        <div className="h-10 w-px bg-white/10" />
+        <img src="https://i.postimg.cc/Y9jSSdVL/Logo-(ilearn).png" alt="iLearn" className="w-32 h-auto object-contain" />
       </div>
-    </div>
-  );
-};
+    }
+    headline={<>Your whole campus, <span className="bg-gradient-to-r from-emerald-300 to-atlas-primary bg-clip-text text-transparent">in one view.</span></>}
+    features={[
+      { icon: UserGroupIcon, title: 'Student roster', text: 'Enroll students one by one or import a whole class from Excel.' },
+      { icon: ChartBarIcon, title: 'Campus analytics', text: 'See how every class performs across tests.' },
+      { icon: DocumentDuplicateIcon, title: 'Papers & tests', text: 'Access question papers and the tests shared with you.' },
+    ]}
+  />
+);
 
 export default InstituteLogin;

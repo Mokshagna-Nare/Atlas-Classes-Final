@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Institute } from '../../../../types'; // Adjust path if needed
 import { useData } from '../../../../contexts/DataContext'; // Adjust path if needed
 import api from '../../../../services/api'; // Adjust path if needed
+import ModalPortal from '../../../../components/ModalPortal';
 
 // Fallback Icon
 const PencilSquareIcon = ({ className }: { className?: string }) => (
@@ -88,6 +89,7 @@ const EditInstituteModal: React.FC<EditInstituteModalProps> = ({ institute, onCl
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
       <div className="bg-[#0f1115] border border-gray-800 rounded-3xl p-8 w-full max-w-md shadow-2xl relative mt-10 mb-10">
         
@@ -184,6 +186,7 @@ const EditInstituteModal: React.FC<EditInstituteModalProps> = ({ institute, onCl
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

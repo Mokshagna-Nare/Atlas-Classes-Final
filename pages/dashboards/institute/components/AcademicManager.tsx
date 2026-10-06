@@ -1,30 +1,38 @@
 
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../../../contexts/DataContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { AcademicClass, WeeklySchedule } from '../../../../types';
-import { 
-    PlusIcon, TrashIcon, AcademicCapIcon, 
-    ChevronDownIcon, XIcon, CheckCircleIcon, ClipboardIcon 
+import {
+    PlusIcon, TrashIcon, AcademicCapIcon,
+    ChevronDownIcon, XIcon, CheckCircleIcon, ClipboardIcon
 } from '../../../../components/icons';
+import ModalPortal from '../../../../components/ModalPortal';
+import { isOnlineTest, testStatus, testDate, formatTestDate } from '../../../../utils/testSchedule';
 
 interface AcademicsManagerProps {
     initialTab?: 'classes' | 'schedule' | 'tests';
 }
 
 const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
-    const { classes, addClass, deleteClass, schedules, addSchedule, deleteSchedule, tests, results } = useData();
+    const { classes, addClass, deleteClass, schedules, addSchedule, deleteSchedule, tests } = useData();
+    const { user } = useAuth()!;
     const [activeTab, setActiveTab] = useState<'classes' | 'schedule' | 'tests'>(initialTab || 'classes');
-    
+
     // Auto-switch tab if prop changes
     useEffect(() => {
         if (initialTab) setActiveTab(initialTab);
     }, [initialTab]);
 
+    const instituteClasses = classes.filter(c => c.institute_id === user?.id);
+
     // Add Class Modal State
     const [isAddClassModalOpen, setIsAddClassModalOpen] = useState(false);
     const [newClassName, setNewClassName] = useState('Class 6');
     const [newClassSubjects, setNewClassSubjects] = useState<string[]>(['Mathematics', 'Science', 'Social']);
-    
+    const [isSavingClass, setIsSavingClass] = useState(false);
+    const [classError, setClassError] = useState('');
+
     // Add Schedule Modal State
     const [isAddScheduleModalOpen, setIsAddScheduleModalOpen] = useState(false);
     const [schedClassId, setSchedClassId] = useState('');
@@ -32,16 +40,23 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
     const [schedSub, setSchedSub] = useState('');
     const [schedTopic, setSchedTopic] = useState('');
 
-    const handleAddClass = (e: React.FormEvent) => {
+    const handleAddClass = async (e: React.FormEvent) => {
         e.preventDefault();
-        const id = `c${newClassName.split(' ')[1]}`;
-        // Check if exists
-        if(classes.find(c => c.id === id)) {
-            alert('Class already exists');
+        if (!user?.id) return;
+        if (instituteClasses.find(c => c.name === newClassName)) {
+            setClassError('This class already exists.');
             return;
         }
-        addClass({ id, name: newClassName, subjects: newClassSubjects.filter(s => s.trim() !== '') });
-        setIsAddClassModalOpen(false);
+        setIsSavingClass(true);
+        setClassError('');
+        try {
+            await addClass({ id: '', institute_id: user.id, name: newClassName, subjects: newClassSubjects.filter(s => s.trim() !== '') });
+            setIsAddClassModalOpen(false);
+        } catch (err: any) {
+            setClassError(err.message || 'Failed to create class.');
+        } finally {
+            setIsSavingClass(false);
+        }
     };
 
     const handleAddSchedule = (e: React.FormEvent) => {
@@ -51,11 +66,11 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
         setIsAddScheduleModalOpen(false);
     };
 
-    const getTestStatus = (testId: string, currentStatus: string) => {
-        const hasResults = results.some(r => r.testId === testId);
-        if (hasResults) return 'Graded';
-        return currentStatus;
-    };
+    // Only this institute's tests, newest first (copy before sorting — never mutate context state).
+    const instituteTests = tests
+        .filter(t => t.institute_id === user?.id)
+        .slice()
+        .sort((a, b) => (testDate(b)?.getTime() ?? 0) - (testDate(a)?.getTime() ?? 0));
 
     return (
         <div className="space-y-8 animate-fade-in-up">
@@ -88,7 +103,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                         </button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {classes.sort((a,b) => parseInt(a.name.split(' ')[1]) - parseInt(b.name.split(' ')[1])).map(cls => (
+                        {instituteClasses.slice().sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(cls => (
                             <div key={cls.id} className="bg-atlas-soft/40 border border-white/5 rounded-3xl p-8 hover:border-atlas-primary/40 transition-all group relative overflow-hidden">
                                 <button onClick={() => deleteClass(cls.id)} className="absolute top-6 right-6 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-2 bg-atlas-dark rounded-lg border border-white/5">
                                     <TrashIcon className="h-4 w-4" />
@@ -107,6 +122,11 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                                 </div>
                             </div>
                         ))}
+                        {instituteClasses.length === 0 && (
+                            <div className="md:col-span-2 lg:col-span-3 p-16 text-center border border-dashed border-white/10 rounded-3xl text-gray-600 font-black uppercase tracking-widest text-xs">
+                                No grades defined yet. Click "Define Grade" to add your first class.
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -138,7 +158,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                                 {schedules.map(sch => (
                                     <tr key={sch.id} className="hover:bg-white/[0.02] transition-all group">
                                         <td className="p-6">
-                                            <span className="text-sm font-bold text-white">{classes.find(c => c.id === sch.classId)?.name || 'Unknown'}</span>
+                                            <span className="text-sm font-bold text-white">{instituteClasses.find(c => c.id === sch.classId)?.name || 'Unknown'}</span>
                                         </td>
                                         <td className="p-6">
                                             <span className="text-sm font-black text-atlas-primary">W-{sch.weekNumber}</span>
@@ -179,14 +199,17 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                             <thead className="bg-atlas-black/50 border-b border-white/5">
                                 <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
                                     <th className="p-6">Test Identifier</th>
-                                    <th className="p-6">Assigned Batch</th>
+                                    <th className="p-6">Type</th>
                                     <th className="p-6">Schedule</th>
                                     <th className="p-6">Progress Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {tests.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(test => {
-                                    const status = getTestStatus(test.id, test.status);
+                                {instituteTests.length === 0 && (
+                                    <tr><td colSpan={4} className="p-16 text-center text-gray-500 text-sm">No tests for your institute yet.</td></tr>
+                                )}
+                                {instituteTests.map(test => {
+                                    const status = testStatus(test);
                                     return (
                                         <tr key={test.id} className="hover:bg-white/[0.02] transition-all">
                                             <td className="p-6">
@@ -201,18 +224,18 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                                                 </div>
                                             </td>
                                             <td className="p-6">
-                                                <span className="px-3 py-1 bg-atlas-primary/5 text-atlas-primary border border-atlas-primary/20 text-[10px] font-black rounded-lg uppercase tracking-widest">
-                                                    {test.batch}
+                                                <span className="px-3 py-1 bg-atlas-primary/5 text-atlas-primary border border-atlas-primary/20 text-[10px] font-black rounded-lg uppercase tracking-widest whitespace-nowrap">
+                                                    {isOnlineTest(test) ? `Online · ${test.question_ids.length} Qs` : 'Offline'}
                                                 </span>
                                             </td>
                                             <td className="p-6">
-                                                <span className="text-xs text-gray-400 font-medium">{test.date}</span>
+                                                <span className="text-xs text-gray-400 font-medium whitespace-nowrap">{formatTestDate(test)}</span>
                                             </td>
                                             <td className="p-6">
                                                 <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                                    status === 'Graded' ? 'bg-emerald-500/10 text-emerald-400' :
+                                                    status === 'Live' ? 'bg-emerald-500/10 text-emerald-400' :
                                                     status === 'Completed' ? 'bg-atlas-primary/10 text-atlas-primary' :
-                                                    'bg-gray-800 text-gray-500'
+                                                    'bg-sky-500/10 text-sky-300'
                                                 }`}>
                                                     {status}
                                                 </span>
@@ -228,6 +251,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
 
             {/* Modals */}
             {isAddClassModalOpen && (
+                <ModalPortal>
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsAddClassModalOpen(false)}></div>
                     <form onSubmit={handleAddClass} className="relative bg-atlas-soft border border-white/10 p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-scale-in">
@@ -243,13 +267,18 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                                     <option>Class 10</option>
                                 </select>
                             </div>
-                            <button type="submit" className="w-full bg-atlas-primary text-white font-black py-4 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-xs">Confirm Grade logic</button>
+                            {classError && <p className="text-red-500 text-sm font-medium">{classError}</p>}
+                            <button type="submit" disabled={isSavingClass} className="w-full bg-atlas-primary text-white font-black py-4 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-xs disabled:opacity-50">
+                                {isSavingClass ? 'Creating...' : 'Confirm Grade'}
+                            </button>
                         </div>
                     </form>
                 </div>
+                </ModalPortal>
             )}
 
             {isAddScheduleModalOpen && (
+                <ModalPortal>
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsAddScheduleModalOpen(false)}></div>
                     <form onSubmit={handleAddSchedule} className="relative bg-atlas-soft border border-white/10 p-10 rounded-[2.5rem] w-full max-w-xl shadow-2xl animate-scale-in">
@@ -259,7 +288,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Target Grade</label>
                                 <select value={schedClassId} onChange={e => setSchedClassId(e.target.value)} required className="w-full p-4 bg-atlas-dark border border-white/5 rounded-2xl text-white outline-none">
                                     <option value="">Select Class</option>
-                                    {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    {instituteClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
                             <div>
@@ -278,6 +307,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                         <button type="submit" className="w-full bg-atlas-primary text-white font-black py-4 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-xs">Confirm Schedule Entry</button>
                     </form>
                 </div>
+                </ModalPortal>
             )}
         </div>
     );

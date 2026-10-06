@@ -15,6 +15,7 @@ import {
   McqImageList,
 } from "../../../../../utils/mcqContent";
 import { MathText, stripMathMarkers } from "../../../../../utils/renderMath";
+import ModalPortal from "../../../../../components/ModalPortal";
 
 type Props = { onDone?: () => void };
 
@@ -99,6 +100,7 @@ const EditQuestionModal: React.FC<{
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-6 py-4 flex justify-between items-center">
@@ -194,6 +196,7 @@ const EditQuestionModal: React.FC<{
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

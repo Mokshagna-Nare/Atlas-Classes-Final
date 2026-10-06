@@ -39,8 +39,49 @@
               'pulse-slow': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               'float': 'float 6s ease-in-out infinite',
               'scale-in': 'scaleIn 0.5s ease-out forwards',
+              'welcome-reveal': 'welcomeReveal 1.8s cubic-bezier(0.16, 1, 0.3, 1) both',
+              'welcome-sub': 'welcomeSub 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.9s both',
+              'welcome-line': 'welcomeLine 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both',
+              'splash-out': 'splashOut 0.9s cubic-bezier(0.7, 0, 0.84, 0) forwards',
+              'view-in': 'viewIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both',
+              'shimmer': 'shimmer 1.6s linear infinite',
+              'auth-in': 'authIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both',
+              'shake': 'shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both',
             },
             keyframes: {
+              welcomeReveal: {
+                '0%': { opacity: '0', letterSpacing: '0.4em', filter: 'blur(14px)', transform: 'translateY(24px) scale(0.96)' },
+                '100%': { opacity: '1', letterSpacing: '-0.02em', filter: 'blur(0)', transform: 'translateY(0) scale(1)' },
+              },
+              welcomeSub: {
+                '0%': { opacity: '0', transform: 'translateY(12px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              welcomeLine: {
+                '0%': { transform: 'scaleX(0)', opacity: '0' },
+                '100%': { transform: 'scaleX(1)', opacity: '1' },
+              },
+              splashOut: {
+                '0%': { opacity: '1', transform: 'scale(1)', filter: 'blur(0)' },
+                '100%': { opacity: '0', transform: 'scale(1.04)', filter: 'blur(6px)' },
+              },
+              viewIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'none' },
+              },
+              authIn: {
+                '0%': { opacity: '0', transform: 'translateY(18px) scale(0.98)', filter: 'blur(6px)' },
+                '100%': { opacity: '1', transform: 'none', filter: 'blur(0)' },
+              },
+              shake: {
+                '0%, 100%': { transform: 'translateX(0)' },
+                '20%, 60%': { transform: 'translateX(-6px)' },
+                '40%, 80%': { transform: 'translateX(6px)' },
+              },
+              shimmer: {
+                '0%': { backgroundPosition: '-400px 0' },
+                '100%': { backgroundPosition: '400px 0' },
+              },
               fadeInUp: {
                 '0%': { opacity: '0', transform: 'translateY(30px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
@@ -60,7 +101,7 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script type="importmap">
 {
   "imports": {

@@ -1,154 +1,170 @@
+import React from 'react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, Legend } from 'recharts';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useInstituteAnalytics, InstituteStudentRow } from '../../../../hooks/useInstituteAnalytics';
+import { Card, StatTile, EmptyNote, Skeleton, AccuracyBars, tooltipStyle, perfText, shortDate } from '../../../../components/analytics/AnalyticsUI';
+import { UserGroupIcon, ClipboardDocumentListIcon, ChartPieIcon, ShieldCheckIcon, ChartBarIcon, AcademicCapIcon, SparklesIcon, TrophyIcon, InformationCircleIcon, ChevronUpIcon } from '../../../../components/icons';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
-  ResponsiveContainer, PieChart, Pie, Cell 
-} from 'recharts';
-import { ALL_RESULTS, INSTITUTE_STUDENTS, STUDENT_TESTS } from '../../../../constants';
-import { getPerformanceAnalysis } from '../../../../services/geminiService';
-import { UserGroupIcon, ClipboardDocumentListIcon, ChartPieIcon, SparklesIcon } from '../../../../components/icons';
+const BAND_COLORS = ['#EF4444', '#F97316', '#F59E0B', '#34D399', '#10B981'];
 
-const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string | number; }> = ({ icon, label, value }) => (
-    <div className="bg-atlas-dark p-6 rounded-3xl flex items-center space-x-4 border border-gray-800 hover:border-atlas-primary/50 transition-all duration-300 group">
-        <div className="bg-atlas-soft p-4 rounded-2xl group-hover:bg-atlas-primary/10 transition-colors">
-            {icon}
+const StudentList: React.FC<{ rows: InstituteStudentRow[]; empty: string; metric: (s: InstituteStudentRow) => React.ReactNode }> = ({ rows, empty, metric }) =>
+  rows.length === 0 ? <EmptyNote text={empty} /> : (
+    <div className="divide-y divide-white/5 -my-2">
+      {rows.map((s, i) => (
+        <div key={s.id} className="flex items-center gap-3 py-3">
+          <span className="w-6 text-xs font-black text-gray-600 text-right">{i + 1}</span>
+          <div className="h-9 w-9 shrink-0 rounded-xl bg-atlas-primary/10 border border-atlas-primary/20 flex items-center justify-center text-sm font-black text-atlas-primary">{s.name.charAt(0).toUpperCase()}</div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-white truncate">{s.name}</p>
+            <p className="text-[11px] text-gray-500 truncate">{[s.className, s.rollNo && `Roll ${s.rollNo}`, `${s.testsTaken} test${s.testsTaken === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}</p>
+          </div>
+          <div className="shrink-0 text-right">{metric(s)}</div>
         </div>
-        <div>
-            <h3 className="text-gray-500 text-[10px] font-black uppercase tracking-widest">{label}</h3>
-            <p className="text-3xl font-black text-white">{value}</p>
-        </div>
+      ))}
     </div>
-);
+  );
 
 const Analysis: React.FC = () => {
-    const [analysis, setAnalysis] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth()!;
+  const { analytics: a, loading, error } = useInstituteAnalytics(user?.id);
 
-    // 1. Grade Distribution (Aggregated across all tests/students)
-    const gradeCounts = ALL_RESULTS.reduce((acc: any, curr) => {
-        acc[curr.grade] = (acc[curr.grade] || 0) + 1;
-        return acc;
-    }, {});
+  const header = (
+    <div>
+      <h2 className="text-3xl font-black text-white">Campus-Wide Analytics</h2>
+      <p className="text-sm text-gray-500 mt-1">How every student and class is doing across all online tests.</p>
+    </div>
+  );
 
-    const pieData = Object.entries(gradeCounts).map(([name, value]) => ({ name, value }));
-    const COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0', '#D1FAE5'];
-
-    // 2. Exam Trends (Comparing average vs highest)
-    const chartData = STUDENT_TESTS.filter(t => t.status === 'completed').map(test => {
-        const resultsForTest = ALL_RESULTS.filter(r => r.testId === test.id);
-        const count = resultsForTest.length;
-        const average = count > 0 ? (resultsForTest.reduce((acc, r) => acc + (r.score / r.maxScore * 100), 0) / count) : 0;
-        const highest = count > 0 ? Math.max(...resultsForTest.map(r => (r.score / r.maxScore * 100))) : 0;
-        return {
-            name: test.title.length > 12 ? test.title.substring(0, 12) + '...' : test.title,
-            avg: Math.round(average),
-            top: Math.round(highest),
-        };
-    });
-
-    const handleAnalyze = async () => {
-        setIsLoading(true);
-        try {
-            const results = await getPerformanceAnalysis(ALL_RESULTS);
-            setAnalysis(results);
-        } catch (e) {
-            setAnalysis("Student performance remains consistent. Key focus should be on Mathematics Units 4-6 where scores saw a 12% dip across the campus.");
-        }
-        setIsLoading(false);
-    };
-    
-    useEffect(() => {
-        handleAnalyze();
-    }, []);
-
-    const globalAvgScore = ALL_RESULTS.length > 0 
-        ? Math.round(ALL_RESULTS.reduce((acc, r) => acc + (r.score / r.maxScore * 100), 0) / ALL_RESULTS.length) 
-        : 0;
-
+  if (loading) {
     return (
-        <div className="space-y-8 animate-fade-in-up">
-            <h2 className="text-3xl font-black text-white">Campus-Wide Analytics</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard icon={<UserGroupIcon className="h-6 w-6 text-atlas-primary" />} label="Registered Students" value={INSTITUTE_STUDENTS.length} />
-                <StatCard icon={<ClipboardDocumentListIcon className="h-6 w-6 text-atlas-primary" />} label="Completed Exams" value={STUDENT_TESTS.filter(t => t.status === 'completed').length} />
-                <StatCard icon={<ChartPieIcon className="h-6 w-6 text-atlas-primary" />} label="Overall Campus Proficiency" value={`${globalAvgScore}%`} />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Grade Profile */}
-                <div className="bg-atlas-dark p-8 rounded-3xl border border-gray-800 shadow-2xl">
-                    <h3 className="text-xl font-bold text-white mb-6">Class Grade Distribution</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={pieData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
-                                    dataKey="value"
-                                    label={({ name, value }) => `${name}: ${value}`}
-                                >
-                                    {pieData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip contentStyle={{ backgroundColor: '#111827', borderRadius: '15px', border: '1px solid #374151' }} />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Performance Trends */}
-                <div className="bg-atlas-dark p-8 rounded-3xl border border-gray-800 shadow-2xl">
-                    <h3 className="text-xl font-bold text-white mb-6">Exam Success Metrics (%)</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                                <XAxis dataKey="name" stroke="#6B7280" fontSize={10} axisLine={false} tickLine={false} />
-                                <YAxis stroke="#6B7280" fontSize={10} axisLine={false} tickLine={false} domain={[0, 100]} />
-                                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: '#111827', borderRadius: '15px', border: '1px solid #374151' }} />
-                                <Legend />
-                                <Bar dataKey="avg" name="Class Average" fill="#10B981" radius={[10, 10, 0, 0]} barSize={25} />
-                                <Bar dataKey="top" name="Highest Achievement" fill="#34D399" radius={[10, 10, 0, 0]} barSize={25} opacity={0.6} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </div>
-            
-            {/* AI Insights Section */}
-            <div className="bg-atlas-dark p-8 rounded-3xl border border-gray-800 shadow-xl">
-                <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-xl font-black text-white flex items-center gap-3">
-                        <SparklesIcon className="h-6 w-6 text-atlas-primary" /> AI Campus Intelligence
-                    </h3>
-                    <button 
-                        onClick={handleAnalyze} 
-                        disabled={isLoading}
-                        className="bg-atlas-primary text-white font-black py-2 px-6 rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-50 text-xs uppercase tracking-widest"
-                    >
-                        {isLoading ? 'Processing...' : 'Generate New Insight'}
-                    </button>
-                </div>
-                
-                {isLoading ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                         <div className="w-12 h-12 border-4 border-atlas-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-                         <p className="text-gray-500 font-bold text-xs uppercase tracking-widest animate-pulse">Analyzing across {ALL_RESULTS.length} result points...</p>
-                    </div>
-                ) : (
-                    <div className="bg-atlas-soft/40 p-6 rounded-2xl border border-gray-800 text-gray-300 leading-relaxed text-sm">
-                        {analysis || "Your aggregate campus analysis is ready. We detected that while 70% of students excel in Organic Chemistry, the recent Mathematics Mock (t4) showed a trend of calculation errors in Calculus-based problems."}
-                    </div>
-                )}
-            </div>
-        </div>
+      <div className="space-y-6">
+        {header}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-36" />)}</div>
+        <Skeleton className="h-80" />
+      </div>
     );
+  }
+
+  if (error || !a) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <p role="alert" className="text-sm text-red-300 bg-red-500/10 border border-red-500/25 rounded-xl p-4">{error || 'Analytics are unavailable right now.'}</p>
+      </div>
+    );
+  }
+
+  const tested = a.students.filter(s => s.testsTaken > 0);
+  const notStarted = a.students.length - tested.length;
+  const top = tested.slice(0, 5);
+  const attention = tested.filter(s => s.averageScore < 60).sort((x, y) => x.averageScore - y.averageScore).slice(0, 5);
+  const improved = tested.filter(s => (s.improvement ?? 0) > 0).sort((x, y) => (y.improvement ?? 0) - (x.improvement ?? 0)).slice(0, 5);
+  const first = a.trend[0];
+  const last = a.trend[a.trend.length - 1];
+  const weakestSubject = a.subjectAccuracy.filter(s => s.total >= 20).sort((x, y) => x.percent - y.percent)[0];
+
+  const insights: string[] = [];
+  if (a.trend.length >= 2) insights.push(`Class average moved from ${first.average}% on “${first.title}” to ${last.average}% on “${last.title}”.`);
+  if (weakestSubject) insights.push(`${weakestSubject.label} is the weakest subject campus-wide at ${weakestSubject.percent}% accuracy.`);
+  if (a.weakestConcepts[0]) insights.push(`“${a.weakestConcepts[0].label}” is the concept students struggle with most (${a.weakestConcepts[0].percent}% accuracy).`);
+  if (improved[0]) insights.push(`${improved[0].name} has improved the most — up ${improved[0].improvement} points since their first test.`);
+  if (notStarted > 0) insights.push(`${notStarted} enrolled student${notStarted === 1 ? " hasn't" : "s haven't"} attempted any test yet.`);
+  if (a.flaggedAttempts > 0) insights.push(`${a.flaggedAttempts} attempt${a.flaggedAttempts === 1 ? ' was' : 's were'} flagged by proctoring for tab switches or leaving fullscreen.`);
+
+  return (
+    <div className="space-y-6">
+      {header}
+
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+        <StatTile icon={<UserGroupIcon className="h-4 w-4" />} label="Students" value={String(a.studentCount)} hint={`Across ${a.classCount} class${a.classCount === 1 ? '' : 'es'}`} />
+        <StatTile icon={<ClipboardDocumentListIcon className="h-4 w-4" />} label="Tests completed" value={String(a.testsWithAttempts)} hint={`${a.totalAttempts} student attempts`} />
+        <StatTile icon={<ChartPieIcon className="h-4 w-4" />} label="Campus average" value={a.totalAttempts ? `${a.campusAverage}%` : '—'} valueClass={a.totalAttempts ? perfText(a.campusAverage) : ''} hint="Mean score across all attempts" />
+        <StatTile icon={<ShieldCheckIcon className="h-4 w-4" />} label="Flagged attempts" value={String(a.flaggedAttempts)} valueClass={a.flaggedAttempts ? 'text-amber-400' : ''} hint="Proctoring violations" />
+      </div>
+
+      {a.totalAttempts === 0 ? (
+        <div className="p-16 rounded-[1.75rem] bg-atlas-dark border border-dashed border-white/10 text-center">
+          <ChartBarIcon className="h-10 w-10 text-gray-700 mx-auto mb-4" />
+          <p className="text-sm font-bold text-gray-300">No test results yet</p>
+          <p className="text-xs text-gray-500 mt-2">Analytics appear as soon as your students complete their first assigned online test.</p>
+        </div>
+      ) : (
+        <>
+          {insights.length > 0 && (
+            <Card title="Key insights" caption="Computed from your students' real results." icon={<SparklesIcon className="h-5 w-5" />}>
+              <ul className="space-y-3">
+                {insights.map(text => (
+                  <li key={text} className="flex items-start gap-3 text-sm text-gray-300">
+                    <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-atlas-primary shrink-0" />{text}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          <Card title="Performance over time" caption="Class average and top score on every test, oldest to newest." icon={<ChartBarIcon className="h-5 w-5" />}>
+            {a.trend.length >= 2 ? (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={a.trend} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={shortDate} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} minTickGap={16} />
+                    <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} labelStyle={{ color: '#10B981', fontWeight: 800 }}
+                      labelFormatter={(_l: any, p: any) => p?.[0]?.payload.title || ''} formatter={(v: any, n: any) => [`${v}%`, n]} />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+                    <Line type="monotone" name="Class average" dataKey="average" stroke="#10B981" strokeWidth={3} dot={{ r: 4, fill: '#10B981', strokeWidth: 0 }} animationDuration={1100} />
+                    <Line type="monotone" name="Top score" dataKey="top" stroke="#6EE7B7" strokeWidth={2} strokeDasharray="5 4" dot={false} animationDuration={1100} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : <EmptyNote text="The trend line appears once your students have completed two tests." />}
+          </Card>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card title="Score distribution" caption="How many attempts fall in each score band." icon={<ChartPieIcon className="h-5 w-5" />}>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={a.distribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                    <XAxis dataKey="band" stroke="#6B7280" fontSize={11} tickLine={false} axisLine={false} tickFormatter={b => `${b}%`} />
+                    <YAxis allowDecimals={false} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} formatter={(v: any) => [v, 'Attempts']} labelFormatter={(l: any) => `${l}%`} />
+                    <Bar dataKey="count" radius={[8, 8, 0, 0]} animationDuration={900}>
+                      {a.distribution.map((_, i) => <Cell key={i} fill={BAND_COLORS[i]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+            <Card title="Subject accuracy" caption="Share of questions answered correctly, per subject." icon={<AcademicCapIcon className="h-5 w-5" />}>
+              <AccuracyBars data={a.subjectAccuracy} emptyText="No subject data yet." />
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card title="Top performers" caption="Highest average score across all tests taken." icon={<TrophyIcon className="h-5 w-5" />}>
+              <StudentList rows={top} empty="No results yet." metric={s => <p className={`text-lg font-black ${perfText(s.averageScore)}`}>{s.averageScore}%</p>} />
+            </Card>
+            <Card title="Needs attention" caption="Students averaging below 60% — a good place to focus support." icon={<InformationCircleIcon className="h-5 w-5" />}>
+              <StudentList rows={attention} empty="Every student is averaging 60% or above." metric={s => <p className={`text-lg font-black ${perfText(s.averageScore)}`}>{s.averageScore}%</p>} />
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card title="Most improved" caption="Biggest gain from a student's first test to their latest." icon={<ChevronUpIcon className="h-5 w-5" />}>
+              <StudentList rows={improved} empty="Improvement shows once students have taken at least two tests." metric={s => (
+                <p className="text-sm font-black text-emerald-400 whitespace-nowrap">+{s.improvement} pts<span className="block text-[11px] font-semibold text-gray-500">{s.firstScore}% → {s.latestScore}%</span></p>
+              )} />
+            </Card>
+            <Card title="Weakest concepts" caption="Concepts with the lowest accuracy (at least 10 answers)." icon={<SparklesIcon className="h-5 w-5" />}>
+              <AccuracyBars data={a.weakestConcepts} emptyText="Not enough answers per concept yet." />
+            </Card>
+          </div>
+        </>
+      )}
+    </div>
+  );
 };
 
 export default Analysis;

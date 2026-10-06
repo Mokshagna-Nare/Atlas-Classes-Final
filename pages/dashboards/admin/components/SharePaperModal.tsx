@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useData } from '../../../../contexts/DataContext';
 import { AdminQuestionPaper, Institute } from '../../../../types';
 import { XIcon, DocumentDuplicateIcon, SparklesIcon } from '../../../../components/icons';
+import ModalPortal from '../../../../components/ModalPortal';
 
 interface SharePaperModalProps {
   institute: Institute;
@@ -73,6 +74,7 @@ const SharePaperModal: React.FC<SharePaperModalProps> = ({ institute, onClose })
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex justify-center items-center z-[100] p-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
       <div className="bg-atlas-soft border border-gray-800 rounded-[2.5rem] shadow-2xl w-full max-w-xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="p-10 relative z-10">
@@ -132,6 +134,7 @@ const SharePaperModal: React.FC<SharePaperModalProps> = ({ institute, onClose })
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

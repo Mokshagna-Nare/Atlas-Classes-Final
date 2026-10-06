@@ -3,8 +3,10 @@ import { supabase } from '../../../../services/supabase';
 import { MCQ } from '../../../../types';
 import { getCorrectOptionIndex, getCorrectAnswerText } from '../../../../utils/mcqAnswer';
 import { InformationCircleIcon, FunnelIcon, TrashIcon } from '../../../../components/icons';
+import ModalPortal from '../../../../components/ModalPortal';
 import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, BorderStyle } from 'docx';
+import { saveAs } from 'file-saver';
 const downloadBlob = (blob: Blob, fileName: string) => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1248,6 +1250,7 @@ const QuestionPaperGenerator: React.FC = () => {
 
       {/* --- FULL REVIEW & FINALIZE MODAL --- */}
       {reviewModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md transition-opacity" onClick={() => setReviewModalOpen(false)}/>
           <div className="relative w-full max-w-5xl max-h-[90vh] flex flex-col bg-gray-900 border border-gray-700 rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
@@ -1308,10 +1311,12 @@ const QuestionPaperGenerator: React.FC = () => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* --- DOWNLOAD SELECTION MODAL --- */}
       {downloadModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" onClick={() => setDownloadModalOpen(false)}/>
           <div className="relative w-full max-w-lg flex flex-col bg-gray-900 border border-gray-700 rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
@@ -1354,10 +1359,12 @@ const QuestionPaperGenerator: React.FC = () => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* --- FORMAT SELECTION MODAL --- */}
       {formatModalOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[71] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" onClick={() => setFormatModalOpen(false)}/>
           <div className="relative w-full max-w-lg flex flex-col bg-gray-900 border border-gray-700 rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
@@ -1399,10 +1406,12 @@ const QuestionPaperGenerator: React.FC = () => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* --- VIEW QUESTIONS MODAL (History) --- */}
       {historyQuestionsOpen && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={closeHistoryQuestions}/>
           <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col bg-gray-900/90 border border-gray-700/60 rounded-3xl shadow-2xl overflow-hidden animate-scale-in backdrop-blur-xl">
@@ -1471,8 +1480,9 @@ const QuestionPaperGenerator: React.FC = () => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
-      
+
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

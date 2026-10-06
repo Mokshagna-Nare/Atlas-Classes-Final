@@ -25,7 +25,8 @@
     "react-dropzone": "^14.3.8",
     "react-router-dom": "^7.9.5",
     "recharts": "^3.8.0",
-    "wmf": "^1.0.2"
+    "wmf": "^1.0.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/file-saver": "^2.0.7",

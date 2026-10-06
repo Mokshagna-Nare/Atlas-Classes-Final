@@ -12,6 +12,7 @@ import {
   MagnifyingGlassIcon
 } from '../../../../components/icons';
 import { getQuestionImages, getOptionImages, McqImageList } from '../../../../utils/mcqContent';
+import ModalPortal from '../../../../components/ModalPortal';
 
 import { supabase } from '../../../../services/supabase';
 import { jsPDF } from 'jspdf';
@@ -1144,6 +1145,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
       </div>
 
       {showBulkDeleteConfirm && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-3xl p-8 animate-scale-in shadow-2xl">
             <h3 className="text-xl font-bold text-white mb-4">Delete Multiple Questions</h3>
@@ -1167,9 +1169,11 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {flaggingId && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-3xl p-8 animate-scale-in shadow-2xl">
             <h3 className="text-xl font-bold text-white mb-4">Flag Question</h3>
@@ -1195,9 +1199,11 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {showDownloadPreview && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 w-full max-w-4xl rounded-3xl p-8 animate-scale-in shadow-2xl">
             <div className="flex items-center justify-between mb-5">
@@ -1242,9 +1248,11 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {showFormatModal && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 w-full max-w-md rounded-3xl p-8 animate-scale-in shadow-2xl">
             <h3 className="text-xl font-bold text-white mb-4">Choose Download Format</h3>
@@ -1284,6 +1292,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

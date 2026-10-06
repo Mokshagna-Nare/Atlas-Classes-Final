@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useData } from '../../../../contexts/DataContext';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { XIcon } from '../../../../components/icons';
+import { XIcon, ClipboardCheckIcon } from '../../../../components/icons';
+import ModalPortal from '../../../../components/ModalPortal';
 import { Test } from '../../../../types';
 
 interface CreateTestModalProps {
@@ -9,116 +10,89 @@ interface CreateTestModalProps {
   testToEdit: Test | null;
 }
 
+const SUBJECTS = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Mixed'];
+const inputCls = 'w-full p-3 bg-atlas-black border border-white/10 rounded-xl focus:outline-none focus:border-atlas-primary/60 focus:ring-4 focus:ring-atlas-primary/10 text-white text-sm transition-all [color-scheme:dark]';
+
 const CreateTestModal: React.FC<CreateTestModalProps> = ({ onClose, testToEdit }) => {
-    const isEditMode = Boolean(testToEdit);
-    
-    const [title, setTitle] = useState('');
-    const [subject, setSubject] = useState('');
-    const [date, setDate] = useState('');
-    const [pdfFile, setPdfFile] = useState<File | null>(null);
-    const [existingPdfName, setExistingPdfName] = useState('');
-    const [error, setError] = useState('');
-    
-    const { addTest, editTest } = useData();
-    const { user } = useAuth()!;
+  const isEditMode = Boolean(testToEdit);
+  const [title, setTitle] = useState(testToEdit?.title || '');
+  const [subject, setSubject] = useState(testToEdit?.subject || 'Physics');
+  // `tests.date` comes back as a full timestamp; the date input needs YYYY-MM-DD.
+  const [date, setDate] = useState(testToEdit?.date ? testToEdit.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
+  const [duration, setDuration] = useState<number | string>(testToEdit?.duration ?? 60);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-    useEffect(() => {
-        if (isEditMode && testToEdit) {
-            setTitle(testToEdit.title);
-            setSubject(testToEdit.subject);
-            setDate(testToEdit.date);
-            setExistingPdfName(testToEdit.pdfFileName || '');
-        }
-    }, [isEditMode, testToEdit]);
+  const { addTest, editTest } = useData();
+  const { user } = useAuth()!;
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            if (e.target.files[0].type === 'application/pdf') {
-                setPdfFile(e.target.files[0]);
-                setError('');
-            } else {
-                setError('Please upload a valid PDF file.');
-                setPdfFile(null);
-            }
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!title || !subject || !date) {
-            setError('Please fill all fields.');
-            return;
-        }
-        if (!isEditMode && !pdfFile) {
-            setError('Please upload a question paper for new tests.');
-            return;
-        }
-
-        if (isEditMode && testToEdit) {
-            const updatedTest: Test = {
-                ...testToEdit,
-                title,
-                subject,
-                date,
-                pdfFileName: pdfFile ? pdfFile.name : existingPdfName,
-            };
-            editTest(updatedTest);
-        } else {
-            const newTest: Test = {
-                id: crypto.randomUUID(),
-                title,
-                subject,
-                date,
-                pdfFileName: pdfFile!.name,
-                status: 'Upcoming',
-                institute_id: user!.id,
-                // FIX: Add these missing mandatory fields
-    duration: 60,         // Default duration (e.g., 60 minutes)
-    total_marks: 100,     // Default total marks
-    question_ids: [],     // Initialize as empty array since no questions exist yet
-    batch: 'AXIS',     // Default batch name (or get it from a form input)
-            };
-            await addTest(newTest);
-        }
-        
-        onClose();
-    };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return setError('Please give the test a title.');
+    const minutes = Number(duration);
+    if (!minutes || minutes < 1) return setError('Duration must be at least 1 minute.');
+    setSaving(true);
+    setError('');
+    try {
+      if (isEditMode && testToEdit) {
+        await editTest({ ...testToEdit, title: title.trim(), subject, date, duration: minutes });
+      } else {
+        await addTest({ title: title.trim(), subject, date, duration: minutes, status: 'Upcoming', institute_id: user!.id, question_ids: [] });
+      }
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Could not save the test. Please try again.');
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4 animate-fade-in-up" style={{animationDuration: '0.3s'}}>
-      <div className="bg-atlas-gray rounded-lg shadow-2xl w-full max-w-lg relative p-8" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
-          <XIcon className="h-6 w-6" />
-        </button>
-        <h2 className="text-2xl font-bold mb-6 text-atlas-orange">{isEditMode ? 'Edit Test' : 'Create New Test'}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-sm font-bold text-gray-300 block mb-2">Test Title</label>
-            <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full p-2 bg-atlas-black border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-atlas-orange" />
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+        <div className="relative w-full max-w-lg rounded-3xl bg-atlas-dark border border-white/10 p-7 sm:p-8 shadow-2xl animate-scale-in" onClick={e => e.stopPropagation()}>
+          <button onClick={onClose} className="absolute top-5 right-5 p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors" aria-label="Close">
+            <XIcon className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 rounded-xl bg-atlas-primary/10 border border-atlas-primary/20 text-atlas-primary"><ClipboardCheckIcon className="h-5 w-5" /></div>
+            <h2 className="text-xl font-black text-white">{isEditMode ? 'Edit test' : 'Schedule an offline test'}</h2>
           </div>
-          <div>
-            <label className="text-sm font-bold text-gray-300 block mb-2">Subject</label>
-            <input type="text" value={subject} onChange={e => setSubject(e.target.value)} required className="w-full p-2 bg-atlas-black border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-atlas-orange" />
-          </div>
-          <div>
-            <label className="text-sm font-bold text-gray-300 block mb-2">Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full p-2 bg-atlas-black border border-gray-700 rounded-md" />
-          </div>
-          <div>
-            <label className="text-sm font-bold text-gray-300 block mb-2">Question Paper (PDF)</label>
-            <input type="file" accept=".pdf" onChange={handleFileChange} className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-atlas-orange file:text-white hover:file:bg-orange-600 cursor-pointer"/>
-            {pdfFile && <p className="text-xs text-green-400 mt-1">New file selected: {pdfFile.name}</p>}
-            {!pdfFile && existingPdfName && <p className="text-xs text-gray-400 mt-1">Current file: {existingPdfName}</p>}
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <div className="pt-2">
-            <button type="submit" className="w-full bg-atlas-orange text-white font-bold py-3 px-6 rounded-md hover:bg-orange-600 transition">
-                {isEditMode ? 'Update Test' : 'Create Test'}
-            </button>
-          </div>
-        </form>
+          <p className="text-xs text-gray-500 mb-6">
+            Records a pen-and-paper test on your institute's calendar. Online tests with questions are created and assigned by Atlas.
+          </p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <label className="block">
+              <span className="block text-xs font-bold text-gray-400 mb-2">Title</span>
+              <input value={title} onChange={e => setTitle(e.target.value)} className={inputCls} placeholder="e.g., Unit Test 3 — Thermodynamics" autoFocus />
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="block">
+                <span className="block text-xs font-bold text-gray-400 mb-2">Subject</span>
+                <select value={subject} onChange={e => setSubject(e.target.value)} className={inputCls}>
+                  {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  {subject && !SUBJECTS.includes(subject) && <option value={subject}>{subject}</option>}
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-xs font-bold text-gray-400 mb-2">Duration (minutes)</span>
+                <input type="number" min={1} value={duration} onChange={e => setDuration(e.target.value)} className={inputCls} />
+              </label>
+            </div>
+            <label className="block">
+              <span className="block text-xs font-bold text-gray-400 mb-2">Date</span>
+              <input type="date" value={date || ''} onChange={e => setDate(e.target.value)} className={inputCls} />
+            </label>
+            {error && <p role="alert" className="text-sm text-red-300 bg-red-500/10 border border-red-500/25 rounded-xl p-3 animate-shake">{error}</p>}
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} disabled={saving} className="flex-1 py-3 rounded-xl font-bold text-sm text-gray-400 bg-white/[0.04] hover:bg-white/[0.08] hover:text-white transition-colors">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl font-black text-sm text-atlas-black bg-gradient-to-r from-atlas-primary to-emerald-400 hover:shadow-[0_12px_40px_-12px_rgba(16,185,129,0.9)] transition-all disabled:opacity-60 disabled:cursor-wait">
+                {saving ? 'Saving…' : isEditMode ? 'Save changes' : 'Schedule test'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 };
 

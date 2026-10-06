@@ -1,63 +1,48 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useData } from '../../../../contexts/DataContext';
-import CreateTestModal from './CreateTestModal';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { DocumentDuplicateIcon, InformationCircleIcon } from '../../../../components/icons';
 
+// Paper files were never persisted (only a file name was kept, and the live `tests` table
+// has no column for it), so this lists what exists and says plainly what doesn't yet.
 const QuestionPapers: React.FC = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const { tests, deleteTest } = useData();
-
-  const papers = tests.filter(test => test.pdfFileName);
-
-  const handleDelete = (testId: string) => {
-    if (window.confirm('Are you sure you want to delete this paper and its associated test? This action is permanent.')) {
-        deleteTest(testId);
-    }
-  };
-
-  const handleDownload = (fileName: string) => {
-    // Simulate file download
-    const mockContent = `This is a mock question paper for the test: ${fileName}.\n\nQ1. What is the capital of France?\n...`;
-    const blob = new Blob([mockContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName.replace('.pdf', '.txt'); // Downloading as txt as we can't generate a PDF on the fly here
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
+  const { tests } = useData();
+  const { user } = useAuth()!;
+  const papers = tests.filter(t => t.institute_id === user?.id && t.pdfFileName);
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-atlas-orange">Question Papers & Downloads</h2>
-        <button onClick={() => setIsModalOpen(true)} className="bg-atlas-orange text-white font-bold py-2 px-4 rounded-md hover:bg-orange-600 transition">
-          Upload Paper
-        </button>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-extrabold text-white">Question Papers</h2>
+        <p className="text-sm text-gray-500 mt-1">Paper files attached to your institute's tests.</p>
       </div>
-      <div className="bg-atlas-black p-4 rounded-lg">
-        {papers.length > 0 ? (
-          <ul className="space-y-3">
-              {papers.map(paper => (
-                  <li key={paper.id} className="flex justify-between items-center p-3 bg-atlas-gray rounded-md">
-                      <div>
-                          <p className="font-bold">{paper.pdfFileName}</p>
-                          <p className="text-sm text-gray-400">Associated Test: {paper.title}</p>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                          <button onClick={() => alert(`Simulating view for ${paper.pdfFileName}`)} className="text-blue-400 hover:underline">View</button>
-                          <button onClick={() => handleDownload(paper.pdfFileName!)} className="text-green-400 hover:underline">Download</button>
-                          <button onClick={() => handleDelete(paper.id)} className="text-red-500 hover:text-red-400">Delete</button>
-                      </div>
-                  </li>
-              ))}
-          </ul>
-        ) : (
-          <p className="text-center text-gray-500 py-8">No question papers uploaded. Create a test to add one.</p>
-        )}
+
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-sky-500/[0.06] border border-sky-500/20">
+        <InformationCircleIcon className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
+        <p className="text-sm text-sky-100/80">
+          Uploading and downloading paper files isn't available yet. Papers that Atlas prepares for you will appear under <span className="font-bold text-white">Shared Papers</span>, and online tests assigned to your classes are listed under <span className="font-bold text-white">Tests</span>.
+        </p>
       </div>
-      {isModalOpen && <CreateTestModal testToEdit={null} onClose={() => setIsModalOpen(false)} />}
+
+      {papers.length === 0 ? (
+        <div className="p-16 text-center border border-dashed border-white/10 rounded-3xl">
+          <DocumentDuplicateIcon className="h-10 w-10 text-gray-700 mx-auto mb-4" />
+          <p className="text-sm font-semibold text-gray-300">No paper files yet</p>
+          <p className="text-xs text-gray-500 mt-1">When paper uploads are enabled, your files will be listed here.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {papers.map(p => (
+            <div key={p.id} className="bg-atlas-dark border border-white/5 rounded-2xl p-5 flex items-center gap-4">
+              <div className="p-2.5 rounded-xl bg-atlas-primary/10 text-atlas-primary shrink-0"><DocumentDuplicateIcon className="h-5 w-5" /></div>
+              <div className="min-w-0">
+                <p className="font-bold text-white truncate">{p.pdfFileName}</p>
+                <p className="text-xs text-gray-500 mt-0.5 truncate">For test: {p.title}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

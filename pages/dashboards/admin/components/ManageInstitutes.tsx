@@ -4,10 +4,11 @@ import { Institute } from '../../../../types';
 import EditInstituteModal from './EditInstituteModal';
 import SharePaperModal from './SharePaperModal';
 import api from '../../../../services/api'; 
-import { 
-    ChartPieIcon, GlobeAltIcon, SparklesIcon, UserGroupIcon, 
-    DocumentDuplicateIcon, PencilSquareIcon, TrashIcon, EyeIcon, EyeSlashIcon 
+import {
+    ChartPieIcon, GlobeAltIcon, SparklesIcon, UserGroupIcon,
+    DocumentDuplicateIcon, PencilSquareIcon, TrashIcon, EyeIcon, EyeSlashIcon
 } from '../../../../components/icons';
+import ModalPortal from '../../../../components/ModalPortal';
 
 // --- ADD INSTITUTE MODAL ---
 const AddInstituteModal: React.FC<{ onClose: () => void, onSuccess: () => void }> = ({ onClose, onSuccess }) => {
@@ -75,6 +76,7 @@ const AddInstituteModal: React.FC<{ onClose: () => void, onSuccess: () => void }
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
       <div className="bg-atlas-dark border border-gray-800 rounded-3xl p-6 w-full max-w-md shadow-2xl my-8">
         <h3 className="text-xl font-bold text-white mb-4">Add Partner School</h3>
@@ -168,6 +170,7 @@ const AddInstituteModal: React.FC<{ onClose: () => void, onSuccess: () => void }
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 
