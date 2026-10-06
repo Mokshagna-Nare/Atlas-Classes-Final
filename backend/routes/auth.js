@@ -154,8 +154,10 @@ router.post('/login', async (req, res) => {
         name: userProfile.name,
         email: userProfile.email,
         role: userProfile.role,
-        instituteId: userProfile.institute_id,
-        logo_url: logoUrl || null 
+        institute_id: userProfile.institute_id,
+        class_id: userProfile.class_id || null,
+        roll_no: userProfile.roll_no || null,
+        logo_url: logoUrl || null
       }
     });
 
@@ -240,6 +242,170 @@ router.put('/update-institute/:id', async (req, res) => {
   } catch (err) {
     console.error("Update Error:", err.message);
     res.status(400).json({ message: err.message || 'Failed to update institute' });
+  }
+});
+
+// ---------------------------------------------------------
+// 5. CREATE STUDENT (institute/admin provisions a student login)
+// ---------------------------------------------------------
+router.post('/create-student', async (req, res) => {
+  try {
+    const { name, email, password, institute_id, class_id, roll_no } = req.body;
+
+    if (!name || !email || !password || !institute_id) {
+      return res.status(400).json({ message: 'name, email, password and institute_id are required.' });
+    }
+
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true
+    });
+
+    if (authError) throw new Error(authError.message);
+
+    const userId = authData.user.id;
+
+    const { error: userError } = await supabaseAdmin
+      .from('users')
+      .insert([{
+        id: userId,
+        institute_id,
+        class_id: class_id || null,
+        roll_no: roll_no || null,
+        role: 'student',
+        email,
+        name,
+        password
+      }]);
+
+    if (userError) {
+      // Roll back the auth user so we don't leave an orphaned login
+      await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => {});
+      throw new Error(userError.message);
+    }
+
+    res.status(201).json({ message: 'Student created successfully', user: { id: userId, name, email, institute_id, class_id, roll_no } });
+  } catch (err) {
+    console.error("Create Student Error:", err.message);
+    res.status(400).json({ message: err.message || 'Failed to create student' });
+  }
+});
+
+// ---------------------------------------------------------
+// 5b. BULK CREATE STUDENTS (from an uploaded spreadsheet)
+// ---------------------------------------------------------
+router.post('/bulk-create-students', async (req, res) => {
+  const { institute_id, students } = req.body;
+
+  if (!institute_id || !Array.isArray(students) || students.length === 0) {
+    return res.status(400).json({ message: 'institute_id and a non-empty students array are required.' });
+  }
+  if (students.length > 500) {
+    return res.status(400).json({ message: 'Please upload at most 500 students per file.' });
+  }
+
+  const results = [];
+
+  // Sequential, not Promise.all: Supabase Auth admin.createUser is rate-limited,
+  // and we want a clean per-row success/failure report either way.
+  for (const row of students) {
+    const { name, email, password, class_id, roll_no } = row || {};
+    if (!name || !email || !password) {
+      results.push({ email: email || '(missing)', success: false, message: 'Missing name, email, or password.' });
+      continue;
+    }
+    try {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true
+      });
+      if (authError) throw new Error(authError.message);
+
+      const userId = authData.user.id;
+      const { error: userError } = await supabaseAdmin
+        .from('users')
+        .insert([{ id: userId, institute_id, class_id: class_id || null, roll_no: roll_no || null, role: 'student', email, name, password }]);
+
+      if (userError) {
+        await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => {});
+        throw new Error(userError.message);
+      }
+
+      results.push({ id: userId, name, email, password, class_id: class_id || null, roll_no: roll_no || null, success: true });
+    } catch (err) {
+      results.push({ email, success: false, message: err.message || 'Failed to create this student.' });
+    }
+  }
+
+  const successCount = results.filter(r => r.success).length;
+  res.status(200).json({
+    message: `Created ${successCount} of ${students.length} students.`,
+    results
+  });
+});
+
+// ---------------------------------------------------------
+// 6. UPDATE STUDENT
+// ---------------------------------------------------------
+router.put('/update-student/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, password, class_id, roll_no } = req.body;
+
+    if (email || password) {
+      const updateAuthData = {};
+      if (email) updateAuthData.email = email;
+      if (password) updateAuthData.password = password;
+      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
+      if (authUpdateError) throw new Error(authUpdateError.message);
+    }
+
+    const updateUserData = {};
+    if (name !== undefined) updateUserData.name = name;
+    if (email !== undefined) updateUserData.email = email;
+    if (password !== undefined) updateUserData.password = password;
+    if (class_id !== undefined) updateUserData.class_id = class_id;
+    if (roll_no !== undefined) updateUserData.roll_no = roll_no;
+
+    if (Object.keys(updateUserData).length > 0) {
+      const { error: userError } = await supabaseAdmin
+        .from('users')
+        .update(updateUserData)
+        .eq('id', id)
+        .eq('role', 'student');
+      if (userError) throw new Error(userError.message);
+    }
+
+    res.status(200).json({ message: 'Student updated successfully' });
+  } catch (err) {
+    console.error("Update Student Error:", err.message);
+    res.status(400).json({ message: err.message || 'Failed to update student' });
+  }
+});
+
+// ---------------------------------------------------------
+// 7. DELETE STUDENT
+// ---------------------------------------------------------
+router.delete('/delete-student/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error: userDeleteError } = await supabaseAdmin
+      .from('users')
+      .delete()
+      .eq('id', id)
+      .eq('role', 'student');
+    if (userDeleteError) console.warn("Could not delete from users table:", userDeleteError.message);
+
+    const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (authDeleteError) console.warn("Could not delete from Auth:", authDeleteError.message);
+
+    res.status(200).json({ message: 'Student permanently deleted' });
+  } catch (err) {
+    console.error("Delete Student Error:", err.message);
+    res.status(400).json({ message: err.message || 'Failed to delete student' });
   }
 });
 

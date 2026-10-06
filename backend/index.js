@@ -4,7 +4,6 @@ const cors = require('cors');
 
 const authRoutes = require('./routes/auth');
 const aiRoutes = require('./routes/ai');
-const instituteRoutes = require('./routes/institutes');
 
 const app = express();
 
@@ -42,7 +41,6 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/institutes', instituteRoutes);
 
 // Health Check
 app.get('/', (req, res) => {
