@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS public.test_attempts (
     start_time timestamptz,
     end_time timestamptz,
     completed_at timestamptz,
-    status text,
+    status text,           -- CHECK in (started, in_progress, finished, completed, abandoned, terminated) (migrations/004)
     score integer,
     total_correct integer,
     total_wrong integer,
@@ -163,6 +163,8 @@ CREATE TABLE IF NOT EXISTS public.test_attempts (
     tab_switch_count integer DEFAULT 0,             -- proctoring (migrations/001)
     fullscreen_exit_count integer DEFAULT 0,        -- proctoring (migrations/001)
     flagged boolean DEFAULT false,                  -- proctoring (migrations/001)
+    violation_count integer DEFAULT 0,              -- proctoring (migrations/004)
+    violations jsonb DEFAULT '[]'::jsonb,           -- [{type, at}] log (migrations/004)
     CONSTRAINT test_attempts_pkey PRIMARY KEY (id),
     CONSTRAINT test_attempts_test_id_fkey FOREIGN KEY (test_id) REFERENCES public.tests(id) ON DELETE CASCADE,
     CONSTRAINT test_attempts_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users(id) ON DELETE SET NULL
@@ -172,6 +174,11 @@ CREATE TABLE IF NOT EXISTS public.test_attempts (
 CREATE UNIQUE INDEX IF NOT EXISTS test_attempts_one_per_student
     ON public.test_attempts (test_id, student_id)
     WHERE student_id IS NOT NULL;
+
+-- One attempt per public-link email per test (migrations/004)
+CREATE UNIQUE INDEX IF NOT EXISTS test_attempts_one_per_guest_email
+    ON public.test_attempts (test_id, lower(btrim(guest_email)))
+    WHERE student_id IS NULL AND guest_email IS NOT NULL;
 
 -- ---------------------------------------------------------------------
 -- student_results — convenience view joining an attempt back to its test title

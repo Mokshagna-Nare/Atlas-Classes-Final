@@ -380,8 +380,8 @@ module.exports = {
         [
           "−4",
           "4",
-          "3/2",
-          "−3/2"
+          "[FRAC]3[SEP]2[/FRAC]",
+          "−[FRAC]3[SEP]2[/FRAC]"
         ],
         1,
         "Easy",
@@ -438,19 +438,19 @@ module.exports = {
     ],
     "Limits and Derivatives": [
       [
-        "d/dx (x³) equals:",
+        "[FRAC]d[SEP]dx[/FRAC] (x³) equals:",
         [
           "x²",
           "3x²",
           "3x³",
-          "x⁴/4"
+          "[FRAC]x⁴[SEP]4[/FRAC]"
         ],
         1,
         "Easy",
         "Knowledge Based"
       ],
       [
-        "lim (x→0) of (sin x)/x equals:",
+        "lim (x→0) of [FRAC]sin x[SEP]x[/FRAC] equals:",
         [
           "0",
           "1",
@@ -462,7 +462,7 @@ module.exports = {
         "Knowledge Based"
       ],
       [
-        "d/dx (sin x · cos x) equals:",
+        "[FRAC]d[SEP]dx[/FRAC] (sin x · cos x) equals:",
         [
           "cos 2x",
           "sin 2x",
@@ -486,11 +486,11 @@ module.exports = {
         "Application"
       ],
       [
-        "d/dx (e²ˣ) equals:",
+        "[FRAC]d[SEP]dx[/FRAC] (e²ˣ) equals:",
         [
           "e²ˣ",
           "2e²ˣ",
-          "e²ˣ/2",
+          "[FRAC]e²ˣ[SEP]2[/FRAC]",
           "2x·e²ˣ"
         ],
         1,
@@ -528,8 +528,8 @@ module.exports = {
         [
           "2",
           "−2",
-          "1/2",
-          "−1/2"
+          "[FRAC]1[SEP]2[/FRAC]",
+          "−[FRAC]1[SEP]2[/FRAC]"
         ],
         3,
         "Medium",
@@ -564,7 +564,7 @@ module.exports = {
       [
         "∫ x dx equals:",
         [
-          "x²/2 + C",
+          "[FRAC]x²[SEP]2[/FRAC] + C",
           "x² + C",
           "2x + C",
           "1 + C"
@@ -579,7 +579,7 @@ module.exports = {
           "0",
           "1",
           "2",
-          "1/2"
+          "[FRAC]1[SEP]2[/FRAC]"
         ],
         1,
         "Easy",
@@ -598,11 +598,11 @@ module.exports = {
         "Knowledge Based"
       ],
       [
-        "∫ (1/x) dx equals:",
+        "∫ [FRAC]1[SEP]x[/FRAC] dx equals:",
         [
           "x + C",
           "ln|x| + C",
-          "−1/x² + C",
+          "−[FRAC]1[SEP]x²[/FRAC] + C",
           "eˣ + C"
         ],
         1,
@@ -776,10 +776,10 @@ module.exports = {
       [
         "The resistance of a wire of resistivity ρ, length L and cross-section A is:",
         [
-          "ρA/L",
-          "ρL/A",
-          "L/(ρA)",
-          "ρ/(LA)"
+          "[FRAC]ρA[SEP]L[/FRAC]",
+          "[FRAC]ρL[SEP]A[/FRAC]",
+          "[FRAC]L[SEP]ρA[/FRAC]",
+          "[FRAC]ρ[SEP]LA[/FRAC]"
         ],
         1,
         "Easy",
@@ -960,7 +960,7 @@ module.exports = {
       [
         "A parallel-plate capacitor of capacitance C is completely filled with a dielectric of constant K. Its new capacitance is:",
         [
-          "C/K",
+          "[FRAC]C[SEP]K[/FRAC]",
           "C",
           "KC",
           "K²C"

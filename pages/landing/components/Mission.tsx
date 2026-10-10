@@ -1,37 +1,66 @@
 
 import React from 'react';
 import { BookOpenIcon, ClipboardCheckIcon, DesktopComputerIcon, AcademicCapIcon, SparklesIcon, TrophyIcon } from '../../../components/icons';
+import { Reveal, SectionHeading, SECTION_SPACING } from '../motion';
+import { cardHover } from '../ui';
 
 const missionItems = [
     {
-        icon: <BookOpenIcon className="h-8 w-8 text-atlas-primary transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3"/>,
+        icon: <BookOpenIcon className="h-8 w-8 text-atlas-primary"/>,
         title: 'Content & Curriculum',
-        description: 'Foundation courses (Grade 6–10) meticulously aligned with IIT-JEE/NEET requirements.',
-        delay: '0s'
+        description: 'Foundation courses (Grade 6–10) meticulously aligned with IIT-JEE/NEET requirements.'
     },
     {
-        icon: <ClipboardCheckIcon className="h-8 w-8 text-atlas-primary transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3"/>,
+        icon: <ClipboardCheckIcon className="h-8 w-8 text-atlas-primary"/>,
         title: 'Assessment',
-        description: 'Weekly papers, professional evaluation, and detailed performance analysis.',
-        delay: '0.1s'
+        description: 'Weekly papers, professional evaluation, and detailed performance analysis.'
     },
     {
-        icon: <DesktopComputerIcon className="h-8 w-8 text-atlas-primary transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3"/>,
+        icon: <DesktopComputerIcon className="h-8 w-8 text-atlas-primary"/>,
         title: 'Technology & Planning',
-        description: 'Dedicated LMS access and structured Microplans for efficient lesson delivery.',
-        delay: '0.2s'
+        description: 'Dedicated LMS access and structured Microplans for efficient lesson delivery.'
     },
     {
-        icon: <AcademicCapIcon className="h-8 w-8 text-atlas-primary transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3"/>,
+        icon: <AcademicCapIcon className="h-8 w-8 text-atlas-primary"/>,
         title: 'Teacher Empowerment',
-        description: 'Continuous Teacher Training and academic resource access.',
-        delay: '0.3s'
+        description: 'Continuous Teacher Training and academic resource access.'
     },
 ];
 
+const philosophy = [
+    {
+        title: 'Our Mission',
+        icon: <SparklesIcon className="h-6 w-6" />,
+        quote: 'Providing accessible, affordable, and structured coaching to build a quality foundation of competitive skills in students everywhere.',
+        tag: 'Excellence',
+    },
+    {
+        title: 'Our Vision',
+        icon: <TrophyIcon className="h-6 w-6" />,
+        quote: 'Empowering every learner to rise from basics to brilliance and from classrooms to the world.',
+        tag: 'Empowerment',
+    },
+];
+
+const PhilosophyCard: React.FC<(typeof philosophy)[number]> = ({ title, icon, quote, tag }) => (
+    <div className={`group/card ${cardHover} h-full rounded-3xl p-7 sm:p-10 flex flex-col`}>
+        <div className="flex items-center mb-6">
+            <div className="mr-4 rounded-xl border border-atlas-primary/20 bg-atlas-primary/10 p-3 text-atlas-primary transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:-rotate-6 group-hover/card:border-emerald-400/50 group-hover/card:shadow-glow">
+                {icon}
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-bold text-white transition-colors duration-500 group-hover/card:text-emerald-300">{title}</h3>
+        </div>
+        <p className="text-base sm:text-lg leading-relaxed text-gray-300 transition-colors duration-500 group-hover/card:text-white">"{quote}"</p>
+        <div className="mt-auto flex items-center pt-6">
+            <div className="mr-2 h-0.5 w-12 bg-atlas-primary transition-all duration-700 ease-premium group-hover/card:w-20 group-hover/card:shadow-glow-sm" />
+            <span className="text-sm font-bold uppercase tracking-widest text-atlas-primary transition-[letter-spacing] duration-700 ease-premium group-hover/card:tracking-[0.2em]">{tag}</span>
+        </div>
+    </div>
+);
+
 const Mission: React.FC = () => {
     return (
-        <section className="py-32 bg-atlas-dark relative overflow-hidden" id="mission">
+        <section className={`${SECTION_SPACING} bg-atlas-dark relative overflow-hidden`}>
             {/* Background Ambiance */}
             <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
                  <div className="absolute top-[10%] left-[5%] w-[500px] h-[500px] bg-atlas-primary/5 rounded-full blur-[120px] animate-pulse-slow"></div>
@@ -42,60 +71,26 @@ const Mission: React.FC = () => {
             <div className="container mx-auto px-6 relative z-10">
                 
                 {/* Header */}
-                <div className="text-center mb-20">
-                     <h2 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight text-white drop-shadow-2xl">
-                        Philosophy & <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-300">Partnership</span>
-                    </h2>
-                    <div className="w-24 h-1.5 bg-atlas-primary mx-auto rounded-full shadow-[0_0_20px_rgba(16,185,129,0.6)]"></div>
-                </div>
+                <SectionHeading
+                    eyebrow="Our philosophy"
+                    title={<>Philosophy & <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-300">Partnership</span></>}
+                    subtitle="Why we exist, where we're headed, and how we work hand in hand with every partner school."
+                />
 
                 {/* Mission & Vision Grid */}
-                <div className="grid md:grid-cols-2 gap-8 lg:gap-12 mb-24">
-                    {/* Mission Card */}
-                    <div className="group relative p-1 rounded-3xl bg-gradient-to-b from-gray-800/50 to-gray-900/50 hover:from-atlas-primary/20 hover:to-gray-900/80 transition-all duration-500 shadow-lg hover:shadow-[0_0_40px_-10px_rgba(16,185,129,0.15)] hover:-translate-y-2 border border-white/5 hover:border-atlas-primary/30">
-                         <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:20px_20px] rounded-3xl pointer-events-none"></div>
-                         <div className="relative p-10 h-full flex flex-col">
-                            <div className="flex items-center mb-6">
-                                <div className="p-3 rounded-xl bg-atlas-primary/10 border border-atlas-primary/20 text-atlas-primary mr-4 shadow-[0_0_15px_rgba(16,185,129,0.2)] group-hover:scale-110 transition-transform duration-500">
-                                     <SparklesIcon className="h-6 w-6" />
-                                </div>
-                                <h3 className="text-3xl font-bold text-white group-hover:text-atlas-primary transition-colors duration-300">Our Mission</h3>
-                            </div>
-                            <p className="text-gray-300 text-lg leading-relaxed group-hover:text-white transition-colors duration-300">
-                                "Providing accessible, affordable, and structured coaching to build a quality foundation of competitive skills in students everywhere."
-                            </p>
-                            <div className="mt-auto pt-6 flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-y-2 group-hover:translate-y-0">
-                                <div className="h-0.5 w-12 bg-atlas-primary mr-2"></div>
-                                <span className="text-atlas-primary text-sm font-bold tracking-widest uppercase">Excellence</span>
-                            </div>
-                         </div>
-                    </div>
-
-                    {/* Vision Card */}
-                    <div className="group relative p-1 rounded-3xl bg-gradient-to-b from-gray-800/50 to-gray-900/50 hover:from-atlas-primary/20 hover:to-gray-900/80 transition-all duration-500 shadow-lg hover:shadow-[0_0_40px_-10px_rgba(16,185,129,0.15)] hover:-translate-y-2 border border-white/5 hover:border-atlas-primary/30">
-                         <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:20px_20px] rounded-3xl pointer-events-none"></div>
-                         <div className="relative p-10 h-full flex flex-col">
-                            <div className="flex items-center mb-6">
-                                <div className="p-3 rounded-xl bg-atlas-primary/10 border border-atlas-primary/20 text-atlas-primary mr-4 shadow-[0_0_15px_rgba(16,185,129,0.2)] group-hover:scale-110 transition-transform duration-500">
-                                     <TrophyIcon className="h-6 w-6" />
-                                </div>
-                                <h3 className="text-3xl font-bold text-white group-hover:text-atlas-primary transition-colors duration-300">Our Vision</h3>
-                            </div>
-                            <p className="text-gray-300 text-lg leading-relaxed group-hover:text-white transition-colors duration-300">
-                                "Empowering every learner to rise from basics to brilliance and from classrooms to the world."
-                            </p>
-                             <div className="mt-auto pt-6 flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-y-2 group-hover:translate-y-0">
-                                <div className="h-0.5 w-12 bg-atlas-primary mr-2"></div>
-                                <span className="text-atlas-primary text-sm font-bold tracking-widest uppercase">Empowerment</span>
-                            </div>
-                         </div>
-                    </div>
+                <div data-spotlight-group className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-12 mb-20">
+                    {philosophy.map((card, i) => (
+                        <Reveal key={card.title} variant={i === 0 ? 'left' : 'right'} delay={i * 120} className="h-full">
+                            <PhilosophyCard {...card} />
+                        </Reveal>
+                    ))}
                 </div>
 
                 {/* Atlas Advantage Block */}
-                <div className="relative max-w-5xl mx-auto mb-24 group reveal-on-scroll">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-atlas-primary to-emerald-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
-                    <div className="relative bg-atlas-soft/40 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-10 md:p-14 shadow-2xl overflow-hidden">
+                <Reveal variant="scale" className="max-w-5xl mx-auto mb-20">
+                <div className="group/adv relative">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-atlas-primary to-emerald-600 rounded-2xl blur opacity-20 transition-opacity duration-700 ease-premium group-hover/adv:opacity-40" aria-hidden="true"></div>
+                    <div className="spotlight spotlight-flat relative bg-atlas-soft/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-7 sm:p-10 md:p-14 shadow-2xl overflow-hidden">
                         {/* Glowing Left Border */}
                         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-atlas-primary shadow-[0_0_20px_rgba(16,185,129,0.8)]"></div>
                         {/* Inner Light Overlay */}
@@ -111,7 +106,7 @@ const Mission: React.FC = () => {
                                 </p>
                             </div>
                              <div className="hidden md:block">
-                                 <div className="w-20 h-20 rounded-full border-2 border-atlas-primary/30 flex items-center justify-center animate-pulse-slow">
+                                 <div className="w-20 h-20 rounded-full border-2 border-atlas-primary/30 flex items-center justify-center animate-pulse-slow transition-transform duration-700 ease-premium group-hover/adv:scale-110 group-hover/adv:rotate-45">
                                       <div className="w-16 h-16 rounded-full border border-atlas-primary/60 flex items-center justify-center">
                                           <div className="w-2 h-2 bg-atlas-primary rounded-full shadow-[0_0_10px_#10B981]"></div>
                                       </div>
@@ -120,30 +115,30 @@ const Mission: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                
+                </Reveal>
+
                 {/* 4 Core Components Section */}
-                <div className="text-center mb-12">
+                <Reveal className="text-center mb-12">
                      <h3 className="text-3xl font-bold mb-4 text-white">An All-Inclusive Partnership</h3>
                      <p className="max-w-3xl mx-auto text-gray-400 text-lg">
                         A seamless, all-inclusive solution allowing your school to focus solely on excellence.
                     </p>
-                </div>
+                </Reveal>
 
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div data-spotlight-group className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                     {missionItems.map((item, index) => (
-                        <div 
-                            key={index} 
-                            className="group relative bg-atlas-soft/30 backdrop-blur-md p-8 rounded-2xl border border-white/5 hover:border-atlas-primary/50 transition-all duration-500 hover:shadow-[0_10px_30px_-10px_rgba(16,185,129,0.15)] hover:-translate-y-2 flex flex-col items-center text-center reveal-on-scroll"
-                            style={{transitionDelay: item.delay}}
+                        <Reveal key={index} delay={index * 100} className="h-full">
+                        <div
+                            className={`group/card ${cardHover} h-full p-7 sm:p-8 flex flex-col items-center text-center`}
                         >
-                            <div className="absolute inset-0 bg-gradient-to-br from-atlas-primary/5 to-transparent opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity duration-500"></div>
-                            
-                            <div className="relative z-10 flex-shrink-0 bg-gray-800/50 p-5 rounded-full mb-6 border border-gray-700 group-hover:border-atlas-primary group-hover:bg-atlas-primary/10 transition-all duration-500 shadow-inner">
+                                                        
+                            <div className="relative z-10 flex-shrink-0 bg-atlas-primary/10 p-5 rounded-full mb-6 border border-atlas-primary/25 shadow-inner transition-all duration-500 ease-premium group-hover/card:-translate-y-1 group-hover/card:rotate-6 group-hover/card:border-emerald-400/50 group-hover/card:bg-atlas-primary/15 group-hover/card:shadow-glow">
                                 {item.icon}
                             </div>
-                            <h3 className="relative z-10 text-xl font-bold text-white mb-3 group-hover:text-atlas-primary transition-colors duration-300">{item.title}</h3>
-                            <p className="relative z-10 text-gray-400 text-sm leading-relaxed group-hover:text-gray-300 transition-colors duration-300">{item.description}</p>
+                            <h3 className="relative z-10 text-xl font-bold text-white mb-3 transition-colors duration-500 group-hover/card:text-emerald-300">{item.title}</h3>
+                            <p className="relative z-10 text-gray-400 text-sm leading-relaxed transition-colors duration-500 group-hover/card:text-gray-300">{item.description}</p>
                         </div>
+                        </Reveal>
                     ))}
                 </div>
             </div>

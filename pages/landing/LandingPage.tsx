@@ -8,13 +8,17 @@ import Faculty from './components/Faculty';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
 import { ChevronUpIcon } from '../../components/icons';
-import { NAV_LINKS } from '../../constants';
+import { NAV_LINKS, SHOW_TEAM_SECTION } from '../../constants';
 import Careers from './components/Careers';
 import Benefits from './components/Benefits';
+import { useSectionScroll, useRevealOnScroll, useSpotlight, ScrollProgress } from './motion';
+import { focusRing } from './ui';
 
 const LandingPage: React.FC = () => {
   const [activeSection, setActiveSection] = useState('home');
   const [showBackToTop, setShowBackToTop] = useState(false);
+  // Program picked via a course card's "Enquire" button; pre-fills the contact form.
+  const [enquiry, setEnquiry] = useState<{ program: string; at: number } | null>(null);
   
   const sectionRefs = {
     home: useRef<HTMLDivElement>(null),
@@ -26,29 +30,9 @@ const LandingPage: React.FC = () => {
     contact: useRef<HTMLDivElement>(null),
   };
 
-  // Scroll Observer for Animations
-  useEffect(() => {
-    const observerOptions = {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.15
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('is-visible');
-            }
-        });
-    }, observerOptions);
-
-    // Target all elements with 'reveal-on-scroll' class
-    document.querySelectorAll('.reveal-on-scroll').forEach((el) => {
-        observer.observe(el);
-    });
-
-    return () => observer.disconnect();
-  }, []);
+  const smoothScrollTo = useSectionScroll();
+  useRevealOnScroll();
+  useSpotlight();
 
   const handleScroll = () => {
     const pageYOffset = window.pageYOffset;
@@ -76,49 +60,60 @@ const LandingPage: React.FC = () => {
   };
 
   useEffect(() => {
-    window.addEventListener('scroll', handleScroll);
+    // At most one update per frame, however fast scroll events arrive.
+    let frame = 0;
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; handleScroll(); });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const scrollToSection = (id: string) => {
     const ref = sectionRefs[id as keyof typeof sectionRefs];
-    if (ref.current) {
-      ref.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (id === 'home') smoothScrollTo(0);
+    else if (ref.current) smoothScrollTo(ref.current);
   };
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const scrollToTop = () => smoothScrollTo(0);
+
+  const enquireAbout = (program: string) => {
+    setEnquiry({ program, at: Date.now() });
+    scrollToSection('contact');
   };
 
   return (
     <div className="bg-atlas-dark font-sans relative isolate overflow-x-hidden text-white">
       {/* Dark theme ambient glow */}
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_center,rgba(122,184,0,0.08),transparent_40%)] pointer-events-none"></div>
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_center,rgba(16,185,129,0.08),transparent_40%)] pointer-events-none"></div>
       
+      <ScrollProgress />
       <Navbar activeSection={activeSection} scrollToSection={scrollToSection} />
       <main>
         <div ref={sectionRefs.home} id="home"><Hero scrollToSection={scrollToSection} /></div>
-        <div className="reveal-on-scroll" ref={sectionRefs.courses} id="courses"><Courses /></div>
-        <div className="reveal-on-scroll" ref={sectionRefs.benefits} id="benefits"><Benefits /></div>
-        <div className="reveal-on-scroll" ref={sectionRefs.mission} id="mission"><Mission /></div>
-        <div className="reveal-on-scroll" ref={sectionRefs.faculty} id="faculty"><Faculty /></div>
-        <div className="reveal-on-scroll" ref={sectionRefs.careers} id="careers"><Careers /></div>
-        <div className="reveal-on-scroll" ref={sectionRefs.contact} id="contact"><Contact /></div>
+        <div ref={sectionRefs.courses} id="courses"><Courses onEnquire={enquireAbout} /></div>
+        <div ref={sectionRefs.benefits} id="benefits"><Benefits /></div>
+        <div ref={sectionRefs.mission} id="mission"><Mission /></div>
+        {SHOW_TEAM_SECTION && <div ref={sectionRefs.faculty} id="faculty"><Faculty /></div>}
+        <div ref={sectionRefs.careers} id="careers"><Careers /></div>
+        <div ref={sectionRefs.contact} id="contact"><Contact enquiry={enquiry} /></div>
       </main>
-      <Footer />
-      {showBackToTop && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-8 right-8 bg-atlas-green text-white p-3 rounded-full shadow-[0_0_15px_rgba(122,184,0,0.5)] hover:bg-green-600 hover:shadow-[0_0_25px_rgba(122,184,0,0.7)] hover:-translate-y-1 transition-all duration-300 z-50 border border-green-500/50"
-          aria-label="Back to top"
-        >
-          <ChevronUpIcon className="h-6 w-6" />
-        </button>
-      )}
+      <Footer scrollToSection={scrollToSection} />
+      <button
+        onClick={scrollToTop}
+        aria-label="Back to top"
+        tabIndex={showBackToTop ? 0 : -1}
+        aria-hidden={!showBackToTop}
+        className={`fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 rounded-full border border-emerald-300/40 bg-gradient-to-b from-emerald-400 to-emerald-500 p-3 text-gray-950 shadow-glow transition-all duration-500 ease-premium hover:-translate-y-1 hover:shadow-glow-lg active:scale-95 ${focusRing} ${
+          showBackToTop ? 'opacity-100 scale-100' : 'pointer-events-none opacity-0 scale-75 translate-y-4'
+        }`}
+      >
+        <ChevronUpIcon className="h-6 w-6" />
+      </button>
     </div>
   );
 };

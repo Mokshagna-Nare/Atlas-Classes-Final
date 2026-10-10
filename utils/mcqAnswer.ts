@@ -24,7 +24,8 @@ export function getCorrectOptionIndex(mcq: MCQ): number | null {
   }
 
   // Parse as numeric string (0-based index)
-  const numericAnswer = parseInt(mcq.answer.trim(), 10);
+  // Only a bare integer is an index: parseInt("2 m/s") would otherwise read option text as index 2.
+  const numericAnswer = /^\d+$/.test(mcq.answer.trim()) ? parseInt(mcq.answer.trim(), 10) : NaN;
   if (!isNaN(numericAnswer) && numericAnswer >= 0 && numericAnswer < mcq.options.length) {
     return numericAnswer;
   }

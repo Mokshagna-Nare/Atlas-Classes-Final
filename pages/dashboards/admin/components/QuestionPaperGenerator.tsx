@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../../../../services/supabase';
 import { MCQ } from '../../../../types';
+import { markersToHtml, RichMathText, stripMathMarkers } from '../../../../utils/renderMath';
 import { getCorrectOptionIndex, getCorrectAnswerText } from '../../../../utils/mcqAnswer';
 import { InformationCircleIcon, FunnelIcon, TrashIcon } from '../../../../components/icons';
 import ModalPortal from '../../../../components/ModalPortal';
@@ -558,13 +559,13 @@ const QuestionPaperGenerator: React.FC = () => {
       doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(0);
       doc.text(`Q${index + 1}.`, margin, yPosition);
       doc.setFont('helvetica', 'normal');
-      const qLines = doc.splitTextToSize(q.question, pageWidth - margin * 2 - 10);
+      const qLines = doc.splitTextToSize(stripMathMarkers(q.question), pageWidth - margin * 2 - 10);
       doc.text(qLines, margin + 10, yPosition); yPosition += qLines.length * 5 + 2;
 
       if (q.type === 'Multiple Choice' && q.options) {
         const opts = Array.isArray(q.options) ? q.options : [];
         opts.forEach((opt: string, i: number) => {
-          const optText = `${String.fromCharCode(65 + i)}) ${opt}`;
+          const optText = `${String.fromCharCode(65 + i)}) ${stripMathMarkers(opt)}`;
           const oLines = doc.splitTextToSize(optText, pageWidth - margin * 2 - 15);
           doc.text(oLines, margin + 15, yPosition); yPosition += oLines.length * 5;
         });
@@ -572,7 +573,7 @@ const QuestionPaperGenerator: React.FC = () => {
 
       if (copyType === 'teacher') {
         const correctOptionIndex = getCorrectOptionIndex(q);
-        const answerText = getCorrectAnswerText(q);
+        const answerText = stripMathMarkers(getCorrectAnswerText(q) ?? "");
         const ans = correctOptionIndex !== null ? `Option ${correctOptionIndex + 1}: ${answerText || '[Image option]'}` : 'Not specified';
         const qIdStr = q.question_code || q.id.substring(0, 8);
 
@@ -600,15 +601,15 @@ const QuestionPaperGenerator: React.FC = () => {
     sections.push(new Paragraph({ alignment: "center", spacing: { after: 400 }, border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: "CCCCCC", space: 10 } }, children: [new TextRun({ text: `Subject: ${docSubject}`, size: 20, font: "Helvetica" })] }));
   
     questions.forEach((q, index) => {
-      sections.push(new Paragraph({ spacing: { before: 300, after: 100 }, children: [new TextRun({ text: `Q${index + 1}. `, bold: true, size: 22, font: "Helvetica" }), new TextRun({ text: q.question, size: 22, font: "Helvetica" })] }));
+      sections.push(new Paragraph({ spacing: { before: 300, after: 100 }, children: [new TextRun({ text: `Q${index + 1}. `, bold: true, size: 22, font: "Helvetica" }), new TextRun({ text: stripMathMarkers(q.question), size: 22, font: "Helvetica" })] }));
       if (q.type === 'Multiple Choice' && Array.isArray(q.options) && q.options.length > 0) {
         q.options.forEach((opt: string, i: number) => {
-          sections.push(new Paragraph({ spacing: { after: 80 }, indent: { left: 400 }, children: [new TextRun({ text: `${String.fromCharCode(65 + i)}) ${opt}`, size: 22, font: "Helvetica" })] }));
+          sections.push(new Paragraph({ spacing: { after: 80 }, indent: { left: 400 }, children: [new TextRun({ text: `${String.fromCharCode(65 + i)}) ${stripMathMarkers(opt)}`, size: 22, font: "Helvetica" })] }));
         });
       }
       if (copyType === 'teacher') {
         const correctOptionIndex = getCorrectOptionIndex(q);
-        const answerText = getCorrectAnswerText(q);
+        const answerText = stripMathMarkers(getCorrectAnswerText(q) ?? "");
         const ans = correctOptionIndex !== null ? `Option ${correctOptionIndex + 1}: ${answerText || '[Image option]'}` : 'Not specified';
         const qIdStr = q.question_code || q.id.substring(0, 8);
         sections.push(new Paragraph({ spacing: { before: 100, after: 40 }, indent: { left: 400 }, children: [new TextRun({ text: `Correct Answer: ${ans}`, bold: true, size: 20, font: "Helvetica", color: "16A34A" })] }));
@@ -998,7 +999,7 @@ const QuestionPaperGenerator: React.FC = () => {
 
                 {/* --- GENERATOR UI (Target Context) --- */}
                 {currentTarget && remainingInBucket > 0 ? (
-                  <div className="bg-gray-900/40 p-6 lg:p-8 rounded-3xl border border-gray-800 backdrop-blur-xl shadow-2xl animate-fade-in">
+                  <div className="relative z-20 bg-gray-900/40 p-6 lg:p-8 rounded-3xl border border-gray-800 backdrop-blur-xl shadow-2xl animate-fade-in">
                     
                     <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-800/50 p-5 rounded-2xl border border-gray-700/50 gap-4">
                       <div>
@@ -1116,7 +1117,7 @@ const QuestionPaperGenerator: React.FC = () => {
                             <tr key={q.id} className="hover:bg-white/[0.02] transition-colors">
                               <td className="p-5 text-center text-gray-500 font-mono text-sm">{index + 1}</td>
                               <td className="p-5">
-                                <div className="text-sm text-gray-200 font-medium leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: q.question }} />
+                                <div className="text-sm text-gray-200 font-medium leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: markersToHtml(q.question) }} />
                                 <p className="text-[10px] text-gray-500 mt-3 flex items-center gap-2">
                                   {q.question_code && <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded font-mono">{q.question_code}</span>}
                                   <span className="bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">{q.type}</span>
@@ -1284,7 +1285,7 @@ const QuestionPaperGenerator: React.FC = () => {
                          <div key={q.id} className="p-5 bg-gray-800/60 rounded-xl border border-gray-700/50 flex gap-4 hover:border-gray-600 transition-colors">
                            <span className="text-gray-500 font-mono font-bold mt-0.5 w-6 text-right select-none">{i + 1}.</span>
                            <div className="flex-1">
-                             <div className="text-[15px] text-gray-200 font-medium leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: q.question }} />
+                             <div className="text-[15px] text-gray-200 font-medium leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: markersToHtml(q.question) }} />
                              <div className="flex gap-2.5 mt-3">
                                {(q as any)._trackContext && <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold uppercase tracking-wider">{(q as any)._trackContext}</span>}
                                <span className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase tracking-wider ${q.difficulty === 'Easy' ? 'bg-green-500/10 text-green-400 border-green-500/20' : q.difficulty === 'Medium' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : q.difficulty === 'Hard' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-gray-700/30 text-gray-400 border-gray-600/50'}`}>{q.difficulty}</span>
@@ -1453,7 +1454,7 @@ const QuestionPaperGenerator: React.FC = () => {
                       <div className="flex items-start justify-between gap-4">
                         <div className="text-[15px] text-gray-200 font-medium leading-relaxed flex-1 prose prose-invert max-w-none">
                           <span className="text-green-500 font-bold mr-2 select-none">Q{idx + 1}.</span>
-                          <span dangerouslySetInnerHTML={{ __html: q.question }} />
+                          <span dangerouslySetInnerHTML={{ __html: markersToHtml(q.question) }} />
                         </div>
                         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                           <span className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase tracking-wider ${q.difficulty === 'Easy' ? 'bg-green-500/10 text-green-400 border-green-500/20' : q.difficulty === 'Medium' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : q.difficulty === 'Hard' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-gray-700/30 text-gray-400 border-gray-600/50'}`}>{q.difficulty || 'N/A'}</span>
@@ -1464,7 +1465,7 @@ const QuestionPaperGenerator: React.FC = () => {
                         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
                           {q.options.map((opt: string, i: number) => (
                             <div key={`${q.id}-opt-${i}`} className="text-sm text-gray-300 bg-gray-900/50 border border-gray-700/50 rounded-xl px-4 py-3 flex items-start gap-3">
-                              <span className="text-gray-500 font-bold font-mono bg-gray-800 w-6 h-6 flex items-center justify-center rounded-md flex-shrink-0">{String.fromCharCode(65 + i)}</span><span className="mt-0.5">{opt}</span>
+                              <span className="text-gray-500 font-bold font-mono bg-gray-800 w-6 h-6 flex items-center justify-center rounded-md flex-shrink-0">{String.fromCharCode(65 + i)}</span><span className="mt-0.5"><RichMathText text={opt} /></span>
                             </div>
                           ))}
                         </div>

@@ -2,13 +2,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRightIcon } from '../../../components/icons';
+import { Reveal, SECTION_SPACING } from '../motion';
+import { buttonPrimary } from '../ui';
 
 const Careers: React.FC = () => {
   return (
-    <section 
-      className="py-32 relative overflow-hidden"
-      id="careers"
-    >
+    <section className={`${SECTION_SPACING} relative overflow-hidden`}>
       {/* Background Texture */}
       <div className="absolute inset-0 bg-atlas-soft"></div>
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDQwaDQwVjBIMHY0MHptMjAgMjBoMjB2MjBIMjBWNjB6TTEwIDgwaDIwdjIwSDEwVjgwem0xMCAyMGgyMHYyMEgyMFYxMDB6IiBmaWxsPSIjMDBiYzc1IiBmaWxsLW9wYWNpdHk9IjAuMDIiLz48L2c+PC9zdmc+')] opacity-30"></div>
@@ -19,36 +18,33 @@ const Careers: React.FC = () => {
 
       <div className="container mx-auto px-6 text-center relative z-10">
         <div className="max-w-4xl mx-auto">
-            <div className="reveal-on-scroll">
-                 <span className="inline-block py-1 px-3 rounded-full bg-atlas-primary/10 border border-atlas-primary/30 text-atlas-primary text-xs font-bold uppercase tracking-widest mb-6 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                    We are Hiring
+            <Reveal>
+                 <span className="inline-flex items-center gap-2 rounded-full border border-atlas-primary/25 bg-atlas-primary/[0.08] px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-atlas-primary mb-6">
+                    <span className="h-1.5 w-1.5 rounded-full bg-atlas-primary shadow-[0_0_8px_rgba(16,185,129,0.9)] animate-pulse" />
+                    We are hiring
                  </span>
-                <h2 className="text-5xl md:text-6xl font-extrabold mb-8 text-white tracking-tight leading-tight">
+            </Reveal>
+            <Reveal delay={90}>
+                <h2 className="text-4xl md:text-6xl font-extrabold mb-8 text-white tracking-tight leading-[1.1]">
                   Shape the <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-300">Future</span> with Us
                 </h2>
-            </div>
-            
-            <div className="reveal-on-scroll" style={{transitionDelay: '0.1s'}}>
+            </Reveal>
+
+            <Reveal delay={180}>
                 <p className="text-gray-400 mb-12 text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
                   We're a team of passionate innovators building the next generation of educational technology. If you're driven by purpose, creativity, and excellence, we want to hear from you.
                 </p>
-            </div>
+            </Reveal>
 
-            <div className="reveal-on-scroll" style={{transitionDelay: '0.2s'}}>
-                <Link
-                  to="/careers"
-                  className="group relative inline-flex items-center justify-center py-4 px-10 font-bold text-lg text-white bg-atlas-primary rounded-full overflow-hidden transition-all duration-300 shadow-[0_0_25px_rgba(16,185,129,0.4)] hover:shadow-[0_0_40px_rgba(16,185,129,0.6)] hover:-translate-y-1"
-                >
-                  <span className="relative z-10 flex items-center">
-                      Explore Opportunities 
-                      <ArrowRightIcon className="ml-2 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-                  </span>
-                  <div className="absolute inset-0 h-full w-full scale-0 rounded-full transition-all duration-300 group-hover:scale-100 group-hover:bg-emerald-600"></div>
+            <Reveal delay={270}>
+                <Link to="/careers" className={`group ${buttonPrimary} px-8 sm:px-10 py-4 text-base sm:text-lg`}>
+                  Explore Opportunities
+                  <ArrowRightIcon className="h-5 w-5 transition-transform duration-300 ease-premium group-hover:translate-x-1" />
                 </Link>
                 <p className="mt-6 text-sm text-gray-500">
                     Join <span className="text-white font-bold">Our expert team</span> making an impact.
                 </p>
-            </div>
+            </Reveal>
         </div>
       </div>
     </section>

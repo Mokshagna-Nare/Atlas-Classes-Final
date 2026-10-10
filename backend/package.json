@@ -7,7 +7,9 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed:demo": "node scripts/seed-demo.js",
-    "seed:demo:remove": "node scripts/seed-demo.js --remove"
+    "seed:demo:remove": "node scripts/seed-demo.js --remove",
+    "seed:schools": "node scripts/seed-school-students.js",
+    "seed:schools:remove": "node scripts/seed-school-students.js --remove"
   },
   "dependencies": {
     "@google/genai": "^1.20.0",

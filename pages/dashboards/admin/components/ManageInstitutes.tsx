@@ -232,7 +232,7 @@ const GlobalAnalytics = () => {
                                 <td className="p-6 font-bold text-white">
                                   <div className="flex items-center gap-3">
                                     {inst.logo_url && (
-                                        <img src={inst.logo_url} alt="logo" className="h-6 w-6 rounded bg-white p-0.5 object-contain" />
+                                        <img src={inst.logo_url} alt="logo" className="keep-original-colors h-6 w-6 rounded bg-white p-0.5 object-contain" />
                                     )}
                                     {inst.name}
                                   </div>
@@ -327,7 +327,7 @@ const ManageInstitutes: React.FC = () => {
                         <td className="p-6">
                             <div className="flex items-center gap-3">
                                {institute.logo_url ? (
-    <img src={institute.logo_url} alt="Logo" className="h-10 w-auto max-w-[60px] rounded object-contain bg-white p-1 border border-gray-700" style={{ filter: 'none', mixBlendMode: 'normal' }} />
+    <img src={institute.logo_url} alt="Logo" className="keep-original-colors h-10 w-auto max-w-[60px] rounded object-contain bg-white p-1 border border-gray-700" style={{ mixBlendMode: 'normal' }} />
 ) : (
     <div className="h-10 w-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700">
         <span className="text-gray-500 text-xs">No</span>

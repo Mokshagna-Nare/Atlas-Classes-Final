@@ -28,6 +28,34 @@ interface DashboardShellProps<V extends string> {
   children: React.ReactNode;
 }
 
+const IST_DATE = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+/** "Wed, 7 Oct 2026" — en-IN on its own inserts a comma after the month. */
+const istDate = (d: Date) => {
+  const p = Object.fromEntries(IST_DATE.formatToParts(d).map(x => [x.type, x.value]));
+  return `${p.weekday}, ${p.day} ${p.month} ${p.year}`;
+};
+const IST_TIME = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+
+/** Live date & time in India Standard Time. Its own component so the per-second tick re-renders only this chip. */
+const LiveClock: React.FC = () => {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+  return (
+    <span
+      className="hidden sm:inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-xs font-semibold text-gray-400 shrink-0"
+      title="India Standard Time (UTC+5:30)"
+    >
+      <span>{istDate(now)}</span>
+      <span className="h-3 w-px bg-white/10" aria-hidden="true" />
+      <span className="tabular-nums text-white">{IST_TIME.format(now).replace(/\b(am|pm)\b/, m => m.toUpperCase())}</span>
+      <span className="rounded bg-emerald-400/10 px-1.5 py-0.5 text-[9px] font-black tracking-wider text-emerald-300">IST</span>
+    </span>
+  );
+};
+
 function DashboardShell<V extends string>({
   portalLabel, brand, groups, activeView, onNavigate, user, welcome, onLogout, children,
 }: DashboardShellProps<V>) {
@@ -130,13 +158,13 @@ function DashboardShell<V extends string>({
             </nav>
             {active && !active.hasOwnHeading && <p className="text-xs sm:text-sm text-gray-500 truncate mt-0.5">{active.subtitle}</p>}
           </div>
-          <span className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-xs font-semibold text-gray-400 shrink-0">
-            {new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-          </span>
+          <LiveClock />
         </header>
 
         <div className="relative px-4 sm:px-8 py-6 sm:py-8">
-          <div key={activeView} className="animate-view-in scroll-reveal">
+          {/* No per-section scroll animations here: animating sections gives each its own
+              stacking context, which traps dropdowns (z-50) beneath the next section. */}
+          <div key={activeView} className="animate-view-in">
             {children}
           </div>
         </div>

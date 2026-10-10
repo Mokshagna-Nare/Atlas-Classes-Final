@@ -1,6 +1,9 @@
 
 import { Course, FacultyMember, Testimonial, Student, Test, TestResult, Payment, Institute, AdminQuestionPaper } from './types';
 
+/** Home page "Meet Our Team" section (and its "Team" nav link). Hidden for now — set to true to bring it back. */
+export const SHOW_TEAM_SECTION = false;
+
 export const NAV_LINKS = [
   { name: 'Home', href: 'home' },
   { name: 'Courses', href: 'courses' },
@@ -9,7 +12,7 @@ export const NAV_LINKS = [
   { name: 'Team', href: 'faculty' },
   { name: 'Careers', href: 'careers' },
   { name: 'Contact', href: 'contact' },
-];
+].filter(link => SHOW_TEAM_SECTION || link.href !== 'faculty');
 
 export const COURSES_DATA: Course[] = [
   {

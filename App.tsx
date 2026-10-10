@@ -24,6 +24,16 @@ const ProtectedRoute: React.FC<{ role: 'institute' | 'student' | 'admin' }> = ({
   const auth = useAuth();
   const user = auth?.user as User | null;
 
+  // On a page refresh the saved session is restored asynchronously; wait for it
+  // instead of bouncing a logged-in user to the login screen.
+  if (!user && auth?.isLoading) {
+    return (
+      <div className="min-h-screen bg-atlas-black flex items-center justify-center" role="status" aria-label="Restoring your session">
+        <div className="h-10 w-10 rounded-full border-4 border-atlas-primary/20 border-t-atlas-primary animate-spin" />
+      </div>
+    );
+  }
+
   if (!user) {
     return <Navigate to={`/login/${role}`} replace />;
   }

@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Row backups written by one-off data fixes (local rollback copies)
+backend/scripts/data-fixes/backups/

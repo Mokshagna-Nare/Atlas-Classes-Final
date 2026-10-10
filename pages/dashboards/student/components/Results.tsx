@@ -8,6 +8,7 @@ import { useStudentResults } from '../../../../hooks/useStudentResults';
 import { XIcon, InformationCircleIcon, ChartBarIcon, SparklesIcon, CheckCircleIcon, TrophyIcon, ShieldCheckIcon } from '../../../../components/icons';
 import ModalPortal from '../../../../components/ModalPortal';
 import { replacePlaceholdersWithImages } from '../../../../utils/imagePlaceholder';
+import { markersToHtml, RichMathText } from '../../../../utils/renderMath';
 
 interface ResultsProps {
     initialSelectedTestId?: string | null;
@@ -188,16 +189,16 @@ const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelecti
                                                     {idx + 1}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <div className="text-xl font-bold text-white mb-6 leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: replacePlaceholdersWithImages(q.question, q.inline_images) }} />
+                                                    <div className="text-xl font-bold text-white mb-6 leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: markersToHtml(replacePlaceholdersWithImages(q.question, q.inline_images)) }} />
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                         <div className={`p-5 rounded-2xl border ${q.isCorrect ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-atlas-dark border-gray-800'}`}>
                                                             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Student Response</p>
-                                                            <p className={`text-lg font-black ${q.isCorrect ? 'text-emerald-400' : 'text-atlas-primary'}`}>{selectedText || 'Not Attempted'}</p>
+                                                            <p className={`text-lg font-black ${q.isCorrect ? 'text-emerald-400' : 'text-atlas-primary'}`}>{selectedText ? <RichMathText text={selectedText} /> : 'Not Attempted'}</p>
                                                         </div>
                                                         {!q.isCorrect && (
                                                             <div className="p-5 rounded-2xl border bg-emerald-500/10 border-emerald-500/20 shadow-glow">
                                                                 <p className="text-[10px] font-black text-emerald-500/70 uppercase tracking-widest mb-2">Correct Solution</p>
-                                                                <p className="text-lg font-black text-emerald-400 prose prose-invert max-w-none">{correctText || 'N/A'}</p>
+                                                                <p className="text-lg font-black text-emerald-400 prose prose-invert max-w-none">{correctText ? <RichMathText text={correctText} /> : 'N/A'}</p>
                                                             </div>
                                                         )}
                                                     </div>

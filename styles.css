@@ -36,6 +36,12 @@
     
     /* Transitions */
     --ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
+
+    /* Motion tokens (mirrored in the Tailwind config as ease-premium) */
+    --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+    --duration-fast: 200ms;
+    --duration-base: 300ms;
+    --duration-reveal: 800ms;
 }
 
 /* Global Reset & Base Styles */
@@ -47,7 +53,7 @@ html {
 body {
     background-color: var(--bg-body);
     color: var(--text-main);
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', 'Noto Sans Math', sans-serif;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
 }
@@ -217,22 +223,97 @@ body {
     transform: translateY(0);
 }
 
-/* Dashboard scroll reveal: each top-level section of a page eases in as it enters
-   the scroll viewport. Progressive enhancement — browsers without scroll-driven
-   animations just render content normally. Ends at transform:none so it never
-   leaves a containing block that would trap fixed-position children. */
-@keyframes dashReveal {
-    from { opacity: 0; transform: translateY(28px) scale(0.99); }
-    to   { opacity: 1; transform: none; }
+/* --- Home page reveal-on-scroll ---
+   Elements fade, rise and un-blur into place as they enter the viewport. `useReveal` adds
+   .is-visible; --reveal-delay (ms) staggers siblings. Transform/opacity/filter only, so it
+   stays on the compositor and scrolls without jank. */
+.reveal {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+    filter: blur(3px);
+    transition:
+        opacity var(--duration-reveal) var(--ease-premium),
+        transform var(--duration-reveal) var(--ease-premium),
+        filter var(--duration-reveal) var(--ease-premium);
+    transition-delay: calc(var(--reveal-delay, 0) * 1ms);
+    will-change: opacity, transform, filter;
+}
+.reveal.reveal-left { transform: translate3d(-24px, 0, 0); }
+.reveal.reveal-right { transform: translate3d(24px, 0, 0); }
+.reveal.reveal-scale { transform: translate3d(0, 12px, 0) scale(0.98); }
+.reveal.is-visible {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    will-change: auto;
 }
 
-@supports (animation-timeline: view()) {
-    @media (prefers-reduced-motion: no-preference) {
-        .scroll-reveal > * > * {
-            animation: dashReveal linear both;
-            animation-timeline: view();
-            animation-range: entry 0% entry 30%;
-        }
+/* --- Premium hover: cursor spotlight cards ---
+   .spotlight cards get two cursor-following layers (positions come from --mx/--my, set by
+   useSpotlight): a soft emerald wash inside the hovered card, and a glowing 1px edge. Inside a
+   [data-spotlight-group], every card's edge reacts to the cursor, so neighbours catch the light.
+   Mouse/trackpad only (hover: hover); touch devices never see stuck hover states. */
+.spotlight {
+    --mx: 50%;
+    --my: 50%;
+    position: relative;
+    isolation: isolate;
+    transition:
+        transform 500ms var(--ease-premium),
+        box-shadow 500ms var(--ease-premium),
+        border-color 400ms var(--ease-premium);
+}
+/* Edge glow: a radial gradient masked down to a 1px ring */
+.spotlight::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    padding: 1px;
+    background: radial-gradient(420px circle at var(--mx) var(--my), rgba(52, 211, 153, 0.75), rgba(52, 211, 153, 0.12) 35%, transparent 60%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 500ms var(--ease-premium);
+    pointer-events: none;
+}
+/* Inner wash: sits above the card background but below its content (isolation + z-index -1) */
+.spotlight::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(520px circle at var(--mx) var(--my), rgba(16, 185, 129, 0.11), transparent 45%);
+    opacity: 0;
+    transition: opacity 500ms var(--ease-premium);
+    pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+    [data-spotlight-group]:hover .spotlight::before { opacity: 0.55; }
+    .spotlight:hover::before { opacity: 1; }
+    .spotlight:hover::after { opacity: 1; }
+    .spotlight:hover {
+        transform: translate3d(0, -6px, 0);
+        border-color: rgba(52, 211, 153, 0.28);
+        box-shadow:
+            0 32px 70px -28px rgba(0, 0, 0, 0.95),
+            0 24px 60px -30px rgba(16, 185, 129, 0.35),
+            inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    }
+    .spotlight.spotlight-flat:hover { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spotlight, .spotlight::before, .spotlight::after { transition: none; }
+    .spotlight:hover { transform: none !important; }
+    .reveal, .reveal.reveal-left, .reveal.reveal-right, .reveal.reveal-scale {
+        opacity: 1;
+        transform: none;
+        filter: none;
+        transition: none;
     }
 }
 
@@ -293,6 +374,12 @@ img[src*="favicon"],
     will-change: filter;
     /* Optional: Ensure transitions are smooth if you have hover effects */
     transition: filter 0.3s ease;
+}
+
+/* Third-party logos (e.g. an institute's own logo) keep their real colours.
+   Higher specificity than the brand-tint rule above, so it wins despite its !important. */
+img.keep-original-colors[src] {
+    filter: none !important;
 }
 
 /* --- Inline Math Images (MathType/WMF/EMF) --- */
