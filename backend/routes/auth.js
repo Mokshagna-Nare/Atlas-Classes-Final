@@ -1,9 +1,42 @@
 const express = require('express'); 
 const router = express.Router();
-const { supabase, supabaseAdmin } = require('../supabaseClient'); 
+const { supabaseAdmin, createAnonClient } = require('../supabaseClient');
+const { requireAuth, identify } = require('../middleware/requireAuth');
+
+// Institutes may only act on their own students; admins on any institute's.
+// Returns the institute to use, or false when an institute asks for another institute.
+function scopedInstituteId(req, requested) {
+  if (req.auth.role === 'admin') return requested;
+  if (requested && requested !== req.auth.instituteId) return false;
+  return req.auth.instituteId;
+}
+
+async function canManageStudent(req, studentId) {
+  if (req.auth.role === 'admin') return true;
+  const { data } = await supabaseAdmin.from('users').select('institute_id, role').eq('id', studentId).maybeSingle();
+  return Boolean(data && data.role === 'student' && data.institute_id === req.auth.instituteId);
+}
+
+// ---------------------------------------------------------
+// 0. WHO AM I — profile + two-step level for the current Supabase session
+// ---------------------------------------------------------
+router.get('/me', async (req, res) => {
+  try {
+    const result = await identify(req);
+    if (!result.auth) return res.status(result.status).json({ message: result.message });
+    const { data: p } = await supabaseAdmin
+      .from('users')
+      .select('id, name, email, role, institute_id, class_id, roll_no, logo_url')
+      .eq('id', result.auth.userId)
+      .single();
+    res.json({ aal: result.auth.aal, user: { ...p, class_id: p.class_id || null, roll_no: p.roll_no || null, logo_url: p.logo_url || null } });
+  } catch (err) {
+    res.status(500).json({ message: 'Could not load your profile.' });
+  }
+});
 
 // 1. CREATE INSTITUTE
-router.post('/create-institute', async (req, res) => {
+router.post('/create-institute', requireAuth('admin'), async (req, res) => {
   try {
     const { name, email, password, logo_url } = req.body;
     console.log("--- INCOMING REQUEST ---");
@@ -51,7 +84,7 @@ router.post('/create-institute', async (req, res) => {
 // ---------------------------------------------------------
 // 2. DELETE INSTITUTE & USER COMPLETELY
 // ---------------------------------------------------------
-router.delete('/delete-institute/:id', async (req, res) => {
+router.delete('/delete-institute/:id', requireAuth('admin'), async (req, res) => {
   try {
     const { id } = req.params; 
     console.log(`Attempting to delete institute with ID: ${id}`);
@@ -112,7 +145,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     // 1. Authenticate with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    const { data: authData, error: authError } = await createAnonClient().auth.signInWithPassword({
       email,
       password,
     });
@@ -120,7 +153,7 @@ router.post('/login', async (req, res) => {
     if (authError) throw authError;
 
     // 2. Fetch User Profile from 'users' table
-    const { data: userProfile, error: profileError } = await supabase
+    const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
@@ -130,11 +163,16 @@ router.post('/login', async (req, res) => {
       return res.status(404).json({ message: 'User profile not found in database.' });
     }
 
+    // Admins sign in through the admin console (Google or email + two-step verification).
+    if (userProfile.role === 'admin') {
+      return res.status(403).json({ message: 'Administrators sign in from the admin console.' });
+    }
+
     // 3. IF NO LOGO IN USERS, FETCH IT FROM INSTITUTES TABLE (Fallback)
     let logoUrl = userProfile.logo_url;
     
     if (!logoUrl && userProfile.role === 'institute') {
-       const { data: instData } = await supabase
+       const { data: instData } = await supabaseAdmin
          .from('institutes')
          .select('logo_url')
          .eq('id', userProfile.institute_id)
@@ -171,7 +209,7 @@ router.post('/login', async (req, res) => {
 // ---------------------------------------------------------
 // 4. UPDATE INSTITUTE DETAILS
 // ---------------------------------------------------------
-router.put('/update-institute/:id', async (req, res) => {
+router.put('/update-institute/:id', requireAuth('admin'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, email, password, logo_url } = req.body;
@@ -248,9 +286,11 @@ router.put('/update-institute/:id', async (req, res) => {
 // ---------------------------------------------------------
 // 5. CREATE STUDENT (institute/admin provisions a student login)
 // ---------------------------------------------------------
-router.post('/create-student', async (req, res) => {
+router.post('/create-student', requireAuth('admin', 'institute'), async (req, res) => {
   try {
-    const { name, email, password, institute_id, class_id, roll_no } = req.body;
+    const { name, email, password, class_id, roll_no } = req.body;
+    const institute_id = scopedInstituteId(req, req.body.institute_id);
+    if (institute_id === false) return res.status(403).json({ message: 'You can only add students to your own institute.' });
 
     if (!name || !email || !password || !institute_id) {
       return res.status(400).json({ message: 'name, email, password and institute_id are required.' });
@@ -295,8 +335,10 @@ router.post('/create-student', async (req, res) => {
 // ---------------------------------------------------------
 // 5b. BULK CREATE STUDENTS (from an uploaded spreadsheet)
 // ---------------------------------------------------------
-router.post('/bulk-create-students', async (req, res) => {
-  const { institute_id, students } = req.body;
+router.post('/bulk-create-students', requireAuth('admin', 'institute'), async (req, res) => {
+  const { students } = req.body;
+  const institute_id = scopedInstituteId(req, req.body.institute_id);
+  if (institute_id === false) return res.status(403).json({ message: 'You can only add students to your own institute.' });
 
   if (!institute_id || !Array.isArray(students) || students.length === 0) {
     return res.status(400).json({ message: 'institute_id and a non-empty students array are required.' });
@@ -349,9 +391,10 @@ router.post('/bulk-create-students', async (req, res) => {
 // ---------------------------------------------------------
 // 6. UPDATE STUDENT
 // ---------------------------------------------------------
-router.put('/update-student/:id', async (req, res) => {
+router.put('/update-student/:id', requireAuth('admin', 'institute'), async (req, res) => {
   try {
     const { id } = req.params;
+    if (!(await canManageStudent(req, id))) return res.status(403).json({ message: 'You can only manage students of your own institute.' });
     const { name, email, password, class_id, roll_no } = req.body;
 
     if (email || password) {
@@ -388,9 +431,10 @@ router.put('/update-student/:id', async (req, res) => {
 // ---------------------------------------------------------
 // 7. DELETE STUDENT
 // ---------------------------------------------------------
-router.delete('/delete-student/:id', async (req, res) => {
+router.delete('/delete-student/:id', requireAuth('admin', 'institute'), async (req, res) => {
   try {
     const { id } = req.params;
+    if (!(await canManageStudent(req, id))) return res.status(403).json({ message: 'You can only manage students of your own institute.' });
 
     const { error: userDeleteError } = await supabaseAdmin
       .from('users')

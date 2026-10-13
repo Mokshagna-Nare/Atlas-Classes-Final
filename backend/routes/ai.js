@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { GoogleGenAI, Type } = require("@google/genai");
+const { requireAuth } = require('../middleware/requireAuth');
 
 // Check for API Key
 if (!process.env.API_KEY) {
@@ -10,7 +11,7 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-router.post('/convert-html', async (req, res) => {
+router.post('/convert-html', requireAuth('admin'), async (req, res) => {
     try {
         const { htmlContent } = req.body;
         

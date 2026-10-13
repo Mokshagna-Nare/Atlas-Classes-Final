@@ -8,6 +8,8 @@ import { supabase } from '../services/supabase';
 interface AuthContextType {
   user: User | null;
   login: (credentials: any, role: string) => Promise<void>;
+  /** Adopts the current Supabase session (admin console: after Google/email + two-step). */
+  completeSession: (role: 'admin') => Promise<User>;
   signup: (userData: any) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
@@ -15,6 +17,25 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+function clearStoredSession() {
+  localStorage.removeItem('atlas-token');
+  localStorage.removeItem('atlas-refreshToken');
+  localStorage.removeItem('atlas-user');
+  delete api.defaults.headers.common['Authorization'];
+}
+
+/** The signed-in admin, confirmed by the backend (role from the database, two-step completed), or null. */
+async function verifyAdminSession(): Promise<User | null> {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return null;
+  try {
+    const { data: me } = await api.get('/auth/me');
+    return me?.user?.role === 'admin' && me.aal === 'aal2' ? (me.user as User) : null;
+  } catch {
+    return null;
+  }
+}
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -30,7 +51,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       if (token && storedUser) {
         try {
-          setUser(JSON.parse(storedUser));
+          const parsed: User = JSON.parse(storedUser);
+          // Admin access is never taken from browser storage: the live session must still be
+          // valid, belong to an admin, and have passed two-step verification.
+          if (parsed.role === 'admin') {
+            const verified = await verifyAdminSession();
+            if (verified) {
+              setUser(verified);
+              localStorage.setItem('atlas-user', JSON.stringify(verified));
+            } else {
+              clearStoredSession();
+              await supabase.auth.signOut().catch(() => {});
+            }
+            setIsLoading(false);
+            return;
+          }
+          setUser(parsed);
           // Attach token to any standard Axios requests
           api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
@@ -52,7 +88,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     initializeAuth();
+
+    // Keep the saved token current as Supabase refreshes it in the background.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session && localStorage.getItem('atlas-user')) {
+        localStorage.setItem('atlas-token', session.access_token);
+        localStorage.setItem('atlas-refreshToken', session.refresh_token);
+      }
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
+
+  const completeSession = async (role: 'admin'): Promise<User> => {
+    const verified = await verifyAdminSession();
+    if (!verified || verified.role !== role) throw new Error("This account isn't an administrator.");
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) throw new Error('Your session has expired. Please sign in again.');
+    localStorage.setItem('atlas-token', data.session.access_token);
+    localStorage.setItem('atlas-refreshToken', data.session.refresh_token);
+    localStorage.setItem('atlas-user', JSON.stringify(verified));
+    api.defaults.headers.common['Authorization'] = `Bearer ${data.session.access_token}`;
+    setUser(verified);
+    return verified;
+  };
 
   const login = async (credentials: any, role: string) => {
     setIsLoading(true);
@@ -120,7 +178,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, isLoading, error }}>
+    <AuthContext.Provider value={{ user, login, completeSession, signup, logout, isLoading, error }}>
       {children}
     </AuthContext.Provider>
   );

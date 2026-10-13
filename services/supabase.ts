@@ -22,6 +22,9 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env file");
 }
 
-// Just export the clean client. 
-// AuthContext.tsx will handle injecting the token dynamically upon login!
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// AuthContext.tsx injects the student/institute session after the backend login.
+// PKCE: Google sign-in and password-reset links come back as ?code=… in the query string,
+// which (unlike tokens in the URL hash) doesn't collide with the app's #/ routes.
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
+});

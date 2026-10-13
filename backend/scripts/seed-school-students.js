@@ -10,8 +10,9 @@
  * Classes are created only if missing and are left in place on --remove (Class 6 at Akshara
  * existed before this script).
  *
- * All four students sign in on the Student login with the password in QA_STUDENT_PASSWORD
- * (backend/.env.local, which git ignores — this repository is public, so the password is never committed).
+ * Each student signs in on the Student login with their first name followed by
+ * QA_STUDENT_PASSWORD_SUFFIX from backend/.env.local (git-ignored — this repository is public,
+ * so the suffix is never committed). e.g. Arjun Sharma → "Arjun" + suffix.
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env.local') });
@@ -19,7 +20,8 @@ const { createClient } = require('@supabase/supabase-js');
 
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
-const PASSWORD = process.env.QA_STUDENT_PASSWORD;
+const SUFFIX = process.env.QA_STUDENT_PASSWORD_SUFFIX;
+const passwordFor = s => `${s.name.split(' ')[0]}${SUFFIX}`;
 const QA_DOMAIN = '@qa.atlasclasses.test';
 const CLASS_SUBJECTS = ['Mathematics', 'Science', 'Social'];
 
@@ -59,16 +61,17 @@ async function ensureClass(instituteId, name) {
 async function ensureStudent(instituteId, classId, s) {
   const { data: existing } = await db.from('users').select('id').eq('email', s.email).maybeSingle();
   if (existing) {
-    const { error } = await db.from('users').update({ name: s.name, institute_id: instituteId, class_id: classId, roll_no: s.roll_no }).eq('id', existing.id);
+    const { error } = await db.from('users').update({ name: s.name, institute_id: instituteId, class_id: classId, roll_no: s.roll_no, password: passwordFor(s) }).eq('id', existing.id);
     if (error) throw error;
-    await db.auth.admin.updateUserById(existing.id, { password: PASSWORD });
+    const { error: authError } = await db.auth.admin.updateUserById(existing.id, { password: passwordFor(s) });
+    if (authError) throw authError;
     return 'updated';
   }
   // Same two steps as POST /api/auth/create-student.
-  const { data: auth, error: authError } = await db.auth.admin.createUser({ email: s.email, password: PASSWORD, email_confirm: true });
+  const { data: auth, error: authError } = await db.auth.admin.createUser({ email: s.email, password: passwordFor(s), email_confirm: true });
   if (authError) throw authError;
   const { error } = await db.from('users').insert({
-    id: auth.user.id, institute_id: instituteId, class_id: classId, roll_no: s.roll_no, role: 'student', email: s.email, name: s.name, password: PASSWORD,
+    id: auth.user.id, institute_id: instituteId, class_id: classId, roll_no: s.roll_no, role: 'student', email: s.email, name: s.name, password: passwordFor(s),
   });
   if (error) {
     await db.auth.admin.deleteUser(auth.user.id).catch(() => {});
@@ -78,7 +81,7 @@ async function ensureStudent(instituteId, classId, s) {
 }
 
 async function seed() {
-  if (!PASSWORD) throw new Error('Set QA_STUDENT_PASSWORD in backend/.env.local first.');
+  if (!SUFFIX) throw new Error('Set QA_STUDENT_PASSWORD_SUFFIX in backend/.env.local first.');
   for (const school of SCHOOLS) {
     const inst = await instituteFor(school.instituteEmail);
     console.log(`\n${inst.name}`);
@@ -88,7 +91,7 @@ async function seed() {
       console.log(`  ${s.className.padEnd(8)} ${cls.created ? '(new class) ' : ''}${s.roll_no.padEnd(10)} ${s.name.padEnd(14)} ${s.email}  [${status}]`);
     }
   }
-  console.log(`\nStudent password: QA_STUDENT_PASSWORD in backend/.env.local.`);
+  console.log(`\nPasswords: first name + QA_STUDENT_PASSWORD_SUFFIX (backend/.env.local).`);
 }
 
 async function remove() {

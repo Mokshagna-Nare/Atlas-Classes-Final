@@ -168,7 +168,12 @@ interface PublishedTest {
   /** null = public, link-only test. */
   institute: { name: string; logoUrl: string | null } | null;
   classNames: string[];
+  /** Also released to the demo student (Atlas Demo Academy). */
+  demoStudent: boolean;
 }
+
+/** Class of the seeded demo student (backend/scripts/seed-demo.js). */
+const DEMO_CLASS_NAME = '[Demo] PU II Science';
 
 const IN_DATE = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 /** "Wed, 7 Oct 2026 · 1:17 PM" */
@@ -219,6 +224,7 @@ const PublishedModal: React.FC<{ test: PublishedTest; onClose: () => void }> = (
         'Public link'
       ),
     },
+    ...(test.demoStudent ? [{ label: 'Also assigned', value: 'Demo Student · Atlas Demo Academy' }] : []),
   ];
 
   return (
@@ -326,9 +332,13 @@ const CreateTest: React.FC = () => {
   const [assignInstituteId, setAssignInstituteId] = useState('');
   const [availableClasses, setAvailableClasses] = useState<{ id: string; name: string }[]>([]);
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+  // The demo student's class (created by backend/scripts/seed-demo.js); null when the demo data isn't seeded.
+  const [demoClassId, setDemoClassId] = useState<string | null>(null);
+  const [assignDemo, setAssignDemo] = useState(false);
 
   useEffect(() => {
     supabase.from('institutes').select('id, name, logo_url').order('name').then(({ data }) => data && setInstitutes(data));
+    supabase.from('classes').select('id').eq('name', DEMO_CLASS_NAME).limit(1).then(({ data }) => setDemoClassId(data?.[0]?.id ?? null));
   }, []);
 
   useEffect(() => {
@@ -598,9 +608,12 @@ const CreateTest: React.FC = () => {
         .single();
       if (error) throw error;
 
-      if (assignInstituteId && selectedClassIds.length > 0) {
+      const assignedClassIds = assignInstituteId ? [...selectedClassIds] : [];
+      const withDemo = assignDemo && Boolean(demoClassId);
+      if (withDemo && !assignedClassIds.includes(demoClassId!)) assignedClassIds.push(demoClassId!);
+      if (assignedClassIds.length > 0) {
         const { error: assignError } = await supabase.from('test_assignments').insert(
-          selectedClassIds.map(classId => ({
+          assignedClassIds.map(classId => ({
             test_id: insertedTest.id,
             class_id: classId,
             opens_at: startAt.toISOString(),
@@ -620,6 +633,7 @@ const CreateTest: React.FC = () => {
         endAt: new Date(endWindow),
         institute: institute ? { name: institute.name, logoUrl: institute.logo_url } : null,
         classNames: availableClasses.filter(c => selectedClassIds.includes(c.id)).map(c => c.name),
+        demoStudent: withDemo,
       });
       setMessage(null);
 
@@ -631,6 +645,7 @@ const CreateTest: React.FC = () => {
       setSelectedPaperId('');
       setAssignInstituteId('');
       setSelectedClassIds([]);
+      setAssignDemo(false);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to create test.' });
     } finally {
@@ -949,6 +964,28 @@ const CreateTest: React.FC = () => {
             </div>
           </Field>
         </div>
+        {demoClassId && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={assignDemo}
+            onClick={() => setAssignDemo(v => !v)}
+            className={`mt-6 flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left ring-1 ring-inset transition-all ${
+              assignDemo ? 'bg-emerald-500/[0.07] ring-emerald-400/40' : 'bg-white/[0.02] ring-white/10 hover:ring-white/20'
+            }`}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/30 to-indigo-500/20 text-violet-200 ring-1 ring-inset ring-violet-400/30">
+              <Svg d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-white">Also assign to the Demo Student</span>
+              <span className="block text-xs text-gray-500">Atlas Demo Academy · shows in the demo login's My Tests, Results and Analytics</span>
+            </span>
+            <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${assignDemo ? 'bg-emerald-500' : 'bg-white/15'}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${assignDemo ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+            </span>
+          </button>
+        )}
       </Card>
 
       {/* ── Publish ── */}
@@ -962,7 +999,7 @@ const CreateTest: React.FC = () => {
           ) : (
             <p className="text-sm text-gray-500">
               {finalQuestionIds.length
-                ? `${finalQuestionIds.length} questions · ${assignInstituteId ? `${selectedClassIds.length} class${selectedClassIds.length === 1 ? '' : 'es'} assigned` : 'public link'}`
+                ? `${finalQuestionIds.length} questions · ${assignInstituteId ? `${selectedClassIds.length} class${selectedClassIds.length === 1 ? '' : 'es'} assigned` : 'public link'}${assignDemo && demoClassId ? ' · + demo student' : ''}`
                 : 'Add questions to publish this test.'}
             </p>
           )}

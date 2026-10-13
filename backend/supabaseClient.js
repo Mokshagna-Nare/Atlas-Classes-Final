@@ -22,4 +22,9 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   }
 });
 
-module.exports = { supabase, supabaseAdmin };
+// 3. A throwaway client per sign-in, so one person's session never sits on a client
+// shared by concurrent requests.
+const createAnonClient = () =>
+  createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
+
+module.exports = { supabase, supabaseAdmin, createAnonClient };

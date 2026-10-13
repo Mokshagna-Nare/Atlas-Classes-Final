@@ -14,6 +14,8 @@ interface AuthScreenProps {
   features: { icon: React.FC<{ className?: string }>; title: string; text: string }[];
   emailPlaceholder: string;
   brand?: React.ReactNode;
+  /** Replaces the built-in email/password form (the admin console brings its own sign-in steps). */
+  panel?: React.ReactNode;
 }
 
 const SWITCHABLE: { role: AuthRole; label: string; path: string }[] = [
@@ -38,7 +40,7 @@ const friendlyError = (raw: string, portal: string, role: AuthRole): string => {
 
 const DEFAULT_BRAND =<img src="https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png" alt="Atlas Classes" className="h-14 w-auto object-contain" />;
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subtitle, headline, features, emailPlaceholder, brand = DEFAULT_BRAND }) => {
+const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subtitle, headline, features, emailPlaceholder, brand = DEFAULT_BRAND, panel }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -131,6 +133,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
           )}
 
           <div key={role} className="rounded-[2rem] bg-atlas-dark/80 backdrop-blur-xl border border-white/5 p-7 sm:p-9 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.8)] animate-auth-in" style={{ animationDelay: '0.08s' }}>
+            {panel ?? (<>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{title}</h2>
             <p className="text-sm text-gray-500 mt-2">{subtitle}</p>
 
@@ -198,6 +201,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
                 </span>
               </button>
             </form>
+            </>)}
           </div>
 
           <div className="mt-8 flex flex-col items-center gap-3 text-sm animate-auth-in" style={{ animationDelay: '0.2s' }}>

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { supabase } from './supabase';
 
 // Get the API URL from environment variables (Vite uses import.meta.env)
 // If VITE_API_URL is not set (development), fallback to localhost
@@ -14,9 +15,12 @@ const api = axios.create({
 });
 
 // Add a request interceptor to attach the Token
+// Prefers the live Supabase session (refreshed automatically, and carries the admin's
+// two-step level) over the token saved at login, which expires after an hour.
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('atlas-token');
+  async (config) => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token || localStorage.getItem('atlas-token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
