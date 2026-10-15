@@ -78,15 +78,16 @@ const FILTER_ICONS: Record<string, string> = {
   difficulty: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z',
   question_type: 'M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z',
   skill_type: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z',
+  source: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25',
   status: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z',
 };
 
 
 const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
-type FacetDim = 'grade' | 'subject' | 'topic' | 'sub_topic' | 'difficulty' | 'question_type' | 'skill_type' | 'status';
+type FacetDim = 'grade' | 'subject' | 'topic' | 'sub_topic' | 'difficulty' | 'question_type' | 'skill_type' | 'source' | 'status';
 
-type FacetRow = Partial<Record<'grade' | 'subject' | 'topic' | 'sub_topic' | 'difficulty' | 'question_type' | 'skill_type', string | number | null>> & {
+type FacetRow = Partial<Record<'grade' | 'subject' | 'topic' | 'sub_topic' | 'difficulty' | 'question_type' | 'skill_type' | 'source', string | number | null>> & {
   isFlagged?: boolean | null;
 };
 
@@ -114,6 +115,10 @@ interface FacetDimConfig {
   dotFor?: (value: string) => string | undefined;
 }
 
+/** Questions without a source are filterable as "No source". */
+const NO_SOURCE = 'No source';
+const NO_SOURCE_KEY = 'no source';
+
 const FACET_DIMS: FacetDimConfig[] = [
   {
     key: 'grade', label: 'Grade', title: 'Grades', column: 'grade', fixed: ['10', '11', '12'],
@@ -126,6 +131,11 @@ const FACET_DIMS: FacetDimConfig[] = [
   { key: 'difficulty', label: 'Difficulty', title: 'Difficulty', column: 'difficulty', fixed: ['Easy', 'Medium', 'Hard'], sort: byFixedOrder(DIFFICULTY_ORDER), dotFor: v => DIFFICULTY_DOTS[v] },
   { key: 'question_type', label: 'Question type', secondary: true, title: 'Question Types', column: 'question_type' },
   { key: 'skill_type', label: 'Skill type', secondary: true, title: 'Skill Types', column: 'skill_type' },
+  {
+    key: 'source', label: 'Source', secondary: true, title: 'Sources', column: 'source',
+    // "No source" last; otherwise A–Z.
+    sort: (x, y) => Number(x.value === NO_SOURCE_KEY) - Number(y.value === NO_SOURCE_KEY) || x.label.localeCompare(y.label),
+  },
   { key: 'status', label: 'Status', secondary: true, title: 'Status', fixed: ['Clean', 'Flagged'], sort: byFixedOrder(['clean', 'flagged']), dotFor: v => (v === 'flagged' ? 'bg-rose-400' : 'bg-emerald-400') },
 ];
 
@@ -134,6 +144,7 @@ const EMPTY_FILTERS = Object.fromEntries(FACET_DIMS.map(d => [d.key, []])) as un
 const rawValue = (row: FacetRow, dim: FacetDim): string => {
   if (dim === 'status') return row.isFlagged ? 'Flagged' : 'Clean';
   const value = row[dim];
+  if (dim === 'source') return value === null || value === undefined || !String(value).trim() ? NO_SOURCE : String(value);
   return value === null || value === undefined ? '' : String(value).trim() ? String(value) : '';
 };
 
@@ -330,14 +341,20 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
         if (dim.key === 'status') {
           if (selected.length === 1 && selected[0] === 'flagged') query = query.eq('isFlagged', true);
           // A question that was never flagged may have NULL rather than false.
-          if (selected.length === 1 && selected[0] === 'clean') query = query.or('isFlagged.is.null,isFlagged.eq.false');
+          if (selected.length === 1 && selected[0] === 'clean') query = query.not('isFlagged', 'is', true);
           continue;
         }
 
-        const raws = selected.flatMap(key => {
+        const raws = selected.filter(key => !(dim.key === 'source' && key === NO_SOURCE_KEY)).flatMap(key => {
           const entry = facetIndex[dim.key].get(key);
           return entry && entry.raws.size > 0 ? [...entry.raws.keys()] : [entry?.label ?? key];
         });
+        if (dim.key === 'source' && selected.includes(NO_SOURCE_KEY)) {
+          // Missing source is NULL or an empty string; combine with any named sources.
+          const quote = (v: string) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+          query = query.or(['source.is.null', 'source.eq.""', ...raws.map(r => `source.eq.${quote(r)}`)].join(','));
+          continue;
+        }
         query = query.in(dim.column!, raws);
       }
 
@@ -1068,6 +1085,12 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
                               <span className="text-[10px] text-gray-500 font-medium tracking-wide">
                                 • {q.topic} {q.sub_topic && `> ${q.sub_topic}`}
                               </span>
+                              {(q as any).source?.trim() && (
+                                <span title="Source" className="inline-flex items-center gap-1 rounded-md bg-emerald-400/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-inset ring-emerald-400/25">
+                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={FILTER_ICONS.source} /></svg>
+                                  {(q as any).source}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>

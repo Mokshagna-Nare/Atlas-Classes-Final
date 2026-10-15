@@ -145,7 +145,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, email, institute_id, class_id, roll_no, password, created_at')
+        .select('id, name, email, institute_id, class_id, roll_no, created_at')
         .eq('role', 'student');
       if (error) throw error;
       if (data) setStudents(data as Student[]);
@@ -154,22 +154,36 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Load (and reload) whatever the signed-in account is allowed to see. Database rules decide
+  // what each role can read, so this runs again whenever someone signs in or out.
   useEffect(() => {
+    let lastUser: string | null | undefined;
     const fetchData = async () => {
       if (!supabase) return;
+      if (!lastUser) {
+        // Signed out: nothing to load (the database only serves signed-in accounts).
+        setTests([]);
+        setInstitutes([]);
+        setClasses([]);
+        setStudents([]);
+        return;
+      }
       try {
         const { data: testsData } = await supabase.from('tests').select('*');
-        if (testsData) setTests(testsData as Test[]);
-
-        const { data: mcqData } = await supabase.from('mcqs').select('*');
-        if (mcqData) setMcqBank(mcqData as MCQ[]);
-
+        setTests((testsData as Test[]) || []);
         await Promise.all([refreshInstitutes(), refreshClasses(), refreshStudents()]);
       } catch (e) {
         console.warn('Supabase connection failed, using local defaults.');
       }
     };
-    fetchData();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const userId = session?.user?.id ?? null;
+      if (userId === lastUser) return; // token refreshes don't need a reload
+      lastUser = userId;
+      // Deferred: querying inside the auth callback can deadlock supabase-js's session lock.
+      setTimeout(fetchData, 0);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   const addInstitute = async (inst: { name: string; email: string; password?: string; id?: string }) => {

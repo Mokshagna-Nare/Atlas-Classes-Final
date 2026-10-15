@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { EnvelopeIcon, KeyIcon, EyeIcon, EyeSlashIcon, ArrowLeftIcon, CheckCircleIcon } from '../icons';
 
@@ -50,6 +50,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
   const [error, setError] = useState('');
   const [shakeKey, setShakeKey] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
+  // After signing in from a test link, go back to that test (only test links are accepted).
+  const next = new URLSearchParams(location.search).get('next');
+  const returnTo = role === 'student' && next && /^\/test\/[\w-]+$/.test(next) ? next : null;
   const auth = useAuth();
 
   const switchIndex = SWITCHABLE.findIndex(s => s.role === role);
@@ -62,7 +66,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
     try {
       await auth.login({ email: email.trim(), password }, role);
       setSuccess(true);
-      setTimeout(() => navigate(`/dashboard/${role}`), 650);
+      setTimeout(() => navigate(returnTo || `/dashboard/${role}`), 650);
     } catch (err: any) {
       setError(friendlyError(err?.message || 'Sign-in failed. Please check your email and password.', portalLabel, role));
       setShakeKey(k => k + 1);

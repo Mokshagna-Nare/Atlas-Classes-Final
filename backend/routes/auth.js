@@ -265,7 +265,6 @@ router.put('/update-institute/:id', requireAuth('admin'), async (req, res) => {
        if (name) updateUserData.name = name;
        if (email) updateUserData.email = email;
        if (logo_url !== undefined) updateUserData.logo_url = logo_url;
-       if (password) updateUserData.password = password;
 
        if (Object.keys(updateUserData).length > 0) {
           await supabaseAdmin
@@ -315,8 +314,7 @@ router.post('/create-student', requireAuth('admin', 'institute'), async (req, re
         roll_no: roll_no || null,
         role: 'student',
         email,
-        name,
-        password
+        name
       }]);
 
     if (userError) {
@@ -368,7 +366,7 @@ router.post('/bulk-create-students', requireAuth('admin', 'institute'), async (r
       const userId = authData.user.id;
       const { error: userError } = await supabaseAdmin
         .from('users')
-        .insert([{ id: userId, institute_id, class_id: class_id || null, roll_no: roll_no || null, role: 'student', email, name, password }]);
+        .insert([{ id: userId, institute_id, class_id: class_id || null, roll_no: roll_no || null, role: 'student', email, name }]);
 
       if (userError) {
         await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => {});
@@ -408,7 +406,6 @@ router.put('/update-student/:id', requireAuth('admin', 'institute'), async (req,
     const updateUserData = {};
     if (name !== undefined) updateUserData.name = name;
     if (email !== undefined) updateUserData.email = email;
-    if (password !== undefined) updateUserData.password = password;
     if (class_id !== undefined) updateUserData.class_id = class_id;
     if (roll_no !== undefined) updateUserData.roll_no = roll_no;
 

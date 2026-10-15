@@ -156,7 +156,7 @@ async function seedDemoData() {
   if (!student) {
     const { data: a, error } = await db.auth.admin.createUser({ email: DEMO_EMAIL, password: DEMO_PASSWORD, email_confirm: true });
     if (error) throw error;
-    const { error: uErr } = await db.from('users').insert({ id: a.user.id, name: 'Demo Student', email: DEMO_EMAIL, role: 'student', institute_id: INSTITUTE_ID, class_id: cls.id, roll_no: 'DEMO-01', password: DEMO_PASSWORD });
+    const { error: uErr } = await db.from('users').insert({ id: a.user.id, name: 'Demo Student', email: DEMO_EMAIL, role: 'student', institute_id: INSTITUTE_ID, class_id: cls.id, roll_no: 'DEMO-01' });
     if (uErr) throw uErr;
     student = { id: a.user.id };
   } else {

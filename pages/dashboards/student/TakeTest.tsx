@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../../services/supabase';
+import api from '../../../services/api';
 import { useAuth } from '../../../contexts/AuthContext';
-import { getCorrectOptionIndex } from '../../../utils/mcqAnswer';
 import { replacePlaceholdersWithImages } from '../../../utils/imagePlaceholder';
 import { markersToHtml } from '../../../utils/renderMath';
 
@@ -162,7 +161,9 @@ const TakeTest: React.FC = () => {
   const { testId = '' } = useParams();
   const navigate = useNavigate();
   const auth = useAuth();
-  const student = auth?.user?.role === 'student' ? auth.user : null;
+  // Who is taking the test comes from the server (signed-in student or public-link guest).
+  const [registered, setRegistered] = useState<{ name: string; email: string } | null>(null);
+  const student = registered;
 
   // Core data
   const [testDetails, setTestDetails] = useState<any>(null);
@@ -172,6 +173,7 @@ const TakeTest: React.FC = () => {
   // Stage
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [testStage, setTestStage] = useState<'registration' | 'instructions' | 'active' | 'completed' | 'terminated'>('registration');
   const [priorAttempt, setPriorAttempt] = useState<{ score: number; total_correct: number; total_wrong: number; status?: string; violation_count?: number } | null>(null);
   const [lockedOnDevice, setLockedOnDevice] = useState(false);
@@ -225,16 +227,9 @@ const TakeTest: React.FC = () => {
       try {
         if (!testId) throw new Error('No test ID provided.');
 
-        const { data: testData, error: testError } = await supabase.from('tests').select('*').eq('id', testId).single();
-        if (testError) throw testError;
-        if (!testData) throw new Error('Test not found.');
-
-        const now = new Date();
-        const start = new Date(testData.start_window);
-        const end = new Date(testData.end_window);
-        if (now < start) throw new Error(`This test has not started yet. It opens at ${start.toLocaleString()}.`);
-        if (now > end) throw new Error(`This test has closed. It closed at ${end.toLocaleString()}.`);
-
+        // The server checks who may take this test and sends the questions without answers.
+        const { data } = await api.get(`/tests/${testId}/session`);
+        const testData = data.test;
         setTestDetails(testData);
 
         // A test closed for malpractice on this device can never be restarted here.
@@ -243,32 +238,17 @@ const TakeTest: React.FC = () => {
           return;
         }
 
-        if (student) {
-          const { data: assignments } = await supabase.from('test_assignments').select('class_id').eq('test_id', testId);
-          if (assignments && assignments.length > 0) {
-            const isAssignedToMe = student.class_id && assignments.some((a: any) => a.class_id === student.class_id);
-            if (!isAssignedToMe) throw new Error('This test has not been assigned to your class.');
-          }
-
-          const { data: existingAttempt } = await supabase
-            .from('test_attempts')
-            .select('*')
-            .eq('test_id', testId)
-            .eq('student_id', student.id)
-            .maybeSingle();
-          if (existingAttempt) {
-            setPriorAttempt(existingAttempt);
-            return;
-          }
+        if (data.mode === 'student' && data.candidate) setRegistered({ name: data.candidate.name, email: data.candidate.email || '' });
+        if (data.priorAttempt) {
+          setPriorAttempt(data.priorAttempt);
+          return;
         }
-
-        const { data: qData, error: qError } = await supabase.from('mcqs').select('*').in('id', testData.question_ids);
-        if (qError) throw qError;
+        const qData = data.questions as any[];
+        const isStudent = data.mode === 'student';
 
         // Keep the order the test was authored in, then group into subject sections
         // (sections appear in the order their first question appears in the test).
-        const position = new Map<string, number>((testData.question_ids || []).map((id: string, i: number) => [id, i]));
-        const ordered = [...(qData || [])].sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+        const ordered = qData || []; // already in the order the test was authored
         const groups = new Map<string, any[]>();
         for (const q of ordered) {
           const subject = String(q.subject || 'General').trim() || 'General';
@@ -285,9 +265,9 @@ const TakeTest: React.FC = () => {
         setQuestions(flat);
         setSections(builtSections);
 
-        if (student) {
-          setGuestName(student.name);
-          setGuestEmail(student.email || '');
+        if (isStudent && data.candidate) {
+          setGuestName(data.candidate.name);
+          setGuestEmail(data.candidate.email || '');
           setTestStage('instructions');
         }
 
@@ -295,7 +275,7 @@ const TakeTest: React.FC = () => {
         const savedSession = localStorage.getItem(sessionKey(testId));
         if (savedSession) {
           const session = JSON.parse(savedSession);
-          if (!student) {
+          if (!isStudent) {
             setGuestName(session.guestName || '');
             setGuestEmail(session.guestEmail || '');
           }
@@ -312,14 +292,20 @@ const TakeTest: React.FC = () => {
           } else if (session.endTime) {
             setAnswers(session.answers || {});
             answersRef.current = session.answers || {};
-            candidateRef.current = student
-              ? { name: student.name, email: student.email || '' }
+            candidateRef.current = isStudent && data.candidate
+              ? { name: data.candidate.name, email: data.candidate.email || '' }
               : { name: session.guestName || '', email: session.guestEmail || '' };
             await submitTestEngine('finished', flat, session.violations || []);
           }
         }
       } catch (err: any) {
-        setError(err.message || 'An error occurred loading the test.');
+        const body = err?.response?.data;
+        setErrorCode(body?.code || null);
+        setError(
+          body?.code === 'not_started' && body.opensAt
+            ? `This test opens on ${new Date(body.opensAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}.`
+            : body?.message || err.message || 'An error occurred loading the test.'
+        );
       } finally {
         setLoading(false);
       }
@@ -499,18 +485,11 @@ const TakeTest: React.FC = () => {
     setCheckingCandidate(true);
     setRegistrationError(null);
     try {
-      // One attempt per email per test.
-      const escaped = email.replace(/[\\%_]/g, ch => `\\${ch}`);
-      const { data: existing } = await supabase
-        .from('test_attempts')
-        .select('*')
-        .eq('test_id', testId)
-        .is('student_id', null)
-        .ilike('guest_email', escaped)
-        .limit(1);
-      if (existing && existing.length > 0) {
+      // One attempt per email per test (checked on the server).
+      const { data: check } = await api.post(`/tests/${testId}/guest-check`, { email });
+      if (!check.available) {
         setRegistrationError(
-          existing[0].status === 'terminated' || (existing[0].violation_count ?? 0) >= MAX_VIOLATIONS
+          check.reason === 'terminated'
             ? 'This email’s attempt was closed for exam-rule violations. It cannot be taken again.'
             : 'An attempt has already been submitted with this email. Each test can be taken only once.'
         );
@@ -519,6 +498,8 @@ const TakeTest: React.FC = () => {
       setGuestName(name);
       setGuestEmail(email);
       setTestStage('instructions');
+    } catch (err: any) {
+      setRegistrationError(err?.response?.data?.message || "We couldn't check your email. Please try again.");
     } finally {
       setCheckingCandidate(false);
     }
@@ -567,64 +548,25 @@ const TakeTest: React.FC = () => {
     const currentAnswers = answersRef.current;
     const { name, email } = candidateRef.current;
 
-    let correctCount = 0;
-    questionList.forEach(q => {
-      const selectedIndex = currentAnswers[q.id];
-      if (!isAnswered(selectedIndex)) return;
-      const correctIndex = getCorrectOptionIndex(q);
-      if (correctIndex !== null) {
-        if (selectedIndex === correctIndex) correctCount++;
-      } else if (q.options?.[selectedIndex as number] === q.answer) {
-        correctCount++;
-      }
-    });
-
-    const total = questionList.length || 1;
-    const finalScore = Math.round((correctCount / total) * 100);
-    setScoreData({ score: finalScore, correct: correctCount, total: questionList.length });
-
-    const count = (...types: ViolationType[]) => violationList.filter(v => types.includes(v.type)).length;
-    const baseRow = {
-      test_id: testId,
-      ...(student ? { student_id: student.id } : { guest_name: name, guest_email: email }),
-      score: finalScore,
-      total_correct: correctCount,
-      total_wrong: questionList.length - correctCount,
-      status: outcome,
-      end_time: new Date().toISOString(),
-      answers: currentAnswers,
-      tab_switch_count: count('tab_switch', 'window_blur'),
-      fullscreen_exit_count: count('fullscreen_exit'),
-      flagged: outcome === 'terminated' || violationList.length > 0,
-    };
-
     if (outcome === 'terminated') localStorage.setItem(lockKey(testId), new Date().toISOString());
 
     try {
-      // Save the full record, falling back gracefully while migration 004 isn't applied yet:
-      //  23514 — the status check constraint doesn't allow 'terminated' yet → save as 'finished'
-      //          (still identifiable as closed: flagged + violation_count >= MAX_VIOLATIONS);
-      //  PGRST204 / 42703 — the violation columns don't exist yet → save without them.
-      let row: Record<string, unknown> = { ...baseRow, violation_count: violationList.length, violations: violationList };
-      let dbError: any = null;
-      for (let tries = 0; tries < 3; tries++) {
-        ({ error: dbError } = await supabase.from('test_attempts').insert(row));
-        if (!dbError) break;
-        if (dbError.code === '23514' && row.status === 'terminated') {
-          row = { ...row, status: 'finished' };
-        } else if ((dbError.code === 'PGRST204' || dbError.code === '42703') && 'violations' in row) {
-          const { violation_count: _count, violations: _log, ...rest } = row;
-          row = rest;
-        } else {
-          break;
-        }
-      }
-      // 23505: one attempt per candidate per test already exists (e.g. a second tab or device).
-      if (dbError && dbError.code !== '23505') throw dbError;
+      // The server re-checks access, grades against the answer keys and saves the attempt.
+      const { data } = await api.post(`/tests/${testId}/submit`, {
+        answers: currentAnswers,
+        status: outcome,
+        violations: violationList,
+        ...(student ? {} : { guest_name: name, guest_email: email }),
+      });
+      setScoreData({ score: data.score, correct: data.correct, total: data.total || questionList.length });
       localStorage.removeItem(sessionKey(testId));
-    } catch (err) {
-      console.error('Failed to save attempt', err);
-      setSaveFailed(true);
+    } catch (err: any) {
+      if (err?.response?.data?.code === 'already_submitted') {
+        localStorage.removeItem(sessionKey(testId));
+      } else {
+        console.error('Failed to save attempt', err);
+        setSaveFailed(true);
+      }
     } finally {
       setTestStage(outcome === 'terminated' ? 'terminated' : 'completed');
       exitFullscreen();
@@ -683,8 +625,24 @@ const TakeTest: React.FC = () => {
 
   if (error) {
     return (
-      <StatusScreen tone="error" title="Unable to open this test">
+      <StatusScreen
+        tone={errorCode === 'not_started' ? 'warn' : 'error'}
+        title={errorCode === 'sign_in_required' ? 'Sign in to take this test' : errorCode === 'not_started' ? 'Not open yet' : 'Unable to open this test'}
+      >
         <p className="mt-3 text-sm text-gray-400">{error}</p>
+        {errorCode === 'sign_in_required' && (
+          <button
+            onClick={() => navigate(`/login/student?next=${encodeURIComponent(`/test/${testId}`)}`)}
+            className="mt-7 w-full rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-500 py-3 font-bold text-gray-950 transition hover:brightness-110"
+          >
+            Sign in as a student
+          </button>
+        )}
+        {errorCode === 'staff_account' && auth && (
+          <button onClick={async () => { await auth.logout(); window.location.reload(); }} className="mt-7 w-full rounded-xl bg-white/[0.06] py-3 font-bold ring-1 ring-inset ring-white/10 transition hover:bg-white/[0.1]">
+            Sign out
+          </button>
+        )}
       </StatusScreen>
     );
   }
@@ -975,8 +933,32 @@ const TakeTest: React.FC = () => {
           <p className={`mt-2 text-6xl font-black tabular-nums ${scoreData.score >= 50 ? 'text-emerald-400' : 'text-rose-400'}`}>{scoreData.score}%</p>
           <p className="mt-2 text-sm text-gray-400">{scoreData.correct} of {scoreData.total} correct</p>
         </div>
-        {saveFailed && <p className="mt-4 text-xs text-amber-300">Your result is shown here, but saving it failed. Please inform your exam administrator.</p>}
         <button onClick={() => navigate(student ? '/dashboard/student' : '/')} className="mt-8 w-full rounded-xl bg-white/[0.06] py-3 font-bold ring-1 ring-inset ring-white/10 transition hover:bg-white/[0.1]">
+          {student ? 'Back to dashboard' : 'Return home'}
+        </button>
+      </StatusScreen>
+    );
+  }
+
+  // Submitted, but the server didn't confirm (network trouble) or it had already been saved.
+  if (testStage === 'completed') {
+    return (
+      <StatusScreen tone={saveFailed ? 'warn' : 'ok'} title={saveFailed ? 'Submission not saved yet' : 'Test submitted'}>
+        <p className="mt-3 text-sm text-gray-400">
+          {saveFailed
+            ? 'Your answers are kept on this device. Check your connection and try again — don’t close this page.'
+            : `${testDetails?.title || 'This test'} has been submitted.`}
+        </p>
+        {saveFailed && (
+          <button
+            onClick={() => { submittingRef.current = false; setSaveFailed(false); submitTestEngine('finished'); }}
+            disabled={isSubmitting}
+            className="mt-6 w-full rounded-xl bg-emerald-500 py-3 font-bold text-gray-950 transition hover:brightness-110 disabled:opacity-50"
+          >
+            {isSubmitting ? 'Submitting…' : 'Try submitting again'}
+          </button>
+        )}
+        <button onClick={() => navigate(student ? '/dashboard/student' : '/')} className="mt-3 w-full rounded-xl bg-white/[0.06] py-3 font-bold ring-1 ring-inset ring-white/10 transition hover:bg-white/[0.1]">
           {student ? 'Back to dashboard' : 'Return home'}
         </button>
       </StatusScreen>

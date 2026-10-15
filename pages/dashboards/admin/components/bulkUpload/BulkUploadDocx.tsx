@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { supabase } from "../../../../../services/supabase";
 import { parseDocxOneTablePerQuestion, MCQInsert } from "./parseDocxQuestions";
 import {
@@ -14,12 +14,25 @@ import {
   getOptionImages,
   McqImageList,
 } from "../../../../../utils/mcqContent";
-import { MathText, stripMathMarkers } from "../../../../../utils/renderMath";
-import ModalPortal from "../../../../../components/ModalPortal";
+import { RichMathText, stripMathMarkers, hasMathMarkers } from "../../../../../utils/renderMath";
+import SelectMenu from "../../../../../components/ui/SelectMenu";
+import SourcePicker from "../../../../../components/ui/SourcePicker";
+import { cleanSource, refreshQuestionSources } from "../../../../../hooks/useQuestionSources";
+import {
+  Svg, ICONS, Card, Field, inputCls, textareaCls, primaryBtn, secondaryBtn, dangerBtn, IconButton, Chip, AdminModal,
+  SUBJECT_TONE, DIFFICULTY_TONE,
+} from "../../../../../components/ui/admin";
 
 type Props = { onDone?: () => void };
 
-const THEME_COLOR = "#29A34A";
+const LETTERS = "ABCD";
+const GRADE_OPTIONS = ["6", "7", "8", "9", "10", "11", "12"].map(g => ({ value: g, label: `Grade ${g}` }));
+const SUBJECT_OPTIONS = ["Physics", "Chemistry", "Biology", "Mathematics"].map(s => ({ value: s, label: s }));
+const DIFFICULTY_OPTIONS = ["Easy", "Medium", "Hard"].map(d => ({ value: d, label: d }));
+const SKILL_OPTIONS = [
+  { value: "", label: "Not set" },
+  ...["Understanding", "Knowledge Based", "Application", "Analytical"].map(s => ({ value: s, label: s })),
+];
 
 // ── Supabase image uploader ───────────────────────────────────────────────────
 const uploadImageToSupabase = async (base64Data: string): Promise<string | null> => {
@@ -83,145 +96,180 @@ const isValidQuestion = (q: MCQInsert): boolean => {
   return hasQuestionFallback && fallbackOptionCount >= 2;
 };
 
-// ── Edit Modal ────────────────────────────────────────────────────────────────
+/** Index of the correct option, from answer_index or by matching the answer text. */
+const correctIndexOf = (q: MCQInsert): number | null => {
+  if (q.answer_index !== undefined && q.answer_index !== null) return q.answer_index;
+  const options = normalizeOptions(q);
+  const i = options.findIndex(o => hasText(o) && o === q.answer);
+  return i >= 0 ? i : null;
+};
+
+/** What a reviewer should look at before uploading this question. */
+const issuesOf = (q: MCQInsert): string[] => {
+  const issues: string[] = [];
+  if (correctIndexOf(q) === null) issues.push("No correct answer");
+  if (hasUnresolvedMath(q)) issues.push("Formula not extracted");
+  if (!hasText(q.subject)) issues.push("No subject");
+  if (!hasText(q.topic)) issues.push("No topic");
+  return issues;
+};
+
+const needsPreview = (text: string) => hasMathMarkers(text) || text.includes("√") || /<\/?[a-z][\s\S]*?>/i.test(text);
+
+// ── Full question editor ─────────────────────────────────────────────────────
 const EditQuestionModal: React.FC<{
   question: MCQInsert;
   index: number;
-  onSave: (updated: MCQInsert) => void;
+  total: number;
+  onSave: (updated: MCQInsert, next: boolean) => void;
   onClose: () => void;
-}> = ({ question, index, onSave, onClose }) => {
-  const [q, setQ] = useState<MCQInsert>({ ...question });
+}> = ({ question, index, total, onSave, onClose }) => {
+  const [q, setQ] = useState<MCQInsert>({ ...question, options: normalizeOptions(question) });
   const options = normalizeOptions(q);
+  const correct = correctIndexOf(q);
+  const set = <K extends keyof MCQInsert>(key: K, value: MCQInsert[K]) => setQ(prev => ({ ...prev, [key]: value }));
 
   const setOption = (i: number, val: string) => {
-    const newOpts = [...options];
-    newOpts[i] = val;
-    setQ({ ...q, options: newOpts });
+    const next = [...options];
+    next[i] = val;
+    setQ(prev => ({ ...prev, options: next, ...(correct === i ? { answer: val } : {}) }));
+  };
+  const markCorrect = (i: number) => setQ(prev => ({ ...prev, answer_index: i, answer: normalizeOptions(prev)[i] || "" }));
+
+  const save = (next: boolean) => {
+    const idx = correctIndexOf(q);
+    onSave({ ...q, source: cleanSource(q.source), answer: idx !== null ? options[idx] : q.answer }, next);
   };
 
+  const questionImages = getQuestionImages(q);
+
   return (
-    <ModalPortal>
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-6 py-4 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-white">Edit Question #{index + 1}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
-        </div>
+    <AdminModal
+      title={`Edit question ${index + 1} of ${total}`}
+      subtitle="Changes stay in this upload until you click Upload to bank."
+      icon={ICONS.edit}
+      width="max-w-4xl"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={`${secondaryBtn} px-5 py-2.5 text-sm`}>Cancel</button>
+          {index < total - 1 ? (
+            <>
+              <button type="button" onClick={() => save(false)} className={`${secondaryBtn} px-5 py-2.5 text-sm`}>Save</button>
+              <button type="button" onClick={() => save(true)} className={`${primaryBtn} px-5 py-2.5 text-sm`}>Save & next <Svg d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></button>
+            </>
+          ) : (
+            <button type="button" onClick={() => save(false)} className={`${primaryBtn} px-5 py-2.5 text-sm`}>Save changes</button>
+          )}
+        </>
+      }
+    >
+      <div className="space-y-6">
+        {/* Classification */}
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Grade"><SelectMenu title="Grade" value={String(q.grade || "")} onChange={v => set("grade", v)} options={GRADE_OPTIONS} placeholder="Choose grade" /></Field>
+          <Field label="Subject"><SelectMenu title="Subject" value={q.subject || ""} onChange={v => set("subject", v)} options={SUBJECT_OPTIONS} placeholder="Choose subject" /></Field>
+          <Field label="Difficulty"><SelectMenu title="Difficulty" value={q.difficulty || ""} onChange={v => set("difficulty", v)} options={DIFFICULTY_OPTIONS} placeholder="Choose difficulty" /></Field>
+          <Field label="Topic"><input className={inputCls} value={q.topic || ""} onChange={e => set("topic", e.target.value)} placeholder="e.g. Trigonometric functions" /></Field>
+          <Field label="Sub-topic"><input className={inputCls} value={q.sub_topic || ""} onChange={e => set("sub_topic", e.target.value)} placeholder="e.g. Domain and range" /></Field>
+          <Field label="Skill type"><SelectMenu title="Skill type" value={q.skill_type || ""} onChange={v => set("skill_type", (v || undefined) as any)} options={SKILL_OPTIONS} placeholder="Not set" /></Field>
+          <Field label="Question type" optional><input className={inputCls} value={q.question_type || ""} onChange={e => set("question_type", e.target.value)} placeholder="e.g. MCQ" /></Field>
+          <Field label="Question code" optional><input className={`${inputCls} font-mono`} value={q.question_code || ""} onChange={e => set("question_code", e.target.value)} placeholder="Auto if blank" /></Field>
+          <Field label="Source" optional><SourcePicker value={q.source || ""} onChange={v => set("source", v)} /></Field>
+        </section>
 
-        <div className="p-6 space-y-4">
-          {/* Preview of how it will render */}
-          <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Live Preview</p>
-            <p className="text-gray-200">
-              <MathText text={q.question || ""} />
-            </p>
-          </div>
-
-          {/* Question text - raw editable with markers visible */}
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">
-              Question <span className="text-gray-600 normal-case font-normal">(edit raw text — [SUP]/[SUB]/[FRAC] markers control formatting)</span>
-            </label>
-            <textarea
-              rows={4}
-              value={q.question || ""}
-              onChange={(e) => setQ({ ...q, question: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white outline-none focus:border-green-500 resize-none font-mono text-sm"
-            />
-          </div>
-
-          {/* Options */}
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i}>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">
-                Option {i + 1} {q.answer_index === i ? "✓ Correct" : ""}
-              </label>
-              <div className="mb-1 px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm text-gray-300">
-                <MathText text={options[i]} />
-              </div>
-              <input
-                type="text"
-                value={options[i]}
-                onChange={(e) => setOption(i, e.target.value)}
-                className={`w-full px-4 py-3 bg-gray-800 border rounded-xl text-white outline-none focus:border-green-500 font-mono text-sm ${
-                  q.answer_index === i ? "border-green-600" : "border-gray-700"
-                }`}
-              />
+        {/* Question */}
+        <section className="space-y-3 border-t border-white/[0.06] pt-5">
+          <Field label="Question" hint={<span className="normal-case tracking-normal font-medium text-gray-600">[FRAC]a[SEP]b[/FRAC] · [SUP]2[/SUP] · [SUB]n[/SUB] · √(…)</span>}>
+            <textarea rows={4} value={q.question || ""} onChange={e => set("question", e.target.value)} className={`${textareaCls} font-mono text-[13px]`} />
+          </Field>
+          {(needsPreview(q.question || "") || questionImages.length > 0) && (
+            <div className="rounded-xl bg-emerald-400/[0.04] p-4 ring-1 ring-inset ring-emerald-400/15">
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400/80">Preview</p>
+              {hasText(q.question) && <RichMathText as="div" text={q.question || ""} className="text-[15px] text-gray-100" />}
+              {questionImages.length > 0 && <McqImageList images={questionImages} alt="Question" className="mt-2 flex flex-wrap gap-2" />}
             </div>
-          ))}
+          )}
+        </section>
 
-          {/* Correct answer */}
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Correct Answer</label>
-            <select
-              value={q.answer_index ?? ""}
-              onChange={(e) => {
-                const idx = e.target.value === "" ? undefined : Number(e.target.value);
-                setQ({ ...q, answer_index: idx, answer: idx !== undefined ? normalizeOptions(q)[idx] || "" : "" });
-              }}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white outline-none focus:border-green-500"
-            >
-              <option value="">Select correct option</option>
-              {[0, 1, 2, 3].map((i) => (
-                <option key={i} value={i}>
-                  Option {i + 1}{options[i] ? ` — ${stripMathMarkers(options[i]).slice(0, 50)}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Options */}
+        <section className="space-y-3 border-t border-white/[0.06] pt-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Options <span className="normal-case tracking-normal font-medium text-gray-600">— click a letter to mark the correct one</span></p>
+          {options.map((opt, i) => {
+            const isCorrect = correct === i;
+            const images = getOptionImages(q, i);
+            return (
+              <div key={i} className={`flex items-start gap-3 rounded-2xl p-3 ring-1 ring-inset transition-all duration-300 ${isCorrect ? "bg-emerald-400/[0.06] ring-emerald-400/40" : "bg-black/15 ring-white/[0.07]"}`}>
+                <button
+                  type="button"
+                  onClick={() => markCorrect(i)}
+                  aria-pressed={isCorrect}
+                  title={isCorrect ? "Correct answer" : "Mark as correct"}
+                  className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black transition-all active:scale-95 ${isCorrect ? "bg-emerald-400 text-gray-950 shadow-[0_6px_20px_-6px_rgba(16,185,129,0.9)]" : "bg-white/[0.05] text-gray-400 ring-1 ring-inset ring-white/10 hover:text-white hover:ring-emerald-400/40"}`}
+                >
+                  {isCorrect ? <Svg d={ICONS.check} className="h-5 w-5" /> : LETTERS[i]}
+                </button>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <input value={opt} onChange={e => setOption(i, e.target.value)} placeholder={`Option ${LETTERS[i]}`} className={`${inputCls} font-mono text-[13px]`} />
+                  {(needsPreview(opt) || images.length > 0) && (
+                    <div className="rounded-lg bg-black/20 px-3 py-1.5 text-sm text-gray-200">
+                      {hasText(opt) && <RichMathText text={opt} />}
+                      {images.length > 0 && <McqImageList images={images} alt={`Option ${LETTERS[i]}`} className="mt-1 flex flex-wrap gap-2" />}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </section>
 
-          {/* Explanation */}
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Explanation</label>
-            <input
-              type="text"
-              value={q.explanation || ""}
-              onChange={(e) => setQ({ ...q, explanation: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white outline-none focus:border-green-500"
-            />
-          </div>
-        </div>
-
-        <div className="sticky bottom-0 bg-gray-900 border-t border-gray-800 px-6 py-4 flex justify-end gap-3">
-          <button onClick={onClose} className="px-6 py-2 border border-gray-700 text-gray-400 hover:text-white rounded-xl transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={() => { onSave(q); onClose(); }}
-            className="px-6 py-2 text-white font-bold rounded-xl transition-colors"
-            style={{ backgroundColor: THEME_COLOR }}
-          >
-            Save Changes
-          </button>
-        </div>
+        {/* Notes */}
+        <section className="grid grid-cols-1 gap-4 border-t border-white/[0.06] pt-5">
+          <Field label="Explanation" optional><textarea rows={3} value={q.explanation || ""} onChange={e => set("explanation", e.target.value)} className={textareaCls} placeholder="Worked solution…" /></Field>
+          <Field label="Remarks" optional><input value={(q as any).remarks || ""} onChange={e => setQ(prev => ({ ...prev, remarks: e.target.value } as MCQInsert))} className={inputCls} placeholder="Internal notes" /></Field>
+        </section>
       </div>
-    </div>
-    </ModalPortal>
+    </AdminModal>
   );
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
 const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
   const [questions, setQuestions] = useState<MCQInsert[]>([]);
+  const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadedIds, setUploadedIds] = useState<string[]>([]);
   const [undoLoading, setUndoLoading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateList, setDuplicateList] = useState<{ index: number; q: string }[]>([]);
 
-  const [editingQuestion, setEditingQuestion] = useState<{ q: MCQInsert; idx: number } | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [bulkSource, setBulkSource] = useState("");
+  const [onlyIssues, setOnlyIssues] = useState(false);
+
+  const issueCount = useMemo(() => questions.filter(q => issuesOf(q).length > 0).length, [questions]);
+  const visible = useMemo(
+    () => questions.map((q, idx) => ({ q, idx })).filter(({ q }) => !onlyIssues || issuesOf(q).length > 0),
+    [questions, onlyIssues]
+  );
 
   const handleParse = async (f: File) => {
+    if (!f.name.toLowerCase().endsWith(".docx")) {
+      setErrors(["Please choose a Word document (.docx)."]);
+      return;
+    }
     setLoading(true);
     setErrors([]);
     setUploadSuccess(false);
     setUploadedIds([]);
     setQuestions([]);
-    setStatusMessage("Parsing document...");
+    setFileName(f.name);
+    setStatusMessage("Reading your document…");
 
     try {
       const res = await parseDocxOneTablePerQuestion(f);
@@ -234,29 +282,19 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
         const validQuestions = rows.filter((q) => isValidQuestion(q));
         const invalidCount = rows.length - validQuestions.length;
 
-        const unresolvedWarnings = validQuestions
-          .filter((q) => hasUnresolvedMath(q))
-          .map((_, idx) => `Question ${idx + 1}: Math/object content could not be extracted. Verify preview before upload.`);
-
         if (invalidCount > 0) {
-          setErrors((prev) => [
-            ...prev,
-            `${invalidCount} question(s) skipped — insufficient content.`,
-          ]);
-        }
-        if (unresolvedWarnings.length > 0) {
-          setErrors((prev) => [...prev, ...unresolvedWarnings]);
+          setErrors((prev) => [...prev, `${invalidCount} table${invalidCount === 1 ? "" : "s"} skipped — not enough content for a question.`]);
         }
         if (validQuestions.length > 0) {
-          setQuestions(validQuestions);
+          setQuestions(validQuestions.map(q => ({ ...q, source: cleanSource(q.source) })));
         } else if (parseErrors.length === 0) {
-          setErrors(["No valid questions found in the document."]);
+          setErrors(["No questions were found in this document."]);
         }
       } else if (parseErrors.length === 0) {
-        setErrors(["No valid questions found in the document."]);
+        setErrors(["No questions were found in this document."]);
       }
     } catch (e: any) {
-      setErrors([e?.message ?? "Failed to parse document"]);
+      setErrors([e?.message ?? "Failed to read the document."]);
     } finally {
       setLoading(false);
       setStatusMessage("");
@@ -265,7 +303,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
 
   const handlePreUploadCheck = async () => {
     setLoading(true);
-    setStatusMessage("Checking for duplicate questions...");
+    setStatusMessage("Checking for duplicates…");
     const dups: { index: number; q: string }[] = [];
 
     for (let i = 0; i < questions.length; i++) {
@@ -275,7 +313,6 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
         ? stripMathMarkers(q.question)
         : questionImages.length > 0 ? "Image-based question"
         : "Math/object-based question";
-      // Strip markers before duplicate-check against DB (DB also stores markers, so compare raw)
       const isDup = await checkDuplicate(q.question || "", normalizeOptions(q));
       if (isDup) dups.push({ index: i, q: duplicateLabel });
     }
@@ -293,7 +330,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
     if (!questions.length) return;
     setLoading(true);
     setErrors([]);
-    setStatusMessage("Preparing upload...");
+    setStatusMessage("Preparing upload…");
 
     try {
       const finalQuestions = skipDuplicates
@@ -335,6 +372,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
 
       const uploadedImageUrls = new Map<string, string>();
       if (imagesToUpload.length > 0) {
+        setStatusMessage(`Uploading ${imagesToUpload.length} image${imagesToUpload.length === 1 ? "" : "s"}…`);
         const unique = Array.from(new Set(imagesToUpload));
         const results = await Promise.all(
           unique.map(async (img) => ({ img, url: await uploadImageToSupabase(img) }))
@@ -346,7 +384,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
 
       for (let i = 0; i < finalQuestions.length; i++) {
         const q = finalQuestions[i];
-        setStatusMessage(`Processing question ${i + 1}/${finalQuestions.length}...`);
+        setStatusMessage(`Processing question ${i + 1} of ${finalQuestions.length}…`);
 
         const normalizedOptions = normalizeOptions(q);
         const currentOptImages = normalizeOptionImages(q);
@@ -377,6 +415,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
         processedQuestions.push({
           ...q,
           question_code: finalCode,
+          source: cleanSource(q.source) || (null as any),
           imageUrl: resolveImg(q.imageUrl) ?? undefined,
           inline_images: currentInlineImages.map((img) => resolveImg(img) || img),
           options: normalizedOptions,
@@ -389,7 +428,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
         });
       }
 
-      setStatusMessage("Saving to database...");
+      setStatusMessage("Saving to the question bank…");
       const { error } = await supabase.from("mcqs").insert(processedQuestions);
       if (error) throw error;
 
@@ -397,9 +436,10 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
       setUploadedIds(insertedIds);
       setUploadSuccess(true);
       setQuestions([]);
+      refreshQuestionSources();
     } catch (e: any) {
       console.error(e);
-      setErrors([e?.message ?? "Bulk insert failed"]);
+      setErrors([e?.message ?? "Upload failed."]);
     } finally {
       setLoading(false);
       setStatusMessage("");
@@ -416,8 +456,9 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
       setUploadSuccess(false);
       setErrors([]);
       setQuestions([]);
+      refreshQuestionSources();
     } catch (e: any) {
-      setErrors([e?.message ?? "Undo failed"]);
+      setErrors([e?.message ?? "Undo failed."]);
     } finally {
       setUndoLoading(false);
     }
@@ -428,6 +469,8 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
     setErrors([]);
     setUploadSuccess(false);
     setUploadedIds([]);
+    setFileName("");
+    setOnlyIssues(false);
   };
 
   const removeQuestion = (indexToRemove: number) => {
@@ -438,309 +481,244 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
     setQuestions((prev) => prev.map((q, i) => (i === idx ? updated : q)));
   };
 
-  return (
-    <div className="p-8 flex flex-col h-[700px] text-white relative">
+  const applySourceToAll = () => {
+    const name = cleanSource(bulkSource);
+    setQuestions(prev => prev.map(q => ({ ...q, source: name })));
+  };
 
-      {/* ── Edit Modal ──────────────────────────────────────────────────── */}
-      {editingQuestion && (
+  const busyOverlay = loading && (
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-2xl bg-[#0b1118]/85 backdrop-blur-sm animate-fade-in">
+      <span className="h-11 w-11 rounded-full border-4 border-emerald-400/20 border-t-emerald-400 animate-spin" />
+      <p className="text-sm font-semibold text-gray-200">{statusMessage || "Working…"}</p>
+    </div>
+  );
+
+  // ── Success ────────────────────────────────────────────────────────────────
+  if (uploadSuccess) {
+    return (
+      <Card icon={ICONS.check} title="Upload complete" subtitle={fileName}>
+        <div className="flex flex-col items-center py-8 text-center animate-success-pop">
+          <span className="relative flex h-20 w-20 items-center justify-center rounded-full bg-emerald-400/10 ring-1 ring-inset ring-emerald-400/40 shadow-[0_0_60px_-10px_rgba(16,185,129,0.7)]">
+            <Svg d={ICONS.check} className="h-10 w-10 text-emerald-300" />
+          </span>
+          <h4 className="mt-5 text-2xl font-black tracking-tight">{uploadedIds.length} question{uploadedIds.length === 1 ? "" : "s"} added</h4>
+          <p className="mt-1 text-sm text-gray-400">They're in the Question Bank now.</p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            {uploadedIds.length > 0 && (
+              <button onClick={handleUndo} disabled={undoLoading} className={`${dangerBtn} px-5 py-3 text-sm`}>
+                {undoLoading ? <><span className="h-4 w-4 rounded-full border-2 border-rose-300/30 border-t-rose-300 animate-spin" /> Undoing…</> : <><Svg d={ICONS.undo} /> Undo upload</>}
+              </button>
+            )}
+            <button onClick={() => { handleReset(); onDone?.(); }} className={`${secondaryBtn} px-5 py-3 text-sm`}>Done</button>
+            <button onClick={handleReset} className={`${primaryBtn} px-6 py-3 text-sm`}><Svg d={ICONS.upload} /> Upload another file</button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {editingIndex !== null && questions[editingIndex] && (
         <EditQuestionModal
-          question={editingQuestion.q}
-          index={editingQuestion.idx}
-          onSave={(updated) => updateQuestion(editingQuestion.idx, updated)}
-          onClose={() => setEditingQuestion(null)}
+          key={editingIndex}
+          question={questions[editingIndex]}
+          index={editingIndex}
+          total={questions.length}
+          onSave={(updated, next) => {
+            updateQuestion(editingIndex, updated);
+            setEditingIndex(next && editingIndex < questions.length - 1 ? editingIndex + 1 : null);
+          }}
+          onClose={() => setEditingIndex(null)}
         />
       )}
 
-      {/* ── Duplicate Modal ──────────────────────────────────────────────── */}
       {duplicateModalOpen && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50 p-6 rounded-3xl backdrop-blur-md animate-in zoom-in-95 duration-200">
-          <div className="w-full max-w-2xl flex flex-col border border-orange-500/30 rounded-2xl p-6 bg-gray-900 shadow-2xl">
-            <h3 className="text-2xl font-bold text-orange-500 mb-2">⚠️ {duplicateList.length} Duplicates Detected</h3>
-            <p className="text-gray-300 mb-4 text-sm">The following questions already exist in your database:</p>
-            <div className="flex-1 overflow-y-auto bg-gray-800 rounded-xl p-4 mb-6 space-y-3 custom-scrollbar border border-gray-700 max-h-64">
-              {duplicateList.map((d, i) => (
-                <div key={i} className="text-sm text-gray-300 bg-gray-900 p-3 rounded-lg border border-gray-700">
-                  <span className="font-bold text-orange-400 mr-2">Question #{d.index + 1}:</span>
-                  <span className="opacity-90">{d.q}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-3 shrink-0 pt-4 border-t border-gray-800">
-              <button onClick={() => setDuplicateModalOpen(false)} className="px-5 py-3 text-gray-400 hover:text-white border border-gray-700 hover:bg-gray-800 rounded-xl transition-colors">Cancel Upload</button>
-              <button onClick={() => { setDuplicateModalOpen(false); handleUpload(true); }} className="px-5 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-colors">Skip Duplicates & Upload Rest</button>
-              <button onClick={() => { setDuplicateModalOpen(false); handleUpload(false); }} className="px-5 py-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all">Upload All Anyway</button>
-            </div>
-          </div>
-        </div>
+        <AdminModal
+          title={`${duplicateList.length} question${duplicateList.length === 1 ? " is" : "s are"} already in the bank`}
+          subtitle="Choose whether to skip them or upload everything."
+          icon={ICONS.warning}
+          tone="amber"
+          onClose={() => setDuplicateModalOpen(false)}
+          footer={
+            <>
+              <button onClick={() => setDuplicateModalOpen(false)} className={`${secondaryBtn} px-5 py-2.5 text-sm`}>Cancel</button>
+              <button onClick={() => { setDuplicateModalOpen(false); handleUpload(false); }} className={`${secondaryBtn} px-5 py-2.5 text-sm`}>Upload all anyway</button>
+              <button onClick={() => { setDuplicateModalOpen(false); handleUpload(true); }} className={`${primaryBtn} px-5 py-2.5 text-sm`}>Skip duplicates</button>
+            </>
+          }
+        >
+          <ul className="space-y-2">
+            {duplicateList.map((d) => (
+              <li key={d.index} className="flex gap-3 rounded-xl bg-black/25 p-3 text-sm ring-1 ring-inset ring-white/[0.07]">
+                <span className="shrink-0 font-bold text-amber-300">#{d.index + 1}</span>
+                <span className="line-clamp-2 text-gray-300">{d.q}</span>
+              </li>
+            ))}
+          </ul>
+        </AdminModal>
       )}
 
-      {/* ── Errors ──────────────────────────────────────────────────────── */}
       {errors.length > 0 && (
-        <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-xl p-4 overflow-y-auto max-h-32 animate-in fade-in">
-          <p className="font-bold text-red-400 mb-2 flex items-center gap-2">⚠️ Errors Detected</p>
-          <ul className="list-disc list-inside text-sm text-red-300 space-y-1">
+        <div className="rounded-2xl bg-rose-500/[0.07] p-4 ring-1 ring-inset ring-rose-400/25 animate-fade-in">
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <p className="flex items-center gap-2 text-sm font-bold text-rose-300"><Svg d={ICONS.warning} /> Please check</p>
+            <button type="button" onClick={() => setErrors([])} aria-label="Dismiss" className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-300/70 hover:bg-rose-500/10 hover:text-rose-200"><Svg d={ICONS.close} className="h-3.5 w-3.5" /></button>
+          </div>
+          <ul className="list-disc space-y-1 pl-6 text-sm text-rose-200/80">
             {errors.map((er, i) => <li key={i}>{er}</li>)}
           </ul>
         </div>
       )}
 
-      {/* ── Upload Success ───────────────────────────────────────────────── */}
-      {uploadSuccess ? (
-        <div className="flex-1 flex flex-col items-center justify-center space-y-4 animate-in zoom-in-95 duration-500">
-          <div
-            className="w-20 h-20 rounded-full flex items-center justify-center border shadow-lg"
-            style={{ backgroundColor: `${THEME_COLOR}20`, borderColor: `${THEME_COLOR}50`, color: THEME_COLOR }}
-          >
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </div>
-          <h4 className="text-2xl font-bold" style={{ color: THEME_COLOR }}>Upload Successful!</h4>
-          <p className="text-gray-400">Your questions have been added to the bank.</p>
-
-          {uploadedIds.length > 0 && (
-            <button
-              onClick={handleUndo}
-              disabled={undoLoading}
-              className="px-6 py-3 rounded-xl border border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors font-bold flex items-center gap-2 disabled:opacity-50"
+      {questions.length === 0 ? (
+        /* ── Drop zone ─────────────────────────────────────────────────── */
+        <Card step={1} title="Choose a document" subtitle="One table per question: grade, subject, topic, question, options, answer, source…">
+          <div className="relative">
+            {busyOverlay}
+            <input type="file" accept=".docx" id="docx-upload" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleParse(f); e.target.value = ""; }} />
+            <label
+              htmlFor="docx-upload"
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleParse(f); }}
+              className={`group flex min-h-[300px] cursor-pointer flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-all duration-300 ${
+                dragOver ? "border-emerald-400/70 bg-emerald-400/[0.06] scale-[1.01]" : "border-white/10 bg-black/15 hover:border-emerald-400/40 hover:bg-emerald-400/[0.03]"
+              }`}
             >
-              {undoLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                  Undoing...
-                </>
-              ) : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 7v6h6" /><path d="M3 13C5 7 10 3 16 3a9 9 0 0 1 9 9" />
-                  </svg>
-                  Undo Upload ({uploadedIds.length} questions)
-                </>
-              )}
-            </button>
-          )}
-
-          <div className="flex gap-4 mt-2">
-            <button onClick={() => { handleReset(); if (onDone) onDone(); }} className="px-8 py-3 rounded-xl border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition-colors font-medium">Return</button>
-            <button onClick={handleReset} className="px-8 py-3 rounded-xl text-white font-bold shadow-lg hover:opacity-90 transition-opacity" style={{ backgroundColor: THEME_COLOR }}>Upload Another File</button>
+              <span className={`flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-b from-emerald-400/20 to-emerald-500/5 text-emerald-300 ring-1 ring-inset ring-emerald-400/30 shadow-[0_20px_50px_-20px_rgba(16,185,129,0.8)] transition-transform duration-500 ${dragOver ? "scale-110 -translate-y-1" : "group-hover:-translate-y-1"}`}>
+                <Svg d={ICONS.upload} className="h-9 w-9" />
+              </span>
+              <span>
+                <span className="block text-lg font-bold text-white">{dragOver ? "Drop it here" : "Drop a .docx here, or click to browse"}</span>
+                <span className="mt-1 block text-sm text-gray-500">Text, images and Word/MathType equations are supported. You'll review every question before anything is saved.</span>
+              </span>
+            </label>
           </div>
-        </div>
+        </Card>
       ) : (
         <>
-          {/* ── File Drop Zone ─────────────────────────────────────────── */}
-          {questions.length === 0 && (
-            <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-700/60 rounded-2xl bg-gray-800/20 hover:bg-gray-800/50 transition-all duration-300 relative group cursor-pointer overflow-hidden">
-              {loading && (
-                <div className="absolute inset-0 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-10 gap-3 animate-in fade-in">
-                  <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: THEME_COLOR }} />
-                  <p className="text-white font-bold tracking-wider uppercase text-sm animate-pulse">{statusMessage || "Processing..."}</p>
-                </div>
-              )}
-              <input type="file" accept=".docx" id="docx-upload" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleParse(f); }} className="hidden" />
-              <label htmlFor="docx-upload" className="flex flex-col items-center gap-4 p-10 w-full h-full justify-center cursor-pointer">
-                <div className="p-5 bg-gray-800/80 rounded-full shadow-xl transition-transform duration-300 group-hover:scale-110">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={THEME_COLOR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                </div>
-                <div className="text-center space-y-2">
-                  <p className="text-xl font-bold text-gray-200">Click to upload .docx</p>
-                  <p className="text-sm text-gray-500 font-medium">Supports tables containing text, images & math equations</p>
-                </div>
-              </label>
+          {/* ── Review toolbar ──────────────────────────────────────────── */}
+          <Card
+            step={2}
+            title="Review & edit"
+            subtitle={fileName}
+            raised
+            aside={
+              <div className="flex flex-wrap items-center gap-2">
+                <Chip tone="emerald">{questions.length} question{questions.length === 1 ? "" : "s"}</Chip>
+                {issueCount > 0 ? (
+                  <button type="button" onClick={() => setOnlyIssues(v => !v)} className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset transition ${onlyIssues ? "bg-amber-400/20 text-amber-200 ring-amber-400/50" : "bg-amber-400/10 text-amber-300 ring-amber-400/25 hover:bg-amber-400/15"}`}>
+                    <Svg d={ICONS.warning} className="h-3.5 w-3.5" /> {issueCount} need{issueCount === 1 ? "s" : ""} attention {onlyIssues ? "· show all" : ""}
+                  </button>
+                ) : (
+                  <Chip tone="emerald"><Svg d={ICONS.check} className="h-3.5 w-3.5" /> All look complete</Chip>
+                )}
+              </div>
+            }
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+              <Field label="Source for every question" className="flex-1">
+                <SourcePicker value={bulkSource} onChange={setBulkSource} placeholder="Choose or add a source to apply to all" />
+              </Field>
+              <button type="button" onClick={applySourceToAll} disabled={!cleanSource(bulkSource)} className={`${secondaryBtn} h-11 px-5 text-sm`}>
+                Apply to all {questions.length}
+              </button>
             </div>
-          )}
+            <p className="mt-3 text-xs text-gray-500">Click <span className="font-semibold text-gray-300">Edit</span> on any question to fix its text, options, answer or details. Nothing is saved until you upload.</p>
+          </Card>
 
-          {/* ── Question Preview List ──────────────────────────────────── */}
-          {questions.length > 0 && (
-            <div className="flex-1 flex flex-col overflow-hidden relative animate-in fade-in duration-500">
-              {loading && (
-                <div className="absolute inset-0 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-20 gap-3 rounded-xl">
-                  <div className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: THEME_COLOR }} />
-                  <p className="text-white font-bold uppercase tracking-widest text-sm">{statusMessage || "Uploading..."}</p>
-                </div>
-              )}
+          {/* ── Questions ───────────────────────────────────────────────── */}
+          <div className="relative space-y-4">
+            {busyOverlay}
+            {visible.map(({ q, idx }, n) => {
+              const questionImages = getQuestionImages(q);
+              const options = normalizeOptions(q);
+              const correct = correctIndexOf(q);
+              const issues = issuesOf(q);
+              const subjectKey = (q.subject || "").toLowerCase();
+              const difficultyKey = (q.difficulty || "").toLowerCase();
 
-              <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-4">
-                {questions.map((q, idx) => {
-                  const questionImages = getQuestionImages(q);
-                  const options = normalizeOptions(q);
+              return (
+                <article
+                  key={q.id || idx}
+                  style={{ animationDelay: `${Math.min(n, 12) * 40}ms` }}
+                  className={`group relative rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 p-5 ring-1 ring-inset transition-all duration-300 animate-rise-in hover:-translate-y-0.5 hover:shadow-[0_24px_50px_-28px_rgba(0,0,0,0.9)] ${
+                    issues.length ? "ring-amber-400/25 hover:ring-amber-400/40" : "ring-white/[0.07] hover:ring-white/15"
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-xs font-black text-gray-400 ring-1 ring-inset ring-white/10">{idx + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-3 flex flex-wrap gap-1.5">
+                        {q.grade && <Chip>Grade {q.grade}</Chip>}
+                        {q.subject && <Chip tone={SUBJECT_TONE[subjectKey] ?? "gray"}>{q.subject}</Chip>}
+                        {q.topic && <Chip tone="cyan" title={q.topic}>{q.topic}</Chip>}
+                        {q.sub_topic && <Chip tone="teal" title={q.sub_topic}>{q.sub_topic}</Chip>}
+                        {q.difficulty && <Chip tone={DIFFICULTY_TONE[difficultyKey] ?? "gray"}>{q.difficulty}</Chip>}
+                        {q.skill_type && <Chip tone="violet">{q.skill_type}</Chip>}
+                        {hasText(q.source) && <Chip tone="emerald"><Svg d={ICONS.book} className="h-3 w-3" /> {q.source}</Chip>}
+                        {issues.map(issue => <Chip key={issue} tone="amber"><Svg d={ICONS.warning} className="h-3 w-3" /> {issue}</Chip>)}
+                      </div>
 
-                  return (
-                    <div key={idx} className="bg-gray-800/80 border border-gray-700/50 rounded-2xl p-5 hover:border-gray-600 transition-colors">
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-1 min-w-0">
+                      <div className="mb-4">
+                        {hasText(q.question) ? (
+                          <RichMathText as="div" text={q.question} className="text-[15px] font-medium leading-relaxed text-gray-100" />
+                        ) : q.parser_meta?.unresolved_question_object ? (
+                          <p className="text-sm italic text-amber-300">The question's formula couldn't be extracted — open Edit to type it.</p>
+                        ) : null}
+                        {questionImages.length > 0 && <McqImageList images={questionImages} alt="Question" className="mt-2 flex flex-wrap gap-2" />}
+                      </div>
 
-                          {/* ── Tags row ──────────────────────────────── */}
-                          <div className="flex gap-2 mb-3 flex-wrap">
-                            <span className="text-xs font-mono text-gray-400 bg-gray-900 px-2.5 py-1 rounded-md">#{idx + 1}</span>
-                            {q.grade && (
-                              <span className="text-xs font-semibold text-gray-300 bg-gray-700/60 px-2.5 py-1 rounded-md border border-gray-600/40">
-                                Grade {q.grade}
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        {options.map((opt, i) => {
+                          const isCorrect = correct === i;
+                          const optionImages = getOptionImages(q, i);
+                          const unresolved = q.parser_meta?.unresolved_option_objects?.[i];
+                          if (!(hasText(opt) || optionImages.length > 0 || unresolved)) return null;
+                          return (
+                            <div key={i} className={`flex items-start gap-3 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset transition-colors ${isCorrect ? "bg-emerald-400/[0.07] text-emerald-100 ring-emerald-400/35" : "bg-black/20 text-gray-300 ring-white/[0.06]"}`}>
+                              <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-black ${isCorrect ? "bg-emerald-400 text-gray-950" : "bg-white/[0.06] text-gray-500"}`}>
+                                {isCorrect ? <Svg d={ICONS.check} className="h-3.5 w-3.5" /> : LETTERS[i]}
                               </span>
-                            )}
-                            {q.subject && (
-                              <span className="text-xs font-semibold text-blue-400 bg-blue-900/20 px-2.5 py-1 rounded-md border border-blue-900/30">
-                                {q.subject}
-                              </span>
-                            )}
-                            {q.topic && (
-                              <span className="text-xs font-semibold text-cyan-400 bg-cyan-900/20 px-2.5 py-1 rounded-md border border-cyan-900/30">
-                                {q.topic}
-                              </span>
-                            )}
-                            {q.sub_topic && (
-                              <span className="text-xs font-semibold text-teal-400 bg-teal-900/20 px-2.5 py-1 rounded-md border border-teal-900/30">
-                                {q.sub_topic}
-                              </span>
-                            )}
-                            {q.skill_type && (
-                              <span className="text-xs font-semibold text-violet-400 bg-violet-900/20 px-2.5 py-1 rounded-md border border-violet-900/30">
-                                {q.skill_type}
-                              </span>
-                            )}
-                            {q.question_type && (
-                              <span className="text-xs font-semibold text-purple-400 bg-purple-900/20 px-2.5 py-1 rounded-md border border-purple-900/30">
-                                {q.question_type}
-                              </span>
-                            )}
-                            {q.difficulty && (
-                              <span className={`text-xs font-semibold px-2.5 py-1 rounded-md border ${
-                                q.difficulty === "Easy" ? "text-green-400 bg-green-900/20 border-green-900/30" :
-                                q.difficulty === "Hard" ? "text-red-400 bg-red-900/20 border-red-900/30" :
-                                "text-yellow-400 bg-yellow-900/20 border-yellow-900/30"
-                              }`}>
-                                {q.difficulty}
-                              </span>
-                            )}
-                            {hasUnresolvedMath(q) && (
-                              <span className="text-xs font-semibold text-yellow-300 bg-yellow-900/20 px-2.5 py-1 rounded-md border border-yellow-700/30">
-                                ⚠ Math Unresolved
-                              </span>
-                            )}
-                            {hasText((q as any).source) && (
-                              <span className="text-xs font-semibold text-emerald-400 bg-emerald-900/20 px-2.5 py-1 rounded-md border border-emerald-900/30">
-                                Source: {(q as any).source}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* ── Question text ──────────────────────────── */}
-                          <div className="mb-4">
-                            {hasText(q.question) ? (
-                              <p className="text-gray-200 font-medium leading-relaxed">
-                                <MathText text={q.question} />
-                              </p>
-                            ) : q.parser_meta?.unresolved_question_object ? (
-                              <p className="text-yellow-300 text-sm italic">⚠ Question math could not be extracted. Review carefully.</p>
-                            ) : null}
-                            {questionImages.length > 0 && (
-                              <McqImageList images={questionImages} alt="Question" className="flex flex-wrap gap-2 mt-2" />
-                            )}
-                          </div>
-
-                          {/* ── Options ───────────────────────────────── */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {options.map((opt, i) => {
-                              const isCorrect = q.answer_index !== undefined && q.answer_index !== null
-                                ? i === q.answer_index
-                                : opt === q.answer;
-                              const optionImages = getOptionImages(q, i);
-                              const unresolved = q.parser_meta?.unresolved_option_objects?.[i];
-                              const hasAny = hasText(opt) || optionImages.length > 0 || unresolved;
-                              if (!hasAny) return null;
-
-                              return (
-                                <div
-                                  key={i}
-                                  className={`text-sm px-4 py-3 rounded-xl border flex flex-col gap-2 transition-colors ${
-                                    isCorrect
-                                      ? "bg-green-900/20 border-green-600/40 text-green-300"
-                                      : "bg-gray-900/50 border-gray-700/80 text-gray-400"
-                                  }`}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="flex items-start gap-3 min-w-0">
-                                      <span className="text-xs opacity-50 font-mono shrink-0 pt-0.5">{i + 1}.</span>
-                                      <span className="break-words min-w-0">
-                                        {hasText(opt) ? (
-                                          <MathText text={opt} />
-                                        ) : unresolved ? (
-                                          <span className="italic text-xs text-yellow-300">(Math option — could not extract)</span>
-                                        ) : (
-                                          <span className="italic text-xs opacity-70">(Image option)</span>
-                                        )}
-                                      </span>
-                                    </div>
-                                    {isCorrect && (
-                                      <span style={{ color: THEME_COLOR }} className="shrink-0 font-bold mt-0.5">✔</span>
-                                    )}
-                                  </div>
-                                  {optionImages.length > 0 && (
-                                    <McqImageList images={optionImages} alt={`Option ${i + 1}`} className="flex flex-wrap gap-2" />
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                        </div>
-
-                        {/* ── Action buttons ────────────────────────── */}
-                        <div className="flex flex-col gap-2 shrink-0">
-                          <button
-                            onClick={() => setEditingQuestion({ q, idx })}
-                            className="p-2.5 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-xl transition-all"
-                            title="Edit this question"
-                          >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => removeQuestion(idx)}
-                            className="p-2.5 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded-xl transition-all"
-                            title="Remove this question"
-                          >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        </div>
+                              <div className="min-w-0 break-words">
+                                {hasText(opt) ? <RichMathText text={opt} /> : unresolved ? <span className="text-xs italic text-amber-300">Formula not extracted</span> : null}
+                                {optionImages.length > 0 && <McqImageList images={optionImages} alt={`Option ${LETTERS[i]}`} className="mt-1 flex flex-wrap gap-2" />}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* ── Bottom bar ──────────────────────────────────────────── */}
-              <div className="pt-5 border-t border-gray-800 flex justify-between items-center mt-2 shrink-0">
-                <span className="text-sm text-gray-500 font-medium">{questions.length} question{questions.length !== 1 ? "s" : ""} ready</span>
-                <div className="flex gap-4">
-                  <button onClick={handleReset} className="px-6 py-3 rounded-xl border border-gray-700 text-gray-400 font-medium hover:text-white hover:bg-gray-800 transition-colors" disabled={loading}>
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePreUploadCheck}
-                    className="px-8 py-3 rounded-xl text-white font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-2 shadow-lg transition-transform active:scale-95"
-                    style={{ backgroundColor: THEME_COLOR, boxShadow: `0 4px 14px 0 ${THEME_COLOR}40` }}
-                    disabled={loading}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                      <polyline points="17 21 17 13 7 13 7 21" />
-                      <polyline points="7 3 7 8 15 8" />
-                    </svg>
-                    {loading ? "Processing..." : "Confirm & Upload"}
-                  </button>
-                </div>
-              </div>
+                    <div className="flex shrink-0 flex-col gap-2">
+                      <button type="button" onClick={() => setEditingIndex(idx)} className={`${secondaryBtn} h-9 px-3.5 text-xs`}>
+                        <Svg d={ICONS.edit} className="h-3.5 w-3.5" /> Edit
+                      </button>
+                      <IconButton icon={ICONS.trash} label={`Remove question ${idx + 1}`} tone="danger" onClick={() => removeQuestion(idx)} />
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+            {visible.length === 0 && (
+              <p className="rounded-2xl bg-black/20 py-10 text-center text-sm text-gray-500 ring-1 ring-inset ring-white/[0.06]">Nothing needs attention any more. <button onClick={() => setOnlyIssues(false)} className="font-semibold text-emerald-300 hover:text-emerald-200">Show all questions</button></p>
+            )}
+          </div>
+
+          {/* ── Action bar ──────────────────────────────────────────────── */}
+          <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-2xl bg-[#0b1118]/90 p-4 ring-1 ring-inset ring-white/10 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-400">
+              <span className="font-semibold text-white">{questions.length}</span> question{questions.length === 1 ? "" : "s"} ready
+              {issueCount > 0 && <span className="text-amber-300"> · {issueCount} still need attention</span>}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={handleReset} disabled={loading} className={`${secondaryBtn} px-5 py-3 text-sm`}>Cancel</button>
+              <button onClick={handlePreUploadCheck} disabled={loading} className={`${primaryBtn} px-7 py-3 text-sm`}>
+                {loading ? <><span className="h-4 w-4 rounded-full border-2 border-gray-950/30 border-t-gray-950 animate-spin" /> Working…</> : <><Svg d={ICONS.upload} /> Upload to bank</>}
+              </button>
             </div>
-          )}
+          </div>
         </>
       )}
     </div>

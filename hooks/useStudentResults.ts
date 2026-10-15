@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../services/supabase';
+import api from '../services/api';
 import { getCorrectOptionIndex } from '../utils/mcqAnswer';
 import { MCQ } from '../types';
 
@@ -223,16 +224,14 @@ export function useStudentResults(studentId?: string | null) {
                 : { data: [] as MCQ[] };
             const mcqsById = new Map((mcqData || []).map((m: any) => [m.id, m]));
 
-            // Rank among enrolled students, computed once per distinct test involved.
+            // Rank among enrolled students, from the server (students can only read their own attempts).
             const rankByTest = new Map<string, { rank: number; total: number }>();
-            await Promise.all(testIds.map(async (testId) => {
-                const { data: allAttempts } = await supabase.from('test_attempts').select('student_id, score').eq('test_id', testId).not('student_id', 'is', null);
-                const scored = allAttempts || [];
-                const mine = scored.find((a: any) => a.student_id === studentId);
-                // Competition ranking: tied scores share a rank, so the result can't flip between loads.
-                const rank = mine ? 1 + scored.filter((a: any) => a.score > mine.score).length : scored.length + 1;
-                rankByTest.set(testId, { rank, total: scored.length || 1 });
-            }));
+            try {
+                const { data: rankData } = await api.get('/tests/my-ranks');
+                for (const [testId, r] of Object.entries(rankData?.ranks || {})) rankByTest.set(testId, r as { rank: number; total: number });
+            } catch (e) {
+                console.warn('Could not load ranks', e);
+            }
 
             const computed: StudentResult[] = attempts.map((attempt: any) => {
                 const test = testsById.get(attempt.test_id);
@@ -290,7 +289,8 @@ export function useStudentResults(studentId?: string | null) {
                     score: attempt.score,
                     maxScore: 100,
                     correctCount: attempt.total_correct,
-                    wrongCount: attempt.total_wrong,
+                    // Wrong = answered but incorrect (older attempts stored skipped questions as wrong too).
+                    wrongCount: Math.max(0, questions.filter(q => q.selectedIndex !== null).length - (attempt.total_correct ?? 0)),
                     unattemptedCount: unattempted,
                     rank: rankInfo.rank,
                     totalStudents: rankInfo.total,

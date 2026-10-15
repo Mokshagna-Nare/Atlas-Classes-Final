@@ -1,193 +1,168 @@
-import React, { useState } from 'react';
-import { Institute } from '../../../../types'; // Adjust path if needed
-import { useData } from '../../../../contexts/DataContext'; // Adjust path if needed
-import api from '../../../../services/api'; // Adjust path if needed
-import ModalPortal from '../../../../components/ModalPortal';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Institute } from '../../../../types';
+import { useData } from '../../../../contexts/DataContext';
+import api from '../../../../services/api';
+import { uploadInstituteLogo, generatePassword } from '../../../../utils/uploadInstituteLogo';
+import { AdminModal, Field, Svg, ICONS, inputCls, primaryBtn, secondaryBtn, InstituteAvatar } from '../../../../components/ui/admin';
 
-// Fallback Icon
-const PencilSquareIcon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-  </svg>
-);
+// Add a partner institute, or edit one (name, login email, logo, optional new password).
 
-interface EditInstituteModalProps {
-  institute: Institute;
+interface InstituteFormModalProps {
+  /** Omit to add a new institute. */
+  institute?: Institute;
   onClose: () => void;
+  onSaved?: () => void;
 }
 
-const EditInstituteModal: React.FC<EditInstituteModalProps> = ({ institute, onClose }) => {
+const InstituteFormModal: React.FC<InstituteFormModalProps> = ({ institute, onClose, onSaved }) => {
   const { refreshInstitutes } = useData();
-  
-  // Set initial state to the exact values passed in from the institute row
-  const [name, setName] = useState(institute.name || '');
-  const [email, setEmail] = useState(institute.email || '');
-  const [password, setPassword] = useState(''); 
+  const isEdit = Boolean(institute);
+  const [name, setName] = useState(institute?.name || '');
+  const [email, setEmail] = useState(institute?.email || '');
+  const [password, setPassword] = useState(isEdit ? '' : generatePassword());
+  const [showPassword, setShowPassword] = useState(!isEdit);
+  const [copied, setCopied] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  
-  const [isLoading, setIsLoading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const logoPreview = useMemo(() => (logoFile ? URL.createObjectURL(logoFile) : institute?.logo_url || ''), [logoFile, institute]);
+  useEffect(() => () => { if (logoFile) URL.revokeObjectURL(logoPreview); }, [logoFile, logoPreview]);
+
+  const pickLogo = (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return setError('The logo must be an image (PNG, JPG or SVG).');
     setError('');
+    setLogoFile(file);
+  };
 
+  const copyPassword = async () => {
     try {
-      let finalLogoUrl = institute.logo_url; // Default to existing logo
+      await navigator.clipboard.writeText(password);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* clipboard blocked; the password is visible to copy by hand */ }
+  };
 
-      // 1. Upload new logo to Cloudinary if user selected one
-      if (logoFile) {
-        const CLOUD_NAME = 'dj0gekofh'; // Your Cloudinary Name
-        const UPLOAD_PRESET = 'Institute Logos'; // Your Cloudinary Preset
-
-        const cloudinaryData = new FormData();
-        cloudinaryData.append('file', logoFile);
-        cloudinaryData.append('upload_preset', UPLOAD_PRESET);
-        cloudinaryData.append('cloud_name', CLOUD_NAME);
-        
-        const cloudinaryResponse = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-          method: 'POST',
-          body: cloudinaryData,
-        });
-        
-        const imgData = await cloudinaryResponse.json();
-        
-        if (cloudinaryResponse.ok && (imgData.secure_url || imgData.url)) {
-           finalLogoUrl = imgData.secure_url || imgData.url;
-        } else {
-           throw new Error("Cloudinary upload failed.");
-        }
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    if (!isEdit && password.length < 8) return setError('Use a password of at least 8 characters.');
+    if (isEdit && password && password.length < 8) return setError('A new password needs at least 8 characters.');
+    setSaving(true);
+    setError('');
+    try {
+      const logo_url = logoFile ? await uploadInstituteLogo(logoFile) : institute?.logo_url || null;
+      if (isEdit) {
+        await api.put(`/auth/update-institute/${institute!.id}`, { name: name.trim(), email: email.trim(), password: password || undefined, logo_url });
+      } else {
+        await api.post('/auth/create-institute', { name: name.trim(), email: email.trim(), password, logo_url });
       }
-
-      // 2. Build the Payload exactly as the backend expects it
-      // Send ALL fields so the backend always has data
-      const payload = { 
-        name: name,
-        email: email,
-        password: password !== '' ? password : undefined, // Only send password if typed
-        logo_url: finalLogoUrl 
-      };
-
-      console.log("Sending Update Payload to backend:", payload); // Debugging
-
-      // 3. Send update request to backend
-      const response = await api.put(`/auth/update-institute/${institute.id}`, payload);
-      
-      if (response.status === 200) {
-          // 4. Force a re-fetch of the table data so the UI updates instantly
-          await refreshInstitutes();
-          onClose(); // Close modal on success
-      }
-
+      await refreshInstitutes();
+      onSaved?.();
+      onClose();
     } catch (err: any) {
-      console.error("Failed to update:", err);
-      setError(err.response?.data?.message || err.message || 'Failed to update institute');
-    } finally {
-      setIsLoading(false);
+      setError(err.response?.data?.message || err.message || 'Could not save the institute.');
+      setSaving(false);
     }
   };
 
   return (
-    <ModalPortal>
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
-      <div className="bg-[#0f1115] border border-gray-800 rounded-3xl p-8 w-full max-w-md shadow-2xl relative mt-10 mb-10">
-        
-        <button onClick={onClose} className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors">
-            ✕
-        </button>
+    <AdminModal
+      title={isEdit ? `Edit ${institute!.name}` : 'Add a partner institute'}
+      subtitle={isEdit ? 'Update the school profile or reset its login password.' : 'Creates the school profile and its institute login.'}
+      icon={isEdit ? ICONS.edit : ICONS.building}
+      width="max-w-lg"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={`${secondaryBtn} px-5 py-2.5 text-sm`} disabled={saving}>Cancel</button>
+          <button type="submit" form="institute-form" disabled={saving} className={`${primaryBtn} px-6 py-2.5 text-sm`}>
+            {saving ? <><span className="h-4 w-4 rounded-full border-2 border-gray-950/30 border-t-gray-950 animate-spin" /> Saving…</> : isEdit ? 'Save changes' : 'Create institute'}
+          </button>
+        </>
+      }
+    >
+      <form id="institute-form" onSubmit={submit} className="space-y-5">
+        <Field label="Logo" optional>
+          <input id="institute-logo" type="file" accept="image/*" className="hidden" onChange={e => pickLogo(e.target.files?.[0])} />
+          <label
+            htmlFor="institute-logo"
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); pickLogo(e.dataTransfer.files?.[0]); }}
+            className={`group flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed p-3.5 transition-all ${dragOver ? 'border-emerald-400/70 bg-emerald-400/[0.06]' : 'border-white/15 bg-black/15 hover:border-emerald-400/40'}`}
+          >
+            {logoPreview ? (
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 ring-1 ring-white/20">
+                <img src={logoPreview} alt="" className="keep-original-colors h-full w-full object-contain" />
+              </span>
+            ) : (
+              <InstituteAvatar name={name || 'New institute'} size="lg" />
+            )}
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-gray-200">{logoPreview ? 'Replace logo' : 'Upload the school logo'}</span>
+              <span className="block text-xs text-gray-500">Drop an image here or click. Square PNGs look best.</span>
+            </span>
+          </label>
+        </Field>
 
-        <div className="flex items-center gap-4 mb-8">
-            <div className="h-12 w-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                <PencilSquareIcon className="h-6 w-6 text-blue-500" />
-            </div>
-            <div>
-                <h3 className="text-2xl font-black text-white">Modify Profile</h3>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#00e599] mt-1">
-                    Updating ID: {institute.id.split('-')[0]}
-                </p>
-            </div>
-        </div>
+        <Field label="Institute name" required>
+          <input value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Narayana High School" className={inputCls} />
+        </Field>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-            {/* LOGO UPDATE FIELD */}
-            <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-2 ml-1">Institute Logo</label>
-                <div className="flex items-center gap-4 bg-[#0a0a0a] border border-gray-800 p-2 rounded-2xl focus-within:border-[#00e599] transition-colors">
-                    {logoFile ? (
-                        <img src={URL.createObjectURL(logoFile)} alt="Preview" className="h-12 w-12 object-contain rounded-xl bg-white p-1" />
-                    ) : institute.logo_url ? (
-                        <img src={institute.logo_url} alt="Current" className="h-12 w-12 object-contain rounded-xl bg-white p-1" />
-                    ) : (
-                        <div className="h-12 w-12 rounded-xl bg-gray-800 flex items-center justify-center">
-                            <span className="text-xs text-gray-500">None</span>
-                        </div>
-                    )}
-                    <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                                setLogoFile(e.target.files[0]);
-                            } else {
-                                setLogoFile(null);
-                            }
-                        }}
-                        className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:uppercase file:tracking-widest file:bg-gray-800 file:text-gray-300 hover:file:bg-gray-700 cursor-pointer transition-colors"
-                    />
-                </div>
-            </div>
+        <Field label="Login email" required>
+          <div className="relative">
+            <Svg d={ICONS.mail} className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="school@example.com" className={`${inputCls} pl-10`} />
+          </div>
+        </Field>
 
-            {/* NAME FIELD */}
-            <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-2 ml-1">Institute Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full p-4 bg-[#0a0a0a] border border-gray-800 rounded-2xl focus:outline-none focus:border-[#00e599] text-white transition-all font-medium"
-                  required
-                />
-            </div>
-
-            {/* EMAIL FIELD */}
-            <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-2 ml-1">Official Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-4 bg-[#0a0a0a] border border-gray-800 rounded-2xl focus:outline-none focus:border-[#00e599] text-white transition-all font-medium"
-                  required
-                />
-            </div>
-
-            {/* PASSWORD FIELD */}
-            <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-2 ml-1">Update Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Leave blank to keep current password"
-                  className="w-full p-4 bg-[#0a0a0a] border border-gray-800 rounded-2xl focus:outline-none focus:border-[#00e599] text-white transition-all font-medium placeholder-gray-600"
-                />
-            </div>
-
-            {error && <p className="text-red-500 text-xs font-bold bg-red-500/10 p-3 rounded-xl">{error}</p>}
-
-            <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-4 mt-4 rounded-2xl font-black text-xs uppercase tracking-widest text-[#0a0a0a] bg-white hover:bg-gray-200 transition-all active:scale-[0.98] disabled:opacity-50"
-            >
-                {isLoading ? 'Updating...' : 'Commit Record Changes'}
+        <Field
+          label={isEdit ? 'New password' : 'Password'}
+          required={!isEdit}
+          optional={isEdit}
+          hint={
+            <button type="button" onClick={() => { setPassword(generatePassword()); setShowPassword(true); }} className="normal-case tracking-normal text-xs font-bold text-emerald-300 hover:text-emerald-200">
+              Generate
             </button>
-        </form>
-      </div>
-    </div>
-    </ModalPortal>
+          }
+        >
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Svg d={ICONS.key} className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={isEdit ? 'Leave blank to keep the current password' : 'At least 8 characters'}
+                autoComplete="new-password"
+                className={`${inputCls} pl-10 pr-11 font-mono`}
+              />
+              <button type="button" onClick={() => setShowPassword(s => !s)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 hover:text-white">
+                <Svg d={showPassword ? 'M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88' : 'M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z'} />
+              </button>
+            </div>
+            {password && (
+              <button type="button" onClick={copyPassword} className={`${secondaryBtn} h-11 px-3.5 text-xs`}>
+                <Svg d={copied ? ICONS.check : 'M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184'} /> {copied ? 'Copied' : 'Copy'}
+              </button>
+            )}
+          </div>
+          {!isEdit && <p className="text-xs text-gray-500">Share this with the school securely. They can't recover it themselves yet.</p>}
+        </Field>
+
+        {error && <p role="alert" className="flex items-start gap-2 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-300 ring-1 ring-inset ring-rose-400/25 animate-shake"><Svg d={ICONS.warning} className="mt-0.5 h-4 w-4 shrink-0" /> {error}</p>}
+      </form>
+    </AdminModal>
   );
 };
 
+/** Kept for existing imports: edit an institute. */
+const EditInstituteModal: React.FC<{ institute: Institute; onClose: () => void }> = ({ institute, onClose }) => (
+  <InstituteFormModal institute={institute} onClose={onClose} />
+);
+
+export { InstituteFormModal };
 export default EditInstituteModal;

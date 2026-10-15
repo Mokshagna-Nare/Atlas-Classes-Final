@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusIcon, TrashIcon, FlagIcon, PhotoIcon } from '../../../../components/icons';
-import ModalPortal from '../../../../components/ModalPortal';
 import { useData } from '../../../../contexts/DataContext';
 import { MCQ } from '../../../../types';
 import { supabase } from '../../../../services/supabase';
 import BulkUploadDocx from './bulkUpload/BulkUploadDocx';
 import { getCorrectOptionIndex } from '../../../../utils/mcqAnswer';
+import { RichMathText, hasMathMarkers } from '../../../../utils/renderMath';
+import SelectMenu from '../../../../components/ui/SelectMenu';
+import SourcePicker from '../../../../components/ui/SourcePicker';
+import { refreshQuestionSources } from '../../../../hooks/useQuestionSources';
+import {
+  Svg, ICONS, Card, Field, inputCls, textareaCls, primaryBtn, secondaryBtn, Toggle, Segmented, PageHeader, AdminModal,
+} from '../../../../components/ui/admin';
 
 
 // --- HELPER 1: Generate the Category Prefix (e.g. 26P10-) ---
@@ -120,6 +125,14 @@ interface MCQUploadProps {
   onFinished?: () => void;
 }
 
+const GRADE_OPTIONS = ['6', '7', '8', '9', '10', '11', '12'].map(g => ({ value: g, label: `Grade ${g}` }));
+const SUBJECT_OPTIONS = ['Physics', 'Chemistry', 'Biology', 'Mathematics'].map(s => ({ value: s, label: s }));
+const SKILL_OPTIONS = ['Understanding', 'Knowledge Based', 'Application', 'Analytical'].map(s => ({ value: s, label: s }));
+const DIFFICULTY_OPTIONS = ['Easy', 'Medium', 'Hard'].map(d => ({ value: d, label: d }));
+const LETTERS = 'ABCDEFGHIJ';
+
+type Notice = { tone: 'error' | 'success'; text: string } | null;
+
 const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const { addMCQ, updateMCQ } = useData();
 
@@ -154,9 +167,11 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   const [isFlagged, setIsFlagged] = useState(false);
   const [flagReason, setFlagReason] = useState('');
 
-  // ── Duplicate modal ──────────────────────────────────────────────────────
+  // ── Duplicate modal / status ─────────────────────────────────────────────
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
 
   const questionImageInputRef = useRef<HTMLInputElement | null>(null);
   const optionImageInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -177,7 +192,6 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
     setCorrectAnswerIndex(null);
     setExplanation('');
     setQuestionCode('');
-    setSource('');
     setRemarks('');
     setPreviewUrl(null);
     setSelectedImage(null);
@@ -187,6 +201,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
     setFlagReason('');
     if (questionImageInputRef.current) questionImageInputRef.current.value = '';
     optionImageInputRefs.current.forEach((input) => { if (input) input.value = ''; });
+    // Grade, subject, topic, sub-topic, skill, difficulty and source stay, so a run of similar questions is quick to enter.
   };
 
   // ── Populate form when editing ───────────────────────────────────────────
@@ -254,6 +269,12 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
     const newOptions = [...options];
     newOptions[index] = value;
     setOptions(newOptions);
+    if (correctAnswerIndex === index) setCorrectAnswer(value);
+  };
+
+  const markCorrect = (index: number) => {
+    setCorrectAnswerIndex(index);
+    setCorrectAnswer(options[index] || '');
   };
 
   const handleOptionImageSelect = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,12 +289,25 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
     }
   };
 
+  const clearOptionImage = (index: number) => {
+    setOptionImageFiles(optionImageFiles.map((f, i) => (i === index ? null : f)));
+    setOptionImagePreviews(optionImagePreviews.map((p, i) => (i === index ? null : p)));
+    const input = optionImageInputRefs.current[index];
+    if (input) input.value = '';
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       setSelectedImage(file);
       setPreviewUrl(URL.createObjectURL(file));
     }
+  };
+
+  const clearQuestionImage = () => {
+    setSelectedImage(null);
+    setPreviewUrl(null);
+    if (questionImageInputRef.current) questionImageInputRef.current.value = '';
   };
 
   const uploadFile = async (file: File) => {
@@ -286,19 +320,19 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   };
 
   // ── Validation & submit ──────────────────────────────────────────────────
+  const fail = (text: string) => setNotice({ tone: 'error', text });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNotice(null);
 
-    if (!question && !selectedImage) {
-      alert("Please provide text or an image for the question.");
-      return;
-    }
-    if (!grade.trim()) { alert("Please select the grade."); return; }
-    if (!subject.trim()) { alert("Please select the subject."); return; }
-    if (!topic.trim()) { alert("Please enter the topic."); return; }
-    if (!subTopic.trim()) { alert("Please enter the sub-topic."); return; }
-    if (!skillType.trim()) { alert("Please select the skill type."); return; }
-    if (!difficulty.trim()) { alert("Please select the difficulty."); return; }
+    if (!question && !selectedImage && !previewUrl) return fail('Add the question text or an image.');
+    if (!grade.trim()) return fail('Choose the grade.');
+    if (!subject.trim()) return fail('Choose the subject.');
+    if (!topic.trim()) return fail('Enter the topic.');
+    if (!subTopic.trim()) return fail('Enter the sub-topic.');
+    if (!skillType.trim()) return fail('Choose the skill type.');
+    if (!difficulty.trim()) return fail('Choose the difficulty.');
 
     const hasAtLeastTwoValidOptions = options.filter((opt, idx) => {
       const hasText = opt?.trim().length > 0;
@@ -306,21 +340,12 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
       return hasText || hasImage;
     }).length >= 2;
 
-    if (!hasAtLeastTwoValidOptions) {
-      alert("Please provide at least two valid options.");
-      return;
-    }
-    if (correctAnswerIndex === null) {
-      alert("Please select the correct option.");
-      return;
-    }
+    if (!hasAtLeastTwoValidOptions) return fail('Add at least two options.');
+    if (correctAnswerIndex === null) return fail('Mark the correct option (click its letter).');
 
     const hasText = options[correctAnswerIndex]?.trim().length > 0;
     const hasImage = optionImageFiles[correctAnswerIndex] !== null || optionImagePreviews[correctAnswerIndex] !== null;
-    if (!hasText && !hasImage) {
-      alert(`Option ${correctAnswerIndex + 1} is selected as correct but is empty.`);
-      return;
-    }
+    if (!hasText && !hasImage) return fail(`Option ${LETTERS[correctAnswerIndex]} is marked correct but is empty.`);
 
     if (!editingMcq) {
       const dup = await checkDuplicate(question, options);
@@ -335,6 +360,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
   };
 
   const executeSubmit = async () => {
+    setSaving(true);
     try {
       let finalImageUrl = previewUrl;
       if (selectedImage) finalImageUrl = await uploadFile(selectedImage);
@@ -372,7 +398,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
         question_code: finalQuestionCode,
         imageUrl: finalImageUrl,
         option_images: finalOptionImages,
-        source: source || null,
+        source: source.trim() || null,
         remarks: remarks || null,
         type: 'Multiple Choice' as "Multiple Choice",
         isFlagged,
@@ -381,7 +407,6 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
 
       if (editingMcq) {
         await updateMCQ(editingMcq.id!, { ...mcqData, updatedAt: new Date().toISOString() } as any);
-        alert("Updated successfully!");
       } else {
         await addMCQ({
           ...mcqData,
@@ -389,296 +414,255 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         } as any);
-        alert("Added to bank successfully!");
       }
+      refreshQuestionSources();
 
-      resetForm();
-      onFinished?.();
+      if (editingMcq) {
+        resetForm();
+        onFinished?.();
+      } else {
+        resetForm();
+        setNotice({ tone: 'success', text: `Saved as ${finalQuestionCode}. The form is ready for the next question.` });
+      }
     } catch (error) {
       console.error("Error saving MCQ:", error);
-      alert("Failed to save. Check console for details.");
+      fail("Couldn't save the question. Please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ── Shared input styles ──────────────────────────────────────────────────
-  const inputCls = "w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:border-green-500 outline-none transition-colors text-white";
-  const labelCls = "text-xs font-bold text-gray-500 uppercase tracking-wider ml-1";
+  const showPreview = hasMathMarkers(question) || /<\/?[a-z][\s\S]*?>/i.test(question);
 
   return (
-    <div className="max-w-4xl mx-auto reveal-on-scroll text-white relative">
-
-      {/* ── Duplicate Modal ─────────────────────────────────────────────── */}
+    <div className="mx-auto max-w-5xl space-y-6 text-white">
+      {/* ── Duplicate dialog ─────────────────────────────────────────────── */}
       {duplicateModalOpen && (
-        <ModalPortal>
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-red-500/50 rounded-2xl p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold text-red-500 mb-2 flex items-center gap-2">⚠️ Potential Duplicate Found</h3>
-            <p className="text-gray-300 text-sm mb-4">A question with similar text or options already exists. Are you sure you want to add this?</p>
-            <div className="bg-gray-800 p-4 rounded-xl text-sm text-gray-400 mb-6 italic border border-gray-700 max-h-32 overflow-y-auto">
-              "{duplicateWarning?.question || 'Image-based question'}"
-            </div>
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setDuplicateModalOpen(false)} className="px-5 py-2 text-gray-300 hover:text-white border border-gray-700 rounded-xl transition">Cancel</button>
-              <button type="button" onClick={() => { setDuplicateModalOpen(false); executeSubmit(); }} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition">Add Anyway</button>
-            </div>
+        <AdminModal
+          title="This question may already exist"
+          subtitle="A question with the same text or options is in the bank."
+          icon={ICONS.warning}
+          tone="amber"
+          width="max-w-lg"
+          onClose={() => setDuplicateModalOpen(false)}
+          footer={
+            <>
+              <button type="button" onClick={() => setDuplicateModalOpen(false)} className={`${secondaryBtn} px-5 py-2.5 text-sm`}>Go back</button>
+              <button type="button" onClick={() => { setDuplicateModalOpen(false); executeSubmit(); }} className={`${primaryBtn} px-5 py-2.5 text-sm`}>Save anyway</button>
+            </>
+          }
+        >
+          <div className="rounded-xl bg-black/30 p-4 text-sm text-gray-300 ring-1 ring-inset ring-white/10 max-h-40 overflow-y-auto">
+            {duplicateWarning?.question ? <RichMathText text={duplicateWarning.question} /> : <span className="italic text-gray-500">Image-based question</span>}
           </div>
-        </div>
-        </ModalPortal>
+        </AdminModal>
       )}
 
-      {/* ── Page Header ─────────────────────────────────────────────────── */}
-      <div className="flex items-end justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-3xl font-extrabold mb-2">
-            {editingMcq ? 'Edit Question' : (uploadMode === 'bulk' ? 'Bulk Upload Panel' : 'MCQ Upload Panel')}
-          </h2>
-          <p className="text-gray-400 text-sm uppercase tracking-widest font-semibold">
-            {editingMcq ? 'Modify existing repository item' : (uploadMode === 'bulk' ? 'Upload via .docx' : 'New Online Quiz Item')}
-          </p>
-        </div>
-        {!editingMcq && (
-          <div className="bg-gray-800 p-1 rounded-xl flex gap-1 shadow-inner">
-            <button type="button" onClick={() => setUploadMode('single')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${uploadMode === 'single' ? 'bg-green-600 text-white shadow-md' : 'text-gray-300 hover:text-white hover:bg-gray-700'}`}>Single</button>
-            <button type="button" onClick={() => setUploadMode('bulk')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all duration-300 ${uploadMode === 'bulk' ? 'bg-green-600 text-white shadow-md' : 'text-gray-300 hover:text-white hover:bg-gray-700'}`}>Bulk (.docx)</button>
-          </div>
+      <PageHeader
+        eyebrow={editingMcq ? 'Question Bank' : 'Content'}
+        title={editingMcq ? 'Edit question' : uploadMode === 'bulk' ? 'Bulk upload' : 'Add a question'}
+        subtitle={
+          editingMcq
+            ? `Changes apply everywhere this question is used${editingMcq.question_code ? ` · ${editingMcq.question_code}` : ''}.`
+            : uploadMode === 'bulk' ? 'Import a .docx of question tables, review and edit each one, then add them to the bank.' : 'One question at a time, with live preview of formulas.'
+        }
+        aside={!editingMcq && (
+          <Segmented<'single' | 'bulk'> value={uploadMode} onChange={setUploadMode} options={[{ value: 'single', label: 'Single' }, { value: 'bulk', label: 'Bulk (.docx)' }]} />
         )}
-      </div>
+      />
 
-      {/* ── Main Content ────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gray-900/60 backdrop-blur-xl border border-gray-800 shadow-2xl">
-        {uploadMode === 'bulk' && !editingMcq ? (
-          <div className="animate-in fade-in zoom-in-95 duration-300">
-            <BulkUploadDocx onDone={() => { setUploadMode('single'); if (onFinished) onFinished(); }} />
-          </div>
-        ) : (
-          <div className="animate-in fade-in zoom-in-95 duration-300 p-8">
-            <form className="space-y-6" onSubmit={handleSubmit}>
+      {uploadMode === 'bulk' && !editingMcq ? (
+        <div key="bulk" className="animate-rise-in">
+          <BulkUploadDocx onDone={() => { setUploadMode('single'); if (onFinished) onFinished(); }} />
+        </div>
+      ) : (
+        <form key="single" className="space-y-6 animate-rise-in" onSubmit={handleSubmit}>
+          {/* ── 1. Classification ───────────────────────────────────── */}
+          <Card step={1} title="Classification" subtitle="Where this question sits in the bank." raised>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+              <Field label="Grade" required>
+                <SelectMenu title="Grade" value={grade} onChange={setGrade} options={GRADE_OPTIONS} placeholder="Choose grade" />
+              </Field>
+              <Field label="Subject" required>
+                <SelectMenu title="Subject" value={subject} onChange={setSubject} options={SUBJECT_OPTIONS} placeholder="Choose subject" />
+              </Field>
+              <Field label="Difficulty" required>
+                <SelectMenu title="Difficulty" value={difficulty} onChange={setDifficulty} options={DIFFICULTY_OPTIONS} placeholder="Choose difficulty" />
+              </Field>
+              <Field label="Topic" required>
+                <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Thermodynamics" className={inputCls} />
+              </Field>
+              <Field label="Sub-topic" required>
+                <input type="text" value={subTopic} onChange={(e) => setSubTopic(e.target.value)} placeholder="e.g. Carnot engine" className={inputCls} />
+              </Field>
+              <Field label="Skill type" required>
+                <SelectMenu title="Skill type" value={skillType} onChange={(v) => setSkillType(v as any)} options={SKILL_OPTIONS} placeholder="Choose skill" />
+              </Field>
+              <Field label="Question type" optional>
+                <input type="text" value={questionType} onChange={(e) => setQuestionType(e.target.value)} placeholder="e.g. MCQ, Assertion–Reason" className={inputCls} />
+              </Field>
+              <Field label="Question code" hint={<span className="normal-case tracking-normal font-medium text-gray-600">auto if blank</span>}>
+                <input type="text" value={questionCode} onChange={(e) => setQuestionCode(e.target.value)} placeholder={`${getQuestionPrefix(subject, grade)}01`} className={`${inputCls} font-mono`} />
+              </Field>
+              <Field label="Source" optional>
+                <SourcePicker value={source} onChange={setSource} />
+              </Field>
+            </div>
+          </Card>
 
-              {/* ── Row 1: Grade | Subject | Topic ──────────────────────── */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <label className={labelCls}>Grade</label>
-                  <select value={grade} onChange={(e) => setGrade(e.target.value)} className={inputCls}>
-                    <option value="6">Grade 6</option>
-                    <option value="7">Grade 7</option>
-                    <option value="8">Grade 8</option>
-                    <option value="9">Grade 9</option>
-                    <option value="10">Grade 10</option>
-                    <option value="11">Grade 11</option>
-                    <option value="12">Grade 12</option>
-                  </select>
+          {/* ── 2. Question ─────────────────────────────────────────── */}
+          <Card step={2} title="Question" subtitle="Formulas use [FRAC]a[SEP]b[/FRAC], [SUP]2[/SUP], [SUB]n[/SUB] and √(…).">
+            <div className="space-y-5">
+              <Field label="Question text" required>
+                <textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Type the question here…" className={textareaCls} />
+              </Field>
+              {showPreview && (
+                <div className="rounded-xl bg-emerald-400/[0.04] p-4 ring-1 ring-inset ring-emerald-400/15 animate-fade-in">
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400/80">Preview</p>
+                  <RichMathText as="div" text={question} className="text-[15px] text-gray-100" />
                 </div>
-                <div className="space-y-2">
-                  <label className={labelCls}>Subject</label>
-                  <select value={subject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Biology">Biology</option>
-                    <option value="Mathematics">Mathematics</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className={labelCls}>Topic</label>
-                  <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Thermodynamics" className={inputCls} />
-                </div>
-              </div>
+              )}
 
-              {/* ── Row 2: Sub-topic | Skill Type | Difficulty ──────────── */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <label className={labelCls}>Sub-topic</label>
-                  <input type="text" value={subTopic} onChange={(e) => setSubTopic(e.target.value)} placeholder="e.g. Carnot Engine" className={inputCls} />
-                </div>
-                <div className="space-y-2">
-                  <label className={labelCls}>Skill Type</label>
-                  <select value={skillType} onChange={(e) => setSkillType(e.target.value as any)} className={inputCls}>
-                    <option value="Understanding">Understanding</option>
-                    <option value="Knowledge Based">Knowledge Based</option>
-                    <option value="Application">Application</option>
-                    <option value="Analytical">Analytical</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className={labelCls}>Difficulty</label>
-                  <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className={inputCls}>
-                    <option value="Easy">Easy</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Hard">Hard</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* ── Row 3: Question Type | Question ID ──────────────────── */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className={labelCls}>Question Type <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
-                  <input
-                    type="text"
-                    value={questionType}
-                    onChange={(e) => setQuestionType(e.target.value)}
-                    placeholder="e.g. MCQ, Fill in the blanks......"
-                    className={inputCls}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className={labelCls}>Question ID / Code <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
-                  <input type="text" value={questionCode} onChange={(e) => setQuestionCode(e.target.value)} placeholder="e.g. 26P10-01 (Auto-generated if blank)" className={inputCls} />
-                </div>
-              </div>
-
-              {/* ── Question Text ────────────────────────────────────────── */}
-              <div className="space-y-2">
-                <label className={labelCls}>Question Text</label>
-                <textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Type the question here..." className={`${inputCls} resize-none`} />
-              </div>
-
-              {/* ── Diagram / Image ──────────────────────────────────────── */}
-              <div className="space-y-2 border border-dashed border-gray-700 p-5 rounded-2xl bg-gray-800/30">
-                <label className={`${labelCls} block mb-2`}>Diagram / Image <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
-                <input
-                  ref={questionImageInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 transition-colors cursor-pointer"
-                />
-                {previewUrl && (
-                  <div className="mt-4 bg-gray-900 p-2 rounded-xl inline-block border border-gray-700">
-                    <p className="text-xs text-gray-500 mb-2 font-semibold">Preview:</p>
-                    <SafeImage src={previewUrl} alt="Preview" className="h-32 w-auto rounded object-contain" />
+              <Field label="Diagram / image" optional>
+                <input ref={questionImageInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" id="question-image" />
+                {previewUrl ? (
+                  <div className="flex items-start gap-4 rounded-xl bg-black/25 p-3 ring-1 ring-inset ring-white/10">
+                    <div className="rounded-lg bg-white/[0.03] p-2"><SafeImage src={previewUrl} alt="Question diagram" className="h-32 w-auto rounded object-contain" /></div>
+                    <div className="flex flex-col gap-2">
+                      <label htmlFor="question-image" className={`${secondaryBtn} cursor-pointer px-4 py-2 text-xs`}>Replace</label>
+                      <button type="button" onClick={clearQuestionImage} className={`${secondaryBtn} px-4 py-2 text-xs`}>Remove</button>
+                    </div>
                   </div>
+                ) : (
+                  <label htmlFor="question-image" className="group flex cursor-pointer items-center gap-4 rounded-xl border border-dashed border-white/15 bg-black/15 px-5 py-5 transition hover:border-emerald-400/40 hover:bg-emerald-400/[0.03]">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/[0.04] text-gray-400 ring-1 ring-inset ring-white/10 transition group-hover:text-emerald-300 group-hover:ring-emerald-400/30"><Svg d={ICONS.photo} className="h-5 w-5" /></span>
+                    <span>
+                      <span className="block text-sm font-semibold text-gray-200">Add a diagram</span>
+                      <span className="block text-xs text-gray-500">PNG or JPG, shown above the options</span>
+                    </span>
+                  </label>
                 )}
-              </div>
+              </Field>
+            </div>
+          </Card>
 
-              {/* ── Options ──────────────────────────────────────────────── */}
-              <div className="space-y-4">
-                <label className={`${labelCls} block`}>Options</label>
-                <div className="grid gap-4">
-                  {options.map((opt, idx) => (
-                    <div key={idx} className="flex items-start gap-3">
-                      <span className="w-8 pt-3 text-xs font-bold text-green-500">{idx + 1}</span>
+          {/* ── 3. Options ──────────────────────────────────────────── */}
+          <Card
+            step={3}
+            title="Options"
+            subtitle="Click an option's letter to mark it correct."
+            aside={correctAnswerIndex !== null && <span className="rounded-lg bg-emerald-400/10 px-2.5 py-1 text-xs font-bold text-emerald-300 ring-1 ring-inset ring-emerald-400/30">Answer: {LETTERS[correctAnswerIndex]}</span>}
+          >
+            <div className="space-y-3">
+              {options.map((opt, idx) => {
+                const isCorrect = correctAnswerIndex === idx;
+                return (
+                  <div
+                    key={idx}
+                    className={`group flex items-start gap-3 rounded-2xl p-3 ring-1 ring-inset transition-all duration-300 ${
+                      isCorrect ? 'bg-emerald-400/[0.06] ring-emerald-400/40 shadow-[0_10px_30px_-18px_rgba(16,185,129,0.8)]' : 'bg-black/15 ring-white/[0.07] hover:ring-white/15'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => markCorrect(idx)}
+                      title={isCorrect ? 'Correct answer' : 'Mark as correct'}
+                      aria-pressed={isCorrect}
+                      className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black transition-all active:scale-95 ${
+                        isCorrect ? 'bg-emerald-400 text-gray-950 shadow-[0_6px_20px_-6px_rgba(16,185,129,0.9)]' : 'bg-white/[0.05] text-gray-400 ring-1 ring-inset ring-white/10 hover:text-white hover:ring-emerald-400/40'
+                      }`}
+                    >
+                      {isCorrect ? <Svg d={ICONS.check} className="h-5 w-5" /> : LETTERS[idx]}
+                    </button>
+                    <div className="min-w-0 flex-1 space-y-2">
                       <textarea
                         rows={2}
                         value={opt}
                         onChange={(e) => handleOptionChange(idx, e.target.value)}
-                        placeholder={`Option ${idx + 1} text...`}
-                        className="flex-1 px-4 py-3 bg-gray-800 border border-gray-800 rounded-xl focus:border-green-500 outline-none resize-none transition-colors text-white"
+                        placeholder={`Option ${LETTERS[idx]}`}
+                        className={`${textareaCls} min-h-[44px]`}
                       />
-                      <div className="relative shrink-0">
-                        <input
-                          ref={(el) => { optionImageInputRefs.current[idx] = el; }}
-                          type="file"
-                          accept="image/*"
-                          id={`opt-img-${idx}`}
-                          className="hidden"
-                          onChange={(e) => handleOptionImageSelect(idx, e)}
-                        />
-                        <label htmlFor={`opt-img-${idx}`} className={`h-20 w-20 flex flex-col items-center justify-center rounded-xl cursor-pointer transition-all border border-dashed ${optionImagePreviews[idx] ? 'bg-gray-900 border-green-500' : 'bg-gray-800 border-gray-600 hover:border-gray-400 hover:bg-gray-700'}`}>
-                          {optionImagePreviews[idx] ? (
-                            <SafeImage src={optionImagePreviews[idx]!} alt="Opt" className="h-full w-full object-contain rounded-xl p-1" />
-                          ) : (
-                            <>
-                              <PhotoIcon className="h-6 w-6 text-gray-400 mb-1" />
-                              <span className="text-[9px] text-gray-500 font-bold uppercase">Img</span>
-                            </>
-                          )}
-                        </label>
-                      </div>
-                      <button type="button" onClick={() => handleRemoveOption(idx)} className="p-2 pt-3 text-gray-600 hover:text-red-500 transition-colors">
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
+                      {(hasMathMarkers(opt) || opt.includes('√')) && (
+                        <div className="rounded-lg bg-black/20 px-3 py-1.5 text-sm text-gray-200"><RichMathText text={opt} /></div>
+                      )}
                     </div>
-                  ))}
-                </div>
-                <button type="button" onClick={handleAddOption} className="text-green-500 text-xs font-bold uppercase tracking-widest flex items-center gap-2 px-4 py-2 hover:bg-green-500/10 rounded-lg transition-colors w-max">
-                  <PlusIcon className="h-4 w-4" /> Add Option
-                </button>
-              </div>
-
-              {/* ── Correct Answer | Explanation ─────────────────────────── */}
-              <div className="grid md:grid-cols-2 gap-6 pt-2">
-                <div className="space-y-2">
-                  <label className={labelCls}>Correct Answer</label>
-                  <select
-                    value={correctAnswerIndex ?? ''}
-                    onChange={(e) => {
-                      const idx = e.target.value === '' ? null : Number(e.target.value);
-                      setCorrectAnswerIndex(idx);
-                      setCorrectAnswer(idx !== null ? (options[idx] || '') : '');
-                    }}
-                    className={inputCls}
-                  >
-                    <option value="">Select correct option</option>
-                    {options.map((opt, idx) => (
-                      <option key={idx} value={idx}>
-                        {`Option ${idx + 1}${opt?.trim() ? ` — ${opt.slice(0, 60)}` : optionImagePreviews[idx] ? ' — [Image option]' : ''}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className={labelCls}>Explanation <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
-                  <input type="text" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="Brief solution..." className={inputCls} />
-                </div>
-              </div>
-
-              {/* ── Source | Remarks ─────────────────────────────────────── */}
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className={labelCls}>Source <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
-                  <input
-                    type="text"
-                    value={source}
-                    onChange={(e) => setSource(e.target.value)}
-                    placeholder="e.g. MTG, Web..."
-                    className={inputCls}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className={labelCls}>Remarks <span className="text-gray-600 normal-case font-normal">(Optional)</span></label>
-                  <input
-                    type="text"
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    placeholder="Any internal notes..."
-                    className={inputCls}
-                  />
-                </div>
-              </div>
-
-              {/* ── Flag for review ──────────────────────────────────────── */}
-              <div className="pt-6 border-t border-gray-800 space-y-4">
-                <label className="flex items-center gap-3 cursor-pointer group w-max">
-                  <input type="checkbox" checked={isFlagged} onChange={(e) => setIsFlagged(e.target.checked)} className="sr-only peer" />
-                  <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:bg-red-600 transition-all relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full shadow-inner"></div>
-                  <span className="text-sm font-bold text-gray-300 group-hover:text-white flex items-center gap-2 transition-colors">
-                    <FlagIcon className={`h-4 w-4 ${isFlagged ? 'text-red-500' : 'text-gray-600'}`} /> Flag for review
-                  </span>
-                </label>
-                {isFlagged && (
-                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                    <textarea rows={2} value={flagReason} onChange={(e) => setFlagReason(e.target.value)} placeholder="Why is this flagged?" className={`${inputCls} border-red-900/30 focus:border-red-500 bg-red-900/10`} />
+                    <div className="flex shrink-0 flex-col items-center gap-2">
+                      <input
+                        ref={(el) => { optionImageInputRefs.current[idx] = el; }}
+                        type="file"
+                        accept="image/*"
+                        id={`opt-img-${idx}`}
+                        className="hidden"
+                        onChange={(e) => handleOptionImageSelect(idx, e)}
+                      />
+                      <label
+                        htmlFor={`opt-img-${idx}`}
+                        title={optionImagePreviews[idx] ? 'Replace image' : 'Add image'}
+                        className={`relative flex h-16 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-xl transition-all ${
+                          optionImagePreviews[idx] ? 'bg-white/[0.03] ring-1 ring-emerald-400/40' : 'border border-dashed border-white/15 text-gray-500 hover:border-emerald-400/40 hover:text-emerald-300'
+                        }`}
+                      >
+                        {optionImagePreviews[idx] ? <SafeImage src={optionImagePreviews[idx]!} alt={`Option ${LETTERS[idx]}`} className="h-full w-full object-contain p-1" /> : <Svg d={ICONS.photo} className="h-5 w-5" />}
+                      </label>
+                      {optionImagePreviews[idx] && (
+                        <button type="button" onClick={() => clearOptionImage(idx)} className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-rose-300">Clear</button>
+                      )}
+                    </div>
+                    <button type="button" onClick={() => handleRemoveOption(idx)} title="Remove option" aria-label={`Remove option ${LETTERS[idx]}`} className="mt-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-600 opacity-60 transition hover:bg-rose-500/10 hover:text-rose-300 group-hover:opacity-100">
+                      <Svg d={ICONS.trash} />
+                    </button>
                   </div>
+                );
+              })}
+              <button type="button" onClick={handleAddOption} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-400/10">
+                <Svg d={ICONS.plus} /> Add option
+              </button>
+            </div>
+          </Card>
+
+          {/* ── 4. Explanation & notes ──────────────────────────────── */}
+          <Card step={4} title="Explanation & notes">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <Field label="Explanation" optional className="md:col-span-2">
+                <textarea rows={3} value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="Brief worked solution…" className={textareaCls} />
+              </Field>
+              <Field label="Remarks" optional className="md:col-span-2">
+                <input type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Internal notes (not shown to students)" className={inputCls} />
+              </Field>
+              <div className="md:col-span-2 space-y-3 border-t border-white/[0.06] pt-5">
+                <Toggle checked={isFlagged} onChange={setIsFlagged} tone="rose" label={<span className="inline-flex items-center gap-2"><Svg d={ICONS.flag} className={`h-4 w-4 ${isFlagged ? 'text-rose-400' : 'text-gray-500'}`} /> Flag for review</span>} />
+                {isFlagged && (
+                  <textarea rows={2} value={flagReason} onChange={(e) => setFlagReason(e.target.value)} placeholder="What needs checking?" className={`${textareaCls} animate-fade-in ring-rose-400/30 focus:ring-rose-400/60`} />
                 )}
               </div>
+            </div>
+          </Card>
 
-              {/* ── Submit ───────────────────────────────────────────────── */}
-              <div className="flex justify-end gap-4 pt-6 border-t border-gray-800">
-                <button type="button" onClick={() => onFinished?.()} className="px-8 py-3 text-gray-400 font-bold uppercase tracking-widest text-sm hover:text-white hover:bg-gray-800 rounded-xl transition-colors">
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className={`px-10 py-4 font-bold uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg active:scale-95 ${editingMcq ? 'bg-white text-black hover:bg-gray-200' : 'bg-green-600 text-white shadow-emerald-900/40 hover:bg-emerald-600'}`}
-                >
-                  {editingMcq ? 'Update Question' : 'Save to Bank'}
-                </button>
-              </div>
-
-            </form>
+          {/* ── Actions ─────────────────────────────────────────────── */}
+          <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-2xl bg-[#0b1118]/90 p-4 ring-1 ring-inset ring-white/10 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1" aria-live="polite">
+              {notice ? (
+                <p className={`flex items-start gap-2 text-sm font-semibold animate-fade-in ${notice.tone === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                  <Svg d={notice.tone === 'error' ? ICONS.warning : ICONS.check} className="mt-0.5 h-4 w-4 shrink-0" />
+                  {notice.text}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  {subject} · Grade {grade}{topic ? ` · ${topic}` : ''}{source ? ` · ${source}` : ''}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              {(editingMcq || onFinished) && (
+                <button type="button" onClick={() => onFinished?.()} className={`${secondaryBtn} px-5 py-3 text-sm`}>Cancel</button>
+              )}
+              <button type="submit" disabled={saving} className={`${primaryBtn} px-7 py-3 text-sm`}>
+                {saving ? <><span className="h-4 w-4 rounded-full border-2 border-gray-950/30 border-t-gray-950 animate-spin" /> Saving…</> : editingMcq ? 'Save changes' : 'Add to bank'}
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </form>
+      )}
     </div>
   );
 };

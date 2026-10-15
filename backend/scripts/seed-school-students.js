@@ -61,7 +61,7 @@ async function ensureClass(instituteId, name) {
 async function ensureStudent(instituteId, classId, s) {
   const { data: existing } = await db.from('users').select('id').eq('email', s.email).maybeSingle();
   if (existing) {
-    const { error } = await db.from('users').update({ name: s.name, institute_id: instituteId, class_id: classId, roll_no: s.roll_no, password: passwordFor(s) }).eq('id', existing.id);
+    const { error } = await db.from('users').update({ name: s.name, institute_id: instituteId, class_id: classId, roll_no: s.roll_no }).eq('id', existing.id);
     if (error) throw error;
     const { error: authError } = await db.auth.admin.updateUserById(existing.id, { password: passwordFor(s) });
     if (authError) throw authError;
@@ -71,7 +71,7 @@ async function ensureStudent(instituteId, classId, s) {
   const { data: auth, error: authError } = await db.auth.admin.createUser({ email: s.email, password: passwordFor(s), email_confirm: true });
   if (authError) throw authError;
   const { error } = await db.from('users').insert({
-    id: auth.user.id, institute_id: instituteId, class_id: classId, roll_no: s.roll_no, role: 'student', email: s.email, name: s.name, password: passwordFor(s),
+    id: auth.user.id, institute_id: instituteId, class_id: classId, roll_no: s.roll_no, role: 'student', email: s.email, name: s.name,
   });
   if (error) {
     await db.auth.admin.deleteUser(auth.user.id).catch(() => {});

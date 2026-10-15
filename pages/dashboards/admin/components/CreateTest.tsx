@@ -6,12 +6,13 @@ import MultiSelectDropdown, { FilterOption } from '../../../../components/ui/Mul
 import SelectMenu from '../../../../components/ui/SelectMenu';
 import DateTimePicker from '../../../../components/ui/DateTimePicker';
 import ModalPortal from '../../../../components/ModalPortal';
+import { Svg, Card, Field, inputCls, primaryBtn, InstituteAvatar } from '../../../../components/ui/admin';
 
 // ---------------------------------------------------------------------------
 // Question pool facets
 // ---------------------------------------------------------------------------
 
-type Dim = 'grade' | 'subject' | 'topic' | 'sub_topic' | 'difficulty';
+type Dim = 'grade' | 'subject' | 'topic' | 'sub_topic' | 'difficulty' | 'source';
 
 interface PoolRow {
   id: string;
@@ -20,7 +21,11 @@ interface PoolRow {
   topic: string | null;
   sub_topic: string | null;
   difficulty: string | null;
+  /** "No source" when the question has none, so it can be filtered like any other source. */
+  source: string;
 }
+
+const NO_SOURCE = 'No source';
 
 const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
@@ -60,9 +65,14 @@ const DIMS: { key: Dim; title: string; label: string; fixed?: string[]; sort?: (
     sort: byOrder(DIFFICULTY_ORDER), dot: v => DIFFICULTY_DOTS[v],
     icon: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z',
   },
+  {
+    key: 'source', title: 'Sources', label: 'Source',
+    sort: (a, b) => Number(a.label === NO_SOURCE) - Number(b.label === NO_SOURCE) || a.label.localeCompare(b.label),
+    icon: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25',
+  },
 ];
 
-const EMPTY: Record<Dim, string[]> = { grade: [], subject: [], topic: [], sub_topic: [], difficulty: [] };
+const EMPTY: Record<Dim, string[]> = { grade: [], subject: [], topic: [], sub_topic: [], difficulty: [], source: [] };
 
 const shuffle = <T,>(arr: T[]) => {
   const a = [...arr];
@@ -85,71 +95,6 @@ const evenSplit = (total: number, keys: string[]) => {
   const base = Math.floor(total / keys.length);
   const extra = total % keys.length;
   return Object.fromEntries(keys.map((k, i) => [k, base + (i < extra ? 1 : 0)]));
-};
-
-const Svg: React.FC<{ d: string; className?: string }> = ({ d, className = 'h-4 w-4' }) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
-    <path strokeLinecap="round" strokeLinejoin="round" d={d} />
-  </svg>
-);
-
-// ---------------------------------------------------------------------------
-// Layout primitives
-// ---------------------------------------------------------------------------
-
-const Card: React.FC<{ step: number; title: string; subtitle?: string; aside?: React.ReactNode; children: React.ReactNode; raised?: boolean }> = ({
-  step, title, subtitle, aside, children, raised,
-}) => (
-  <section
-    className={`relative rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-24px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.04)] ${raised ? 'z-10' : ''}`}
-  >
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-5 sm:px-6 py-4">
-      <div className="flex items-center gap-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-400/10 text-sm font-black text-emerald-300 ring-1 ring-inset ring-emerald-400/30">{step}</span>
-        <div>
-          <h3 className="text-lg font-bold tracking-tight">{title}</h3>
-          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
-        </div>
-      </div>
-      {aside}
-    </header>
-    <div className="p-5 sm:p-6">{children}</div>
-  </section>
-);
-
-const Field: React.FC<{ label: string; required?: boolean; hint?: React.ReactNode; children: React.ReactNode }> = ({ label, required, hint, children }) => (
-  <div className="flex flex-col gap-2">
-    <span className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">
-      <span>{label} {required && <span className="text-rose-400">*</span>}</span>
-      {hint}
-    </span>
-    {children}
-  </div>
-);
-
-const inputCls =
-  'h-11 w-full rounded-xl bg-black/25 px-4 text-sm text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 outline-none transition-all duration-200 hover:ring-white/20 focus:bg-black/35 focus:ring-emerald-400/60 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.1)]';
-
-const primaryBtn =
-  'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-500 font-bold text-gray-950 shadow-[0_12px_30px_-12px_rgba(16,185,129,0.9),inset_0_1px_0_rgba(255,255,255,0.35)] transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none';
-
-/** An institute's own logo on a white tile; falls back to its initials if there's no logo or it fails to load. */
-const InstituteAvatar: React.FC<{ name: string; logoUrl?: string | null }> = ({ name, logoUrl }) => {
-  const [failed, setFailed] = useState(false);
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-  if (logoUrl && !failed) {
-    return (
-      <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-white p-0.5 ring-1 ring-white/20">
-        {/* keep-original-colors: styles.css otherwise hue-shifts any img whose URL contains "logo". */}
-        <img src={logoUrl} alt="" className="keep-original-colors h-full w-full object-contain" onError={() => setFailed(true)} loading="lazy" />
-      </span>
-    );
-  }
-  return (
-    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400/30 to-emerald-600/20 text-[10px] font-black text-emerald-100 ring-1 ring-inset ring-emerald-400/30">
-      {initials || '?'}
-    </span>
-  );
 };
 
 const PublicLinkBadge: React.FC = () => (
@@ -389,11 +334,11 @@ const CreateTest: React.FC = () => {
       for (let from = 0; ; from += 1000) {
         const { data, error } = await supabase
           .from('mcqs')
-          .select('id, grade, subject, topic, sub_topic, difficulty, isFlagged')
+          .select('id, grade, subject, topic, sub_topic, difficulty, source, isFlagged')
           .order('id')
           .range(from, from + 999);
         if (error || !data) break;
-        rows.push(...(data as any[]).filter(r => !r.isFlagged));
+        rows.push(...(data as any[]).filter(r => !r.isFlagged).map(r => ({ ...r, source: String(r.source ?? '').replace(/\s+/g, ' ').trim() || NO_SOURCE })));
         if (data.length < 1000) break;
       }
       setPool(rows);

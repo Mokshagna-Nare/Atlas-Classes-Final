@@ -70,6 +70,8 @@
             },
             animation: {
               'fade-in-up': 'fadeInUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) both',
+              'fade-in': 'fadeIn 0.25s ease-out both',
+              'rise-in': 'riseIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both',
               'pulse-slow': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               'float': 'float 6s ease-in-out infinite',
               'scale-in': 'scaleIn 0.5s ease-out forwards',
@@ -95,6 +97,8 @@
               'pop-late': 'successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.9s both',
             },
             keyframes: {
+              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+              riseIn: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
               welcomeReveal: {
                 '0%': { opacity: '0', letterSpacing: '0.4em', filter: 'blur(14px)', transform: 'translateY(24px) scale(0.96)' },
                 '100%': { opacity: '1', letterSpacing: '-0.02em', filter: 'blur(0)', transform: 'translateY(0) scale(1)' },

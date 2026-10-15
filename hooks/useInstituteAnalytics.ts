@@ -5,11 +5,33 @@ import { MCQ } from '../types';
 
 export interface Accuracy { label: string; correct: number; total: number; percent: number }
 
+export interface StudentAttemptHistory {
+  attemptId: string;
+  testId: string;
+  title: string;
+  date: string;
+  score: number;
+  correct: number;
+  wrong: number;
+  skipped: number;
+  questionCount: number;
+  flagged: boolean;
+  violations: number;
+  status: string | null;
+}
+
 export interface InstituteStudentRow {
   id: string;
   name: string;
+  email: string;
   rollNo: string | null;
+  classId: string | null;
   className: string | null;
+  createdAt: string | null;
+  bestScore: number | null;
+  lastActive: string | null;
+  subjectAccuracy: Accuracy[];
+  history: StudentAttemptHistory[];   // newest first
   testsTaken: number;
   averageScore: number;
   firstScore: number | null;
@@ -105,9 +127,19 @@ export function useInstituteAnalytics(instituteId?: string | null) {
     try {
       const [{ data: classes }, { data: students }, { data: tests }] = await Promise.all([
         supabase.from('classes').select('id, name').eq('institute_id', instituteId),
-        supabase.from('users').select('id, name, roll_no, class_id').eq('role', 'student').eq('institute_id', instituteId),
+        supabase.from('users').select('id, name, email, roll_no, class_id, created_at').eq('role', 'student').eq('institute_id', instituteId),
         supabase.from('tests').select('id, title, start_window, date, created_at, question_ids').eq('institute_id', instituteId),
       ]);
+
+      // Also tests created elsewhere (e.g. by Atlas for several schools) but assigned to this institute's classes.
+      const classIds = (classes || []).map((c: any) => c.id);
+      const assignedHere = classIds.length ? await fetchInChunks<any>('test_assignments', 'class_id', classIds, 'test_id') : [];
+      const ownIds = new Set((tests || []).map((t: any) => t.id));
+      const extraIds = Array.from(new Set(assignedHere.map((a: any) => a.test_id))).filter(id => !ownIds.has(id));
+      if (extraIds.length) {
+        const extra = await fetchInChunks<any>('tests', 'id', extraIds, 'id, title, start_window, date, created_at, question_ids');
+        (tests as any[] | null)?.push(...extra);
+      }
 
       const classById = new Map((classes || []).map((c: any) => [c.id, c.name as string]));
       const studentById = new Map((students || []).map((s: any) => [s.id, s]));
@@ -115,7 +147,7 @@ export function useInstituteAnalytics(instituteId?: string | null) {
       const testIds = onlineTests.map((t: any) => t.id);
 
       const [attempts, assignments] = await Promise.all([
-        testIds.length ? fetchInChunks<any>('test_attempts', 'test_id', testIds, 'id, test_id, student_id, score, total_correct, total_wrong, answers, end_time, flagged, tab_switch_count, fullscreen_exit_count') : Promise.resolve([]),
+        testIds.length ? fetchInChunks<any>('test_attempts', 'test_id', testIds, 'id, test_id, student_id, score, total_correct, total_wrong, answers, end_time, flagged, tab_switch_count, fullscreen_exit_count, status, violation_count') : Promise.resolve([]),
         testIds.length ? fetchInChunks<any>('test_assignments', 'test_id', testIds, 'test_id, class_id') : Promise.resolve([]),
       ]);
       const studentAttempts = attempts.filter(a => a.student_id);
@@ -130,6 +162,7 @@ export function useInstituteAnalytics(instituteId?: string | null) {
       }));
 
       const campusSubject: Record<string, { correct: number; total: number }> = {};
+      const studentSubject: Record<string, Record<string, { correct: number; total: number }>> = {};
       const campusTopic: Record<string, { correct: number; total: number }> = {};
       const bump = (map: Record<string, { correct: number; total: number }>, key: string, ok: boolean) => {
         if (!map[key]) map[key] = { correct: 0, total: 0 };
@@ -148,6 +181,7 @@ export function useInstituteAnalytics(instituteId?: string | null) {
             const ok = sel !== undefined && sel !== null && correctIdx.get(qid) === sel;
             bump(testSubject, m.subject || 'General', ok);
             bump(campusSubject, m.subject || 'General', ok);
+            bump((studentSubject[a.student_id] ??= {}), m.subject || 'General', ok);
             if (m.topic?.trim()) bump(campusTopic, m.topic.trim(), ok);
           }
         }
@@ -162,7 +196,9 @@ export function useInstituteAnalytics(instituteId?: string | null) {
             return {
               attemptId: r.id, studentId: r.student_id, studentName: s?.name || 'Former student', rollNo: s?.roll_no || null,
               className: s ? classById.get(s.class_id) || null : null,
-              score: r.score, correct: r.total_correct, wrong: r.total_wrong,
+              score: r.score, correct: r.total_correct,
+              // Answered but incorrect (older attempts stored skipped questions as wrong too).
+              wrong: Math.max(0, Object.values(r.answers || {}).filter(v => v !== null && v !== undefined).length - (r.total_correct ?? 0)),
               rank: 1 + rows.filter(o => o.score > r.score).length, // ties share a rank
               flagged: !!r.flagged, tabSwitches: r.tab_switch_count || 0, fullscreenExits: r.fullscreen_exit_count || 0, endTime: r.end_time,
             };
@@ -188,8 +224,27 @@ export function useInstituteAnalytics(instituteId?: string | null) {
           .sort((a, b) => (testDate.get(a.test_id) || 0) - (testDate.get(b.test_id) || 0));
         const first = mine[0]?.score ?? null;
         const latest = mine[mine.length - 1]?.score ?? null;
+        const testById = new Map(onlineTests.map((t: any) => [t.id, t]));
+        const history: StudentAttemptHistory[] = mine.map(a => {
+          const t: any = testById.get(a.test_id);
+          const questionCount = (t?.question_ids || []).length;
+          const answered = Object.values(a.answers || {}).filter(v => v !== null && v !== undefined).length;
+          const correct = a.total_correct ?? 0;
+          return {
+            attemptId: a.id, testId: a.test_id, title: t?.title || 'Untitled test', date: a.end_time,
+            score: a.score, correct, wrong: Math.max(0, answered - correct), skipped: Math.max(0, questionCount - answered),
+            questionCount, flagged: !!a.flagged,
+            violations: a.violation_count ?? (a.tab_switch_count || 0) + (a.fullscreen_exit_count || 0),
+            status: a.status ?? null,
+          };
+        }).reverse();
         return {
-          id: s.id, name: s.name, rollNo: s.roll_no, className: classById.get(s.class_id) || null,
+          id: s.id, name: s.name, email: s.email || '', rollNo: s.roll_no, classId: s.class_id || null, className: classById.get(s.class_id) || null,
+          createdAt: s.created_at || null,
+          bestScore: mine.length ? Math.max(...mine.map(a => a.score)) : null,
+          lastActive: history[0]?.date || null,
+          subjectAccuracy: toAccuracy(studentSubject[s.id] || {}),
+          history,
           testsTaken: mine.length, averageScore: avg(mine.map(a => a.score)),
           firstScore: first, latestScore: latest,
           improvement: mine.length >= 2 && first !== null && latest !== null ? latest - first : null,
