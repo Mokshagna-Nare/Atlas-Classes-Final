@@ -69,9 +69,10 @@
         box-shadow 320ms var(--ease-premium) !important;
 }
 
-/* Light theme: the brand logo PNG is tuned for dark backgrounds — deepen it slightly on white. */
-[data-theme="light"] img[src*="logo"]:not(.keep-original-colors),
-[data-theme="light"] .brand-logo {
+/* Light theme: the brand logo PNG is tuned for dark backgrounds — deepen it slightly on white
+   (forest islands are dark, so the logo keeps its original tint there). */
+[data-theme="light"] img[src*="logo"]:not(.keep-original-colors):not([data-theme="forest"] *),
+[data-theme="light"] .brand-logo:not([data-theme="forest"] *) {
     filter: hue-rotate(60deg) saturate(1.5) brightness(0.88) !important;
 }
 

@@ -12,20 +12,20 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 pal = json.load(open(ROOT / 'scripts' / 'tailwind-palette.json'))
 SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 
-# Light neutrals: a soft sage-tinted paper with deep navy-charcoal ink, so the light theme keeps
-# the dark theme's depth (layered surfaces, strong type) instead of reading as plain white.
+# Light neutrals: warm stone paper with near-black stone ink. Warm neutrals plus a single deep
+# emerald accent read as calm and premium; cool blue-grey whites read as a generic template.
 LIGHT_NEUTRAL = {
-    '950': '#f6f8f7',  # page
+    '950': '#f7f6f2',  # page (warm ivory)
     '900': '#ffffff',  # cards / panels
-    '800': '#eef4f1',  # raised surfaces, inputs, hover fills
-    '700': '#d9e2dd',  # borders, dividers
-    '600': '#626e80',  # muted metadata
-    '500': '#5a6678',  # supporting text
-    '400': '#465365',  # body text
-    '300': '#34404f',  # strong body text
-    '200': '#202c3d',  # secondary headings
-    '100': '#101827',  # headings
-    '50':  '#0b1220',  # ink
+    '800': '#f1efe9',  # raised surfaces, inputs, hover fills
+    '700': '#e0ddd4',  # borders, dividers
+    '600': '#66625c',  # muted metadata
+    '500': '#57534e',  # supporting text
+    '400': '#44403c',  # body text
+    '300': '#34302c',  # strong body text
+    '200': '#292524',  # secondary headings
+    '100': '#1c1917',  # headings
+    '50':  '#0c0a09',  # ink
 }
 NEUTRALS = ['gray', 'slate', 'zinc', 'neutral', 'stone']
 # Chromatic colours: bright shades used as text/accents on dark become deep shades on light,
@@ -37,7 +37,7 @@ CHROMATIC = ['emerald', 'green', 'red', 'rose', 'amber', 'yellow', 'blue', 'sky'
 # The brand green gets hand-tuned light values: text shades stay AA on every light surface,
 # fills carry white labels, and the dark-theme tints become pale mint surfaces.
 LIGHT_EMERALD = {
-    '50': '#084a34', '100': '#0b5a3f', '200': '#0d6446', '300': '#127a56', '400': '#127a56',
+    '50': '#084a34', '100': '#0b5a3f', '200': '#0d6446', '300': '#0f714e', '400': '#0f714e',
     '500': '#15805a', '600': '#106b4d', '700': '#0d5c42', '800': '#c7e6d7', '900': '#ddf4e9',
     '950': '#eef9f3',
 }
@@ -46,33 +46,37 @@ LIGHT_EMERALD = {
 ATLAS = {
     'atlas-primary':    ('#10b981', '#15805a'),
     'atlas-dark':       ('#0b0f19', '#ffffff'),
-    'atlas-soft':       ('#111827', '#eef4f1'),
-    'atlas-gray':       ('#1f2937', '#e5ece8'),
-    'atlas-border':     ('#374151', '#d5dfda'),
-    'atlas-text-main':  ('#f9fafb', '#101827'),
-    'atlas-text-muted': ('#9ca3af', '#5a6678'),
-    'atlas-black':      ('#05080f', '#f3f6f4'),
+    'atlas-soft':       ('#111827', '#efede7'),
+    'atlas-gray':       ('#1f2937', '#e7e4dc'),
+    'atlas-border':     ('#374151', '#d9d5ca'),
+    'atlas-text-main':  ('#f9fafb', '#1c1917'),
+    'atlas-text-muted': ('#9ca3af', '#57534e'),
+    'atlas-black':      ('#05080f', '#f5f4ef'),
     'atlas-surface':    ('#0f1520', '#ffffff'),
-    'atlas-raised':     ('#141b28', '#f9fbfa'),
+    'atlas-raised':     ('#141b28', '#fbfaf7'),
 }
 BASE = {  # name: (dark, light)
-    'white': ('#ffffff', '#101827'),   # "white" is the foreground colour → ink on light
-    'black': ('#000000', '#b9c6bf'),   # recessed wells (inputs, panels) → soft sage on light
+    'white': ('#ffffff', '#1c1917'),   # "white" is the foreground colour → ink on light
+    'black': ('#000000', '#c9c4b8'),   # recessed wells (inputs, panels) → soft stone on light
     'paper': ('#ffffff', '#ffffff'),   # always white (logo tiles, QR codes, diagrams)
     'on-accent': ('#ffffff', '#ffffff'),  # text/icons on solid colour fills (buttons, badges)
     'ink': ('#0b1220', '#0b1220'),        # always-dark text on always-white surfaces (paper)
-    'scrim': ('#000000', '#475569'),      # modal backdrops: darkens in both themes
+    'scrim': ('#000000', '#3f3a34'),      # modal backdrops: darkens in both themes
     # Public-site section backgrounds. Dark values equal what the dark theme already shows, so
     # they only change the light theme's rhythm: paper → cool sage → deeper sage.
-    'canvas':       ('#0b0f19', '#f6f8f7'),
-    'canvas-cool':  ('#0b0f19', '#eef4f1'),
-    'canvas-sage':  ('#111827', '#e8f0ec'),
+    'canvas':       ('#0b0f19', '#f7f6f2'),
+    'canvas-cool':  ('#0b0f19', '#efeee6'),
+    'canvas-sage':  ('#111827', '#e6e9df'),
     # Brand accents for light-theme details (used with the light: variant).
     'brand-deep':   ('#059669', '#106b4d'),
     'brand-bright': ('#34d399', '#27c991'),
+    'brand-vivid':  ('#34d399', '#109670'),  # end stop of large accent-word gradients (3:1 on paper)
     'brand-pale':   ('#064e3b', '#ddf4e9'),
     'brand-line':   ('#065f46', '#c7e6d7'),
-    'field-line':   ('#374151', '#7f8c86'),  # form-field outlines: 3:1 against white
+    'field-line':   ('#374151', '#8a857b'),  # form-field outlines: 3:1 against white
+    # Deep forest for the light theme's inverted moments (nav pill, forest islands).
+    'forest':       ('#0b0f19', '#12382b'),
+    'forest-deep':  ('#05080f', '#0a1f18'),
 }
 
 def rgb(h):
@@ -105,6 +109,26 @@ for fam in CHROMATIC:
 for k, (d, l) in {**ATLAS, **BASE}.items():
     dark[k], light[k] = d, l
 
+# Forest islands: elements marked data-theme="forest" (the Atlas Advantage panel, the careers
+# band, the footer) switch to a deep-forest version of the dark palette in the light theme, so the
+# light page gets the dark theme's contrast moments. In the dark theme they simply inherit dark.
+FOREST_NEUTRAL = {
+    '950': '#07150f', '900': '#0f2a21', '800': '#163529', '700': '#22463a', '600': '#5e7a6e',
+    '500': '#7e978c', '400': '#a4b8ae', '300': '#c9d8d0', '200': '#e0eae4', '100': '#eef4f0',
+    '50': '#f6faf8',
+}
+forest = dict(dark)
+for fam in NEUTRALS:
+    for sh in SHADES:
+        forest[f'{fam}-{sh}'] = FOREST_NEUTRAL[sh]
+forest.update({
+    'atlas-dark': '#0a1f18', 'atlas-black': '#071712', 'atlas-soft': '#0d271e', 'atlas-surface': '#0f2a21',
+    'atlas-raised': '#123227', 'atlas-gray': '#163529', 'atlas-border': '#22463a',
+    'atlas-text-main': '#f6faf8', 'atlas-text-muted': '#a4b8ae',
+    'canvas': '#0a1f18', 'canvas-cool': '#0a1f18', 'canvas-sage': '#0d271e',
+})
+forest.update({k: light[k] for k in ('forest', 'forest-deep')})
+
 def block(values):
     return '\n'.join(f'  --c-{k}: {rgb(v)};' for k, v in values.items())
 
@@ -122,8 +146,15 @@ css = f"""/* GENERATED by scripts/generate-theme.py — edit that file, not this
 [data-theme="light"] {{
   color-scheme: light;
 {block(light)}
-  --shadow-rgb: 15 23 42;
+  --shadow-rgb: 28 25 23;
   --shadow-k: 0.16;
+}}
+
+[data-theme="light"] [data-theme="forest"] {{
+  color-scheme: dark;
+{block(forest)}
+  --shadow-rgb: 0 0 0;
+  --shadow-k: 0.7;
 }}
 """
 (ROOT / 'theme.css').write_text(css)
@@ -172,6 +203,11 @@ checks = [
     ('purple-400 chip text on page', L['purple-400'], L['canvas']),
     ('form-field outline vs white (UI 3:1)', L['field-line'], L['paper']),
     ('icon (atlas-primary) on brand-pale (UI 3:1)', L['atlas-primary'], L['brand-pale']),
+    ('white on forest pill', '#ffffff', L['forest']),
+    ('large accent word end (brand-vivid) on page', L['brand-vivid'], L['canvas']),
+    ('FOREST: body (gray-400) on panel', forest['gray-400'], forest['canvas-sage']),
+    ('FOREST: muted (gray-500) on panel', forest['gray-500'], forest['canvas']),
+    ('FOREST: emerald-400 text on panel', forest['emerald-400'], forest['canvas']),
 ]
 print('LIGHT THEME CONTRAST')
 for name, fg, bg in checks:

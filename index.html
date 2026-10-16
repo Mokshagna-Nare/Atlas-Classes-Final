@@ -15,9 +15,9 @@
         var root = document.documentElement;
         root.setAttribute('data-theme', t);
         root.style.colorScheme = t;
-        root.style.backgroundColor = t === 'light' ? '#f6f8f7' : '#0b0f19';
+        root.style.backgroundColor = t === 'light' ? '#f7f6f2' : '#0b0f19';
         var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute('content', t === 'light' ? '#f6f8f7' : '#0b0f19');
+        if (meta) meta.setAttribute('content', t === 'light' ? '#f7f6f2' : '#0b0f19');
       })();
     </script>
     <!-- No transitions until the page has loaded: Tailwind's styles are generated in the browser,
@@ -43,10 +43,13 @@
         /* hover: styles only on devices that can hover, so taps on phones never leave a stuck hover state */
         future: { hoverOnlyWhenSupported: true },
         /* light:… applies a class only in the light theme (data-theme="light" on <html>), so
-           light-theme art direction can never change the dark theme. */
+           light-theme art direction can never change the dark theme. Inside a forest island
+           (data-theme="forest") the dark styling is kept, so light: stops at its boundary;
+           forest:… styles things inside an island in the light theme only. */
         plugins: [
           function ({ addVariant }) {
-            addVariant('light', ':is([data-theme="light"] &)');
+            addVariant('light', ':is([data-theme="light"] &):not([data-theme="forest"] *)');
+            addVariant('forest', ':is([data-theme="light"] [data-theme="forest"] &)');
           },
         ],
         theme: {
@@ -67,9 +70,12 @@
               'canvas-sage': 'rgb(var(--c-canvas-sage) / <alpha-value>)',
               'brand-deep': 'rgb(var(--c-brand-deep) / <alpha-value>)',
               'brand-bright': 'rgb(var(--c-brand-bright) / <alpha-value>)',
+              'brand-vivid': 'rgb(var(--c-brand-vivid) / <alpha-value>)',
               'brand-pale': 'rgb(var(--c-brand-pale) / <alpha-value>)',
               'brand-line': 'rgb(var(--c-brand-line) / <alpha-value>)',
               'field-line': 'rgb(var(--c-field-line) / <alpha-value>)',
+              'forest': 'rgb(var(--c-forest) / <alpha-value>)',
+              'forest-deep': 'rgb(var(--c-forest-deep) / <alpha-value>)',
               'atlas-primary': 'rgb(var(--c-atlas-primary) / <alpha-value>)',
               'atlas-dark': 'rgb(var(--c-atlas-dark) / <alpha-value>)',
               'atlas-soft': 'rgb(var(--c-atlas-soft) / <alpha-value>)',

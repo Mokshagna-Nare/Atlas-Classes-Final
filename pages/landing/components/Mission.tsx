@@ -6,22 +6,22 @@ import { cardHover, iconWell } from '../ui';
 
 const missionItems = [
     {
-        icon: <BookOpenIcon className="h-8 w-8 text-atlas-primary light:text-brand-deep"/>,
+        icon: <BookOpenIcon className="h-8 w-8 text-atlas-primary light:text-on-accent"/>,
         title: 'Content & Curriculum',
         description: 'Foundation courses (Grade 6–10) meticulously aligned with IIT-JEE/NEET requirements.'
     },
     {
-        icon: <ClipboardCheckIcon className="h-8 w-8 text-atlas-primary light:text-brand-deep"/>,
+        icon: <ClipboardCheckIcon className="h-8 w-8 text-atlas-primary light:text-on-accent"/>,
         title: 'Assessment',
         description: 'Weekly papers, professional evaluation, and detailed performance analysis.'
     },
     {
-        icon: <DesktopComputerIcon className="h-8 w-8 text-atlas-primary light:text-brand-deep"/>,
+        icon: <DesktopComputerIcon className="h-8 w-8 text-atlas-primary light:text-on-accent"/>,
         title: 'Technology & Planning',
         description: 'Dedicated LMS access and structured Microplans for efficient lesson delivery.'
     },
     {
-        icon: <AcademicCapIcon className="h-8 w-8 text-atlas-primary light:text-brand-deep"/>,
+        icon: <AcademicCapIcon className="h-8 w-8 text-atlas-primary light:text-on-accent"/>,
         title: 'Teacher Empowerment',
         description: 'Continuous Teacher Training and academic resource access.'
     },
@@ -75,7 +75,7 @@ const Mission: React.FC = () => {
                 {/* Header */}
                 <SectionHeading
                     eyebrow="Our philosophy"
-                    title={<>Philosophy & <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-300 light:from-brand-deep light:to-atlas-primary">Partnership</span></>}
+                    title={<>Philosophy & <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-300 light:from-brand-deep light:via-atlas-primary light:to-brand-vivid">Partnership</span></>}
                     subtitle="Why we exist, where we're headed, and how we work hand in hand with every partner school."
                 />
 
@@ -91,17 +91,17 @@ const Mission: React.FC = () => {
                 {/* Atlas Advantage Block */}
                 <Reveal variant="scale" className="max-w-5xl mx-auto mb-20">
                 <div className="group/adv relative">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-atlas-primary to-emerald-600 rounded-2xl blur opacity-20 transition-opacity duration-700 ease-premium group-hover/adv:opacity-40 light:from-brand-bright light:to-brand-line light:opacity-30 light:group-hover/adv:opacity-50" aria-hidden="true"></div>
-                    <div className="spotlight spotlight-flat relative bg-atlas-soft/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-7 sm:p-10 md:p-14 shadow-2xl overflow-hidden light:bg-paper/90 light:border-brand-line light:shadow-[0_1px_2px_rgba(16,24,39,0.05),0_24px_48px_-24px_rgba(16,107,77,0.28)]">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-atlas-primary to-emerald-600 rounded-2xl blur opacity-20 transition-opacity duration-700 ease-premium group-hover/adv:opacity-40 light:from-brand-bright light:to-atlas-primary light:opacity-25 light:group-hover/adv:opacity-40" aria-hidden="true"></div>
+                    <div data-theme="forest" className="spotlight spotlight-flat relative bg-atlas-soft/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-7 sm:p-10 md:p-14 shadow-2xl overflow-hidden light:bg-gradient-to-br light:from-forest light:to-forest-deep light:border-emerald-400/20 light:shadow-[0_30px_60px_-28px_rgba(10,31,24,0.55)]">
                         {/* Glowing Left Border */}
-                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-atlas-primary shadow-[0_0_20px_rgba(16,185,129,0.8)] light:bg-gradient-to-b light:from-brand-bright light:to-brand-deep light:shadow-[0_0_14px_rgba(39,201,145,0.45)]"></div>
+                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-atlas-primary shadow-[0_0_20px_rgba(16,185,129,0.8)]"></div>
                         {/* Inner Light Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-atlas-primary/5 to-transparent pointer-events-none light:from-brand-pale/70"></div>
+                        <div className="absolute inset-0 bg-gradient-to-r from-atlas-primary/5 to-transparent pointer-events-none"></div>
                         
                         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
                              <div className="flex-1">
                                 <h3 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-                                    The <span className="text-atlas-primary drop-shadow-[0_0_10px_rgba(16,185,129,0.5)] light:text-brand-deep light:drop-shadow-none">ATLAS</span> Advantage
+                                    The <span className="text-atlas-primary drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">ATLAS</span> Advantage
                                 </h3>
                                 <p className="text-gray-300 text-lg md:text-xl leading-relaxed">
                                     We bring the structure, quality, and expertise of metropolitan coaching directly to your school, at an incredibly nominal and affordable fee. We believe high quality shouldn't mean high cost.
@@ -110,7 +110,7 @@ const Mission: React.FC = () => {
                              <div className="hidden md:block">
                                  <div className="w-20 h-20 rounded-full border-2 border-atlas-primary/30 flex items-center justify-center animate-pulse-slow transition-transform duration-700 ease-premium group-hover/adv:scale-110 group-hover/adv:rotate-45">
                                       <div className="w-16 h-16 rounded-full border border-atlas-primary/60 flex items-center justify-center">
-                                          <div className="w-2 h-2 bg-atlas-primary rounded-full shadow-[0_0_10px_#10B981] light:shadow-[0_0_0_4px_rgba(39,201,145,0.25)]"></div>
+                                          <div className="w-2 h-2 bg-atlas-primary rounded-full shadow-[0_0_10px_#10B981]"></div>
                                       </div>
                                  </div>
                             </div>
@@ -134,7 +134,7 @@ const Mission: React.FC = () => {
                             className={`group/card ${cardHover} h-full p-7 sm:p-8 flex flex-col items-center text-center`}
                         >
                                                         
-                            <div className="relative z-10 flex-shrink-0 bg-atlas-primary/10 p-5 rounded-full mb-6 border border-atlas-primary/25 shadow-inner transition-all duration-500 ease-premium group-hover/card:-translate-y-1 group-hover/card:rotate-6 group-hover/card:border-emerald-400/50 group-hover/card:bg-atlas-primary/15 group-hover/card:shadow-glow light:border-brand-line light:bg-brand-pale light:shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] light:group-hover/card:bg-brand-pale light:group-hover/card:shadow-[0_10px_22px_-10px_rgba(21,128,90,0.5)]">
+                            <div className="relative z-10 flex-shrink-0 bg-atlas-primary/10 p-5 rounded-full mb-6 border border-atlas-primary/25 shadow-inner transition-all duration-500 ease-premium group-hover/card:-translate-y-1 group-hover/card:rotate-6 group-hover/card:border-emerald-400/50 group-hover/card:bg-atlas-primary/15 group-hover/card:shadow-glow light:border-brand-deep/30 light:bg-gradient-to-br light:from-atlas-primary light:to-brand-deep light:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_22px_-10px_rgba(16,107,77,0.55)] light:group-hover/card:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_14px_28px_-10px_rgba(16,107,77,0.65)]">
                                 {item.icon}
                             </div>
                             <h3 className="relative z-10 text-xl font-bold text-white mb-3 transition-colors duration-500 group-hover/card:text-emerald-300">{item.title}</h3>

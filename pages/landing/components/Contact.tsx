@@ -4,7 +4,7 @@ import { Reveal, SectionHeading, SECTION_SPACING, prefersReducedMotion } from '.
 import { buttonPrimary, buttonSecondary, cardHover, cardInteractive, fieldInput } from '../ui';
 
 /** Round icon badge on the contact cards. */
-const contactIcon = 'mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:shadow-glow light:border light:border-brand-line light:bg-brand-pale light:text-brand-deep light:shadow-none light:group-hover/card:shadow-[0_8px_18px_-8px_rgba(21,128,90,0.5)]';
+const contactIcon = 'mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:shadow-glow light:bg-gradient-to-br light:from-atlas-primary light:to-brand-deep light:text-on-accent light:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_18px_-8px_rgba(16,107,77,0.55)] light:group-hover/card:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_12px_24px_-8px_rgba(16,107,77,0.65)]';
 
 interface ContactProps {
   /** Set when a visitor clicks "Enquire" on a program card; pre-fills the message. */
@@ -168,7 +168,7 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
                                 {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                                 className={`group/card flex items-center p-5 ${cardInteractive}`}
                             >
-                                <span className={`${contactIcon} group-hover/card:bg-atlas-primary group-hover/card:text-gray-950 light:group-hover/card:border-atlas-primary light:group-hover/card:bg-atlas-primary light:group-hover/card:text-on-accent`}>
+                                <span className={`${contactIcon} group-hover/card:bg-atlas-primary group-hover/card:text-gray-950`}>
                                     <Icon className="h-6 w-6" />
                                 </span>
                                 <span className="min-w-0">

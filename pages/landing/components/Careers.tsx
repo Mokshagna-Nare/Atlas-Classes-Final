@@ -7,14 +7,15 @@ import { buttonPrimary, eyebrowChip, eyebrowDot } from '../ui';
 
 const Careers: React.FC = () => {
   return (
-    <section className={`${SECTION_SPACING} relative overflow-hidden`}>
+    // In the light theme this band is a forest island: a rounded deep-green panel inset from the page edges.
+    <section data-theme="forest" className={`${SECTION_SPACING} relative overflow-hidden light:mx-4 light:sm:mx-6 light:lg:mx-auto light:max-w-7xl light:rounded-[2rem] light:shadow-[0_40px_80px_-40px_rgba(10,31,24,0.6)]`}>
       {/* Background Texture */}
       <div className="absolute inset-0 bg-canvas-sage"></div>
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDQwaDQwVjBIMHY0MHptMjAgMjBoMjB2MjBIMjBWNjB6TTEwIDgwaDIwdjIwSDEwVjgwem0xMCAyMGgyMHYyMEgyMFYxMDB6IiBmaWxsPSIjMDBiYzc1IiBmaWxsLW9wYWNpdHk9IjAuMDIiLz48L2c+PC9zdmc+')] opacity-30 light:opacity-100"></div>
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDQwaDQwVjBIMHY0MHptMjAgMjBoMjB2MjBIMjBWNjB6TTEwIDgwaDIwdjIwSDEwVjgwem0xMCAyMGgyMHYyMEgyMFYxMDB6IiBmaWxsPSIjMDBiYzc1IiBmaWxsLW9wYWNpdHk9IjAuMDIiLz48L2c+PC9zdmc+')] opacity-30 forest:opacity-100"></div>
       <div className="absolute inset-0 bg-gradient-to-b from-canvas via-transparent to-canvas pointer-events-none"></div>
       
       {/* Ambient Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-atlas-primary/5 light:bg-brand-bright/[0.16] rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-atlas-primary/5 forest:bg-emerald-400/[0.14] rounded-full blur-[120px] pointer-events-none"></div>
 
       <div className="container mx-auto px-6 text-center relative z-10">
         <div className="max-w-4xl mx-auto">
@@ -26,7 +27,7 @@ const Careers: React.FC = () => {
             </Reveal>
             <Reveal delay={90}>
                 <h2 className="text-4xl md:text-6xl font-extrabold mb-8 text-white tracking-tight leading-[1.1]">
-                  Shape the <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-300 light:from-brand-deep light:to-atlas-primary">Future</span> with Us
+                  Shape the <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-300">Future</span> with Us
                 </h2>
             </Reveal>
 
@@ -41,7 +42,7 @@ const Careers: React.FC = () => {
                   Explore Opportunities
                   <ArrowRightIcon className="h-5 w-5 transition-transform duration-300 ease-premium group-hover:translate-x-1" />
                 </Link>
-                <p className="mt-6 text-sm text-gray-500 light:text-gray-400">
+                <p className="mt-6 text-sm text-gray-500 forest:text-gray-400">
                     Join <span className="text-white font-bold">Our expert team</span> making an impact.
                 </p>
             </Reveal>

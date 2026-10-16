@@ -60,7 +60,7 @@ const Benefits: React.FC = () => {
       <div className="container mx-auto px-6 relative z-10">
         <SectionHeading
             eyebrow="Benefits"
-            title={<>A Partnership That <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-400 light:from-brand-deep light:to-atlas-primary">Benefits Everyone</span></>}
+            title={<>A Partnership That <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-400 light:from-brand-deep light:via-atlas-primary light:to-brand-vivid">Benefits Everyone</span></>}
             subtitle="We create a win-win ecosystem where institutions grow and students excel through our integrated learning model."
         />
 
