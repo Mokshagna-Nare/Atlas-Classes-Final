@@ -26,11 +26,11 @@ const STUDENT_ICON = 'M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.627 48.627 0
 const BenefitCard: React.FC<{ title: string; icon: string; items: string[] }> = ({ title, icon, items }) => (
     <div className={`group/card ${cardHover} h-full p-7 sm:p-8 md:p-10 overflow-hidden`}>
         {/* Decorative glow that blooms on hover */}
-        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-atlas-primary/10 blur-2xl transition-all duration-700 ease-premium group-hover/card:scale-150 group-hover/card:bg-atlas-primary/20 light:bg-brand-bright/[0.14] light:group-hover/card:bg-brand-bright/25" aria-hidden="true" />
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-atlas-primary/10 blur-2xl transition-all duration-700 ease-premium group-hover/card:scale-150 group-hover/card:bg-atlas-primary/20 light:bg-[#6ee7b7]/20 light:group-hover/card:bg-[#6ee7b7]/30" aria-hidden="true" />
 
         <div className="relative">
             <div className="flex items-center mb-8">
-                <div className={`mr-4 rounded-xl p-3 transition-all duration-500 ease-premium group-hover/card:border-emerald-400/50 group-hover/card:shadow-glow light:group-hover/card:shadow-[0_8px_20px_-10px_rgba(21,128,90,0.5)] ${iconWell}`}>
+                <div className={`mr-4 rounded-xl p-3 transition-all duration-500 ease-premium group-hover/card:border-emerald-400/50 group-hover/card:shadow-glow light:group-hover/card:shadow-none ${iconWell}`}>
                     <svg className="h-8 w-8 transition-transform duration-700 ease-premium group-hover/card:scale-110 group-hover/card:-rotate-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
                     </svg>
@@ -52,10 +52,10 @@ const BenefitCard: React.FC<{ title: string; icon: string; items: string[] }> = 
 
 const Benefits: React.FC = () => {
   return (
-    <section className={`${SECTION_SPACING} bg-canvas-cool relative overflow-hidden light:bg-[linear-gradient(180deg,#f7f6f2_0%,#e6f2ea_16%,#dfeee5_50%,#e6f2ea_84%,#f7f6f2_100%)]`}>
+    <section className={`${SECTION_SPACING} bg-canvas-cool relative overflow-hidden light:bg-paper`}>
       {/* Ambient Background Glows */}
-      <div className="absolute top-[18%] left-1/4 w-96 h-96 bg-atlas-primary/5 light:bg-[#34d399]/25 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
-      <div className="absolute bottom-[18%] right-1/4 w-96 h-96 bg-emerald-600/5 light:bg-[#2dd4bf]/20 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
+      <div className="absolute top-[18%] left-1/4 w-96 h-96 bg-atlas-primary/5 light:bg-[#6ee7b7]/20 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
+      <div className="absolute bottom-[18%] right-1/4 w-96 h-96 bg-emerald-600/5 light:bg-[#7dd3fc]/15 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
 
       <div className="container mx-auto px-6 relative z-10">
         <SectionHeading

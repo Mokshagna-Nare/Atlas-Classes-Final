@@ -8,7 +8,7 @@ import { flushSync } from 'react-dom';
 export type Theme = 'light' | 'dark';
 
 const STORAGE_KEY = 'atlas-theme';
-const PAGE_COLOUR: Record<Theme, string> = { light: '#f7f6f2', dark: '#0b0f19' };
+const PAGE_COLOUR: Record<Theme, string> = { light: '#f7f8fa', dark: '#0b0f19' };
 const SWEEP_MS = 650;
 const SWEEP_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 

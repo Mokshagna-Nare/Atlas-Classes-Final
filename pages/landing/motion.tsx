@@ -221,7 +221,7 @@ export const SectionHeading: React.FC<{
         <h2 className="mt-5 text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1] text-white">{title}</h2>
       </Reveal>
       <Reveal delay={170} variant="scale">
-        <div className={`mt-6 h-1.5 w-20 rounded-full bg-gradient-to-r from-atlas-primary to-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.5)] light:from-brand-deep light:to-brand-bright light:shadow-[0_4px_12px_-4px_rgba(21,128,90,0.45)] ${centered ? 'mx-auto' : ''}`} />
+        <div className={`mt-6 h-1.5 w-20 rounded-full bg-gradient-to-r from-atlas-primary to-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.5)] light:h-1 light:w-12 light:from-atlas-primary light:to-atlas-primary light:shadow-none ${centered ? 'mx-auto' : ''}`} />
       </Reveal>
       {subtitle && (
         <Reveal delay={240}>

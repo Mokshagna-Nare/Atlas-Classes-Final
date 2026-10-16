@@ -139,7 +139,7 @@ const DesktopNav: React.FC<{ activeSection: string; onNavigate: (href: string) =
             className={`relative hidden lg:flex items-center justify-self-center rounded-full p-1.5 transition-[background-color,box-shadow] duration-500 ease-premium ${
                 compact
                     ? 'bg-transparent shadow-none'
-                    : 'bg-atlas-soft/40 shadow-[inset_0_0_0_1px_rgb(var(--c-white)/0.1),0_4px_20px_-5px_rgb(var(--shadow-rgb)/calc(0.3*var(--shadow-k)))] backdrop-blur-2xl light:bg-paper/75 light:shadow-[inset_0_0_0_1px_rgba(28,25,23,0.08),0_8px_24px_-12px_rgba(28,25,23,0.2)]'
+                    : 'bg-atlas-soft/40 shadow-[inset_0_0_0_1px_rgb(var(--c-white)/0.1),0_4px_20px_-5px_rgb(var(--shadow-rgb)/calc(0.3*var(--shadow-k)))] backdrop-blur-2xl light:bg-paper/75 light:shadow-[inset_0_0_0_1px_rgba(16,24,40,0.08),0_8px_24px_-12px_rgba(16,24,40,0.2)]'
             }`}
         >
             {/* Hover pill: follows the mouse between items */}
@@ -154,7 +154,7 @@ const DesktopNav: React.FC<{ activeSection: string; onNavigate: (href: string) =
             {active && (
                 <span
                     aria-hidden="true"
-                    className={`pointer-events-none absolute left-0 top-0 rounded-full bg-gradient-to-b from-emerald-400/20 to-emerald-500/[0.08] shadow-[inset_0_0_0_1px_rgba(52,211,153,0.4),0_0_12px_-2px_rgba(16,185,129,0.45)] light:from-forest light:to-forest-deep light:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_6px_14px_-6px_rgba(10,31,24,0.55)] ${glide}`}
+                    className={`pointer-events-none absolute left-0 top-0 rounded-full bg-gradient-to-b from-emerald-400/20 to-emerald-500/[0.08] shadow-[inset_0_0_0_1px_rgba(52,211,153,0.4),0_0_12px_-2px_rgba(16,185,129,0.45)] light:from-gray-100 light:to-gray-200 light:shadow-[0_4px_12px_-4px_rgba(16,24,40,0.35)] ${glide}`}
                     style={pillStyle(active)}
                 >
                     <span className="absolute inset-0 rounded-full bg-gradient-to-b from-white/[0.07] to-transparent light:hidden" />
@@ -258,7 +258,7 @@ const Navbar: React.FC<NavbarProps> = ({ activeSection, scrollToSection }) => {
                 // so its curve runs concentric with the capsule's, matching the round pills inside it.
                 className={`container relative mx-auto flex items-center justify-between transition-[max-width,padding,background-color,box-shadow,border-radius] duration-500 ease-premium lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6 ${
                     compact
-                        ? 'px-4 py-2.5 sm:px-6 lg:max-w-6xl lg:rounded-full lg:bg-atlas-dark/75 lg:py-2 lg:pl-7 lg:pr-[11px] lg:shadow-[inset_0_0_0_1px_rgb(var(--c-white)/0.09),inset_0_1px_0_rgba(255,255,255,0.06),0_24px_50px_-20px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] lg:backdrop-blur-xl lg:backdrop-saturate-150 light:lg:bg-paper/85 light:lg:shadow-[inset_0_0_0_1px_rgba(28,25,23,0.08),0_14px_36px_-16px_rgba(28,25,23,0.24)]'
+                        ? 'px-4 py-2.5 sm:px-6 lg:max-w-6xl lg:rounded-full lg:bg-atlas-dark/75 lg:py-2 lg:pl-7 lg:pr-[11px] lg:shadow-[inset_0_0_0_1px_rgb(var(--c-white)/0.09),inset_0_1px_0_rgba(255,255,255,0.06),0_24px_50px_-20px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] lg:backdrop-blur-xl lg:backdrop-saturate-150 light:lg:bg-paper/85 light:lg:shadow-[inset_0_0_0_1px_rgba(16,24,40,0.08),0_14px_36px_-16px_rgba(16,24,40,0.24)]'
                         : 'px-4 py-4 sm:px-6 lg:rounded-full lg:px-8 lg:py-6'
                 }`}
             >

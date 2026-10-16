@@ -51,28 +51,34 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
     // Vertical balance: the navbar visibly ends ~81px down, so the top padding (128px) is "navbar + 47px".
     // Bottom padding 64px = 47px + a 16px optical lift: the content block sits centred in the space
     // below the navbar, a touch above true centre (true centre reads slightly low to the eye).
-    <section className="relative min-h-[100svh] flex items-center justify-center overflow-hidden pt-28 pb-16 md:pt-32 light:bg-[linear-gradient(180deg,#dff1e6_0%,#ecf5ee_38%,#f7f6f2_100%)]">
+    <section className="relative min-h-[100svh] flex items-center justify-center overflow-hidden pt-28 pb-16 md:pt-32 light:bg-paper">
       {/* Background with Parallax Effect */}
       <div ref={bgRef} className="absolute inset-0 z-0 will-change-transform">
         <img
           src="https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2070&auto=format&fit=crop" 
           alt="Mathematics and Science formulas background"
-          className="w-full h-full object-cover scale-105 animate-pulse-slow opacity-40 light:opacity-[0.07] light:invert light:hue-rotate-180"
+          className="w-full h-full object-cover scale-105 animate-pulse-slow opacity-40 light:hidden"
         />
         {/* Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-b from-canvas/95 via-canvas/80 to-canvas light:from-transparent light:via-transparent light:to-transparent"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgb(var(--c-canvas))_100%)] opacity-90 light:opacity-0"></div>
-        {/* Light theme: an aurora of emerald, teal, mint and a touch of warm gold over a fading
-            blueprint grid, with a soft white halo that keeps the headline crisp */}
-        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(38%_46%_at_14%_24%,rgba(16,185,129,0.34),transparent_70%),radial-gradient(34%_42%_at_86%_18%,rgba(45,212,191,0.30),transparent_70%),radial-gradient(40%_34%_at_78%_78%,rgba(250,204,21,0.16),transparent_72%),radial-gradient(42%_36%_at_22%_82%,rgba(132,204,22,0.16),transparent_72%)]"></div>
-        <div className="absolute inset-0 hidden light:block bg-[linear-gradient(rgba(16,107,77,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(16,107,77,0.07)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_70%_62%_at_50%_45%,#000_25%,transparent_80%)]"></div>
-        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(36%_30%_at_50%_44%,rgba(255,255,255,0.85),transparent_75%)]"></div>
-        <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20"></div>
+        {/* Light theme: soft pastel colour clouds (mint, aqua, a little lemon and peach) on white,
+            with thin orbit lines drifting around the headline */}
+        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(30%_38%_at_18%_30%,rgba(110,231,183,0.45),transparent_72%),radial-gradient(28%_36%_at_84%_26%,rgba(125,211,252,0.35),transparent_72%),radial-gradient(30%_30%_at_70%_74%,rgba(253,230,138,0.38),transparent_72%),radial-gradient(28%_28%_at_30%_76%,rgba(254,205,211,0.32),transparent_72%)] blur-2xl"></div>
+        <svg aria-hidden="true" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 hidden h-full w-full light:block">
+          <g fill="none" strokeWidth="1.2">
+            <ellipse cx="600" cy="330" rx="520" ry="150" transform="rotate(-12 600 330)" stroke="rgba(21,128,90,0.16)" />
+            <ellipse cx="600" cy="340" rx="440" ry="200" transform="rotate(8 600 340)" stroke="rgba(56,189,248,0.14)" />
+          </g>
+          <path d="M1010 196l5 13 13 5-13 5-5 13-5-13-13-5 13-5z" fill="rgba(21,128,90,0.35)" />
+          <path d="M214 470l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="rgba(56,189,248,0.35)" />
+        </svg>
+        <div className="absolute top-0 left-0 w-full h-full light:hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20"></div>
       </div>
 
       {/* Floating Abstract Elements */}
-      <div className="absolute top-1/3 -left-20 w-72 h-72 bg-atlas-primary/[0.14] light:bg-[#34d399]/30 rounded-full blur-[110px] animate-float delay-0" aria-hidden="true"></div>
-      <div className="absolute bottom-1/4 -right-20 w-72 h-72 bg-atlas-primary/[0.14] light:bg-[#2dd4bf]/25 rounded-full blur-[110px] animate-float" style={{animationDelay: '2s'}} aria-hidden="true"></div>
+      <div className="absolute top-1/3 -left-20 w-72 h-72 bg-atlas-primary/[0.14] light:hidden rounded-full blur-[110px] animate-float delay-0" aria-hidden="true"></div>
+      <div className="absolute bottom-1/4 -right-20 w-72 h-72 bg-atlas-primary/[0.14] light:hidden rounded-full blur-[110px] animate-float" style={{animationDelay: '2s'}} aria-hidden="true"></div>
 
       {/* Soft hand-off into the next section (no hard seam) */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-40 bg-gradient-to-b from-transparent to-canvas" />
@@ -80,9 +86,9 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
       <div ref={contentRef} className="relative z-10 container mx-auto px-6 text-center max-w-5xl will-change-transform">
         {/* Chips */}
         <div className={`flex flex-wrap justify-center gap-3 mb-8 ${TALL}mb-10 animate-fade-in-up`} style={{animationDelay: '0.1s'}}>
-            <span className="px-4 py-1.5 rounded-full bg-atlas-primary/10 backdrop-blur-md border border-atlas-primary/30 text-xs sm:text-sm font-bold text-atlas-primary uppercase tracking-wider light:bg-brand-pale/80 light:border-brand-line light:text-brand-deep light:shadow-[0_1px_2px_rgba(28,25,23,0.05)]">IIT-JEE</span>
-            <span className="px-4 py-1.5 rounded-full bg-blue-500/10 backdrop-blur-md border border-blue-500/30 text-xs sm:text-sm font-bold text-blue-400 uppercase tracking-wider light:shadow-[0_1px_2px_rgba(28,25,23,0.05)]">NEET</span>
-            <span className="px-4 py-1.5 rounded-full bg-purple-500/10 backdrop-blur-md border border-purple-500/30 text-xs sm:text-sm font-bold text-purple-400 uppercase tracking-wider light:shadow-[0_1px_2px_rgba(28,25,23,0.05)]">Foundation</span>
+            <span className="px-4 py-1.5 rounded-full bg-atlas-primary/10 backdrop-blur-md border border-atlas-primary/30 text-xs sm:text-sm font-bold text-atlas-primary uppercase tracking-wider light:bg-brand-pale light:border-brand-line light:text-brand-deep">IIT-JEE</span>
+            <span className="px-4 py-1.5 rounded-full bg-blue-500/10 backdrop-blur-md border border-blue-500/30 text-xs sm:text-sm font-bold text-blue-400 uppercase tracking-wider light:bg-sky-900/40 light:border-sky-800">NEET</span>
+            <span className="px-4 py-1.5 rounded-full bg-purple-500/10 backdrop-blur-md border border-purple-500/30 text-xs sm:text-sm font-bold text-purple-400 uppercase tracking-wider light:bg-violet-900/40 light:border-violet-800">Foundation</span>
         </div>
 
         {/* Main Headline */}
@@ -118,8 +124,8 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
                 { val: '15+', label: 'Expert Faculty' },
                 { val: '10+', label: 'Partner Schools' }
             ].map((stat, idx) => (
-                <div key={idx} className="group/stat spotlight p-4 rounded-2xl bg-atlas-soft/30 border border-white/[0.06] backdrop-blur-sm light:bg-paper/65 light:backdrop-blur-xl light:border-paper light:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_2px_rgba(28,25,23,0.05),0_18px_40px_-22px_rgba(16,107,77,0.35)] light:hover:border-brand-line">
-                    <p className={`text-3xl md:text-4xl ${TALL}text-5xl font-bold text-white mb-1 light:bg-gradient-to-b light:from-gray-100 light:to-brand-deep light:bg-clip-text light:text-transparent`}><CountUp value={stat.val} /></p>
+                <div key={idx} className="group/stat spotlight p-4 rounded-2xl bg-atlas-soft/30 border border-white/[0.06] backdrop-blur-sm light:rounded-[1.25rem] light:bg-paper/90 light:backdrop-blur-md light:border-gray-700/70 light:py-5 light:shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-14px_rgba(16,24,40,0.12)] light:hover:border-brand-line">
+                    <p className={`text-3xl md:text-4xl ${TALL}text-5xl font-bold text-white mb-1 light:font-extrabold light:tracking-tight`}><CountUp value={stat.val} /></p>
                     <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold transition-colors duration-500 group-hover/stat:text-emerald-300 light:text-gray-500">{stat.label}</p>
                 </div>
             ))}

@@ -17,8 +17,8 @@ const programName = (title: string) => title.split('–')[0].trim();
 
 const CourseCard: React.FC<{ course: Course; onEnquire: (title: string) => void }> = ({ course, onEnquire }) => (
     <article className={`group/card ${cardHover} h-full p-8 sm:p-10 flex flex-col items-center text-center overflow-hidden`}>
-        <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-48 -translate-x-1/2 rounded-full bg-atlas-primary/10 blur-3xl transition-all duration-700 ease-premium group-hover/card:bg-atlas-primary/20 group-hover/card:scale-125 light:inset-x-0 light:top-0 light:left-0 light:bg-transparent light:group-hover/card:bg-transparent light:h-52 light:w-auto light:translate-x-0 light:rounded-none light:blur-0 light:bg-[radial-gradient(80%_70%_at_50%_0%,rgba(52,211,153,0.30),transparent_75%),linear-gradient(180deg,rgba(214,240,226,0.95),rgba(214,240,226,0)_100%)] light:group-hover/card:scale-100 light:group-hover/card:bg-[radial-gradient(85%_80%_at_50%_0%,rgba(52,211,153,0.42),transparent_75%),linear-gradient(180deg,rgba(204,238,220,1),rgba(204,238,220,0)_100%)]" aria-hidden="true" />
-        <div className="relative p-6 bg-atlas-dark rounded-full mb-8 border border-white/10 shadow-inner transition-[border-color,box-shadow] duration-500 ease-premium group-hover/card:border-emerald-400/40 group-hover/card:shadow-[0_0_0_6px_rgba(16,185,129,0.06),0_0_40px_-6px_rgba(16,185,129,0.55)] light:border-paper light:bg-gradient-to-b light:from-paper light:to-brand-pale/60 light:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_20px_-12px_rgba(21,128,90,0.35)] light:group-hover/card:border-atlas-primary/40 light:group-hover/card:shadow-[0_0_0_6px_rgba(39,201,145,0.10),0_14px_30px_-12px_rgba(21,128,90,0.45)]">
+        <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-48 -translate-x-1/2 rounded-full bg-atlas-primary/10 blur-3xl transition-all duration-700 ease-premium group-hover/card:bg-atlas-primary/20 group-hover/card:scale-125 light:inset-x-0 light:top-0 light:left-0 light:bg-transparent light:group-hover/card:bg-transparent light:h-52 light:w-auto light:translate-x-0 light:rounded-none light:blur-0 light:bg-[linear-gradient(180deg,rgba(232,247,240,1),rgba(232,247,240,0))] light:group-hover/card:scale-100 light:group-hover/card:bg-[linear-gradient(180deg,rgba(214,242,229,1),rgba(214,242,229,0))]" aria-hidden="true" />
+        <div className="relative p-6 bg-atlas-dark rounded-full mb-8 border border-white/10 shadow-inner transition-[border-color,box-shadow] duration-500 ease-premium group-hover/card:border-emerald-400/40 group-hover/card:shadow-[0_0_0_6px_rgba(16,185,129,0.06),0_0_40px_-6px_rgba(16,185,129,0.55)] light:border-gray-700 light:bg-paper light:shadow-[0_1px_2px_rgba(16,24,40,0.05),0_10px_24px_-12px_rgba(16,24,40,0.14)] light:group-hover/card:border-brand-line light:group-hover/card:shadow-[0_0_0_6px_rgba(21,128,90,0.06),0_14px_28px_-12px_rgba(16,24,40,0.16)]">
             <span className="block transition-transform duration-700 ease-premium group-hover/card:-translate-y-1 group-hover/card:scale-110 group-hover/card:-rotate-6">
                 {courseIcons[course.title]}
             </span>
@@ -38,7 +38,7 @@ const CourseCard: React.FC<{ course: Course; onEnquire: (title: string) => void 
 
 const Courses: React.FC<{ onEnquire: (programTitle: string) => void }> = ({ onEnquire }) => {
   return (
-    <section className={`${SECTION_SPACING} bg-canvas relative light:bg-[radial-gradient(55%_38%_at_50%_0%,rgba(16,185,129,0.10),transparent_70%),linear-gradient(180deg,#f7f6f2,#fbfaf7_60%,#f7f6f2)]`}>
+    <section className={`${SECTION_SPACING} bg-canvas relative light:bg-canvas-cool`}>
       <div className="container mx-auto px-6">
         <SectionHeading
           eyebrow="Programs"

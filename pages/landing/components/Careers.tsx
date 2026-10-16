@@ -7,15 +7,16 @@ import { buttonPrimary, eyebrowChip, eyebrowDot } from '../ui';
 
 const Careers: React.FC = () => {
   return (
-    // In the light theme this band is a forest island: a rounded deep-green panel inset from the page edges.
-    <section data-theme="forest" className={`${SECTION_SPACING} relative overflow-hidden light:mx-4 light:sm:mx-6 light:lg:mx-auto light:max-w-7xl light:rounded-[2rem] light:shadow-[0_40px_80px_-40px_rgba(10,31,24,0.6)]`}>
+    // In the light theme this band is a brand island: the page's one bold, saturated emerald card,
+    // inset from the page edges (white text, mint accents, a white button).
+    <section data-theme="brand" className={`${SECTION_SPACING} relative overflow-hidden light:mx-4 light:sm:mx-6 light:lg:mx-auto light:max-w-6xl light:rounded-[2rem] light:shadow-[0_30px_60px_-30px_rgba(11,122,85,0.55)]`}>
       {/* Background Texture */}
-      <div className="absolute inset-0 bg-canvas-sage"></div>
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDQwaDQwVjBIMHY0MHptMjAgMjBoMjB2MjBIMjBWNjB6TTEwIDgwaDIwdjIwSDEwVjgwem0xMCAyMGgyMHYyMEgyMFYxMDB6IiBmaWxsPSIjMDBiYzc1IiBmaWxsLW9wYWNpdHk9IjAuMDIiLz48L2c+PC9zdmc+')] opacity-30 forest:opacity-100"></div>
-      <div className="absolute inset-0 bg-gradient-to-b from-canvas via-transparent to-canvas pointer-events-none"></div>
+      <div className="absolute inset-0 bg-canvas-sage brand:bg-[radial-gradient(60%_80%_at_15%_0%,#14a374,transparent_70%),linear-gradient(135deg,#0b7a55,#075c40)]"></div>
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDQwaDQwVjBIMHY0MHptMjAgMjBoMjB2MjBIMjBWNjB6TTEwIDgwaDIwdjIwSDEwVjgwem0xMCAyMGgyMHYyMEgyMFYxMDB6IiBmaWxsPSIjMDBiYzc1IiBmaWxsLW9wYWNpdHk9IjAuMDIiLz48L2c+PC9zdmc+')] opacity-30 brand:opacity-0"></div>
+      <div className="absolute inset-0 bg-gradient-to-b from-canvas via-transparent to-canvas pointer-events-none brand:hidden"></div>
       
       {/* Ambient Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-atlas-primary/5 forest:bg-emerald-400/[0.14] rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-atlas-primary/5 brand:bg-[#34d399]/35 rounded-full blur-[120px] pointer-events-none"></div>
 
       <div className="container mx-auto px-6 text-center relative z-10">
         <div className="max-w-4xl mx-auto">
@@ -42,7 +43,7 @@ const Careers: React.FC = () => {
                   Explore Opportunities
                   <ArrowRightIcon className="h-5 w-5 transition-transform duration-300 ease-premium group-hover:translate-x-1" />
                 </Link>
-                <p className="mt-6 text-sm text-gray-500 forest:text-gray-400">
+                <p className="mt-6 text-sm text-gray-500">
                     Join <span className="text-white font-bold">Our expert team</span> making an impact.
                 </p>
             </Reveal>

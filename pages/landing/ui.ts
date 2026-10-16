@@ -1,12 +1,12 @@
 // Shared interaction styles for the public site (home page and Careers), built on the design
 // tokens in index.html (shadow-card, shadow-glow, ease-premium, atlas-surface…).
 // Every interactive style carries hover, keyboard focus-visible, pressed and disabled states.
-// The light: classes are the light theme's own treatment (soft slate shadows, fine borders,
-// deep-emerald fills); the dark theme ignores them.
+// The light: classes are the light theme's own treatment — clean white surfaces, hairline
+// borders, soft wide shadows, one saturated emerald for actions; the dark theme ignores them.
 
-/** Light-theme elevation: a white top highlight, a hairline contact shadow and two soft ambient layers. */
+/** Light-theme elevation: a hairline contact shadow plus one soft, wide ambient shadow. */
 const lightCardShadow =
-  'light:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_2px_rgba(28,25,23,0.06),0_10px_24px_-14px_rgba(28,25,23,0.14),0_28px_56px_-32px_rgba(28,25,23,0.18)]';
+  'light:shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-12px_rgba(16,24,40,0.10)]';
 
 /** Visible keyboard focus ring; mouse clicks don't show it. */
 export const focusRing =
@@ -16,41 +16,34 @@ const buttonBase =
   'inline-flex items-center justify-center gap-2 font-bold select-none transition-[transform,box-shadow,background-color,border-color,color,filter] duration-300 ease-premium active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50';
 
 /** Solid emerald call to action. Dark text on emerald keeps the label legible (WCAG AA). */
-export const buttonPrimary = `${buttonBase} rounded-full bg-gradient-to-b from-emerald-400 to-emerald-500 text-gray-950 shadow-glow hover:-translate-y-0.5 hover:brightness-110 hover:shadow-glow-lg light:from-atlas-primary light:to-brand-deep light:text-on-accent light:shadow-[0_10px_24px_-10px_rgba(16,107,77,0.6),inset_0_1px_0_rgba(255,255,255,0.18)] light:hover:brightness-[0.92] light:hover:shadow-[0_16px_30px_-12px_rgba(16,107,77,0.65),inset_0_1px_0_rgba(255,255,255,0.18)] ${focusRing}`;
+export const buttonPrimary = `${buttonBase} rounded-full bg-gradient-to-b from-emerald-400 to-emerald-500 text-gray-950 shadow-glow hover:-translate-y-0.5 hover:brightness-110 hover:shadow-glow-lg light:from-atlas-primary light:to-atlas-primary light:text-on-accent light:shadow-[0_1px_2px_rgba(16,24,40,0.08),0_8px_20px_-8px_rgba(21,128,90,0.55)] light:hover:from-brand-deep light:hover:to-brand-deep light:hover:brightness-100 light:hover:shadow-[0_1px_2px_rgba(16,24,40,0.08),0_14px_28px_-10px_rgba(21,128,90,0.6)] ${focusRing}`;
 
-/** Quiet outlined action that sits beside a primary button. */
-export const buttonSecondary = `${buttonBase} rounded-full border border-white/15 bg-white/[0.04] text-gray-100 backdrop-blur-sm hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.08] light:border-gray-700 light:bg-paper light:shadow-[0_1px_2px_rgba(28,25,23,0.05),0_6px_16px_-10px_rgba(28,25,23,0.18)] light:hover:border-atlas-primary/45 light:hover:bg-brand-pale/40 light:hover:text-brand-deep ${focusRing}`;
-
-/**
- * Light-theme card surface: white paper inside a 1px gradient border that catches emerald light
- * at the top-left corner and fades to warm stone (padding-box / border-box backgrounds).
- */
-const lightCardSurface =
-  'light:border-transparent light:[background:linear-gradient(180deg,#ffffff,#fcfbf8)_padding-box,linear-gradient(150deg,rgba(16,150,112,0.45),rgba(224,221,212,0.95)_32%,rgba(224,221,212,0.95)_72%,rgba(16,150,112,0.22))_border-box]';
+/** Quiet action that sits beside a primary button: a light grey pill. */
+export const buttonSecondary = `${buttonBase} rounded-full border border-white/15 bg-white/[0.04] text-gray-100 backdrop-blur-sm hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.08] light:border-gray-700 light:bg-paper light:text-gray-100 light:shadow-[0_1px_2px_rgba(16,24,40,0.05)] light:hover:border-gray-700 light:hover:bg-gray-800 ${focusRing}`;
 
 /** Base card surface (no hover). */
-export const cardStatic = `rounded-2xl border border-white/[0.07] bg-gradient-to-b from-atlas-raised/90 to-atlas-surface/80 shadow-card ${lightCardSurface} ${lightCardShadow}`;
+export const cardStatic = `rounded-2xl border border-white/[0.07] bg-gradient-to-b from-atlas-raised/90 to-atlas-surface/80 shadow-card light:rounded-[1.25rem] light:border-gray-700 light:from-paper light:to-paper ${lightCardShadow}`;
 
 /**
  * Card with the premium hover: cursor spotlight wash, glowing edge, lift and deeper shadow
  * (see .spotlight in styles.css). Keeps the default cursor, so content cards don't read as links.
  * Put data-spotlight-group on the grid so neighbouring cards' edges catch the light too.
  */
-export const cardHover = `${cardStatic} spotlight light:hover:[background:linear-gradient(180deg,#ffffff,#f7fbf8)_padding-box,linear-gradient(150deg,rgba(16,150,112,0.85),rgba(16,150,112,0.25)_45%,rgba(224,221,212,0.95)_75%,rgba(16,150,112,0.4))_border-box] light:hover:shadow-[0_2px_4px_rgba(28,25,23,0.04),0_28px_56px_-26px_rgba(28,25,23,0.22),0_20px_44px_-24px_rgba(16,150,112,0.38)]`;
+export const cardHover = `${cardStatic} spotlight light:hover:border-brand-line light:hover:shadow-[0_1px_2px_rgba(16,24,40,0.04),0_24px_48px_-18px_rgba(16,24,40,0.16)]`;
 
 /** Card that is itself a link or button: the same hover plus a keyboard focus ring. */
 export const cardInteractive = `${cardHover} ${focusRing}`;
 
 /** Text input / select / textarea on the public site. */
 export const fieldInput =
-  'w-full rounded-xl border border-white/10 bg-atlas-dark/80 px-4 py-3.5 text-white placeholder-gray-500 outline-none transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/20 focus-visible:border-emerald-400/70 focus-visible:bg-atlas-dark focus-visible:shadow-[0_0_0_4px_rgba(16,185,129,0.12)] light:border-field-line light:bg-paper light:hover:border-gray-400 light:focus-visible:border-atlas-primary light:focus-visible:shadow-[0_0_0_4px_rgba(21,128,90,0.16)]';
+  'w-full rounded-xl border border-white/10 bg-atlas-dark/80 px-4 py-3.5 text-white placeholder-gray-500 outline-none transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/20 focus-visible:border-emerald-400/70 focus-visible:bg-atlas-dark focus-visible:shadow-[0_0_0_4px_rgba(16,185,129,0.12)] light:border-field-line/70 light:bg-paper light:hover:border-field-line light:focus-visible:border-atlas-primary light:focus-visible:shadow-[0_0_0_4px_rgba(21,128,90,0.14)]';
 
 /** Small uppercase label above a section title ("Programs", "Contact", "We are hiring"). */
 export const eyebrowChip =
-  'inline-flex items-center gap-2 rounded-full border border-atlas-primary/25 bg-atlas-primary/[0.08] px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-atlas-primary light:border-brand-line light:bg-paper light:text-brand-deep light:shadow-[0_1px_2px_rgba(28,25,23,0.06),0_4px_12px_-6px_rgba(16,107,77,0.25)]';
+  'inline-flex items-center gap-2 rounded-full border border-atlas-primary/25 bg-atlas-primary/[0.08] px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-atlas-primary light:border-brand-line light:bg-brand-pale light:text-brand-deep brand:border-white/25 brand:bg-white/10 brand:text-white';
 /** The pulsing dot inside an eyebrow chip. */
-export const eyebrowDot = 'h-1.5 w-1.5 rounded-full bg-atlas-primary shadow-[0_0_8px_rgba(16,185,129,0.9)] light:shadow-[0_0_0_3px_rgba(39,201,145,0.22)]';
+export const eyebrowDot = 'h-1.5 w-1.5 rounded-full bg-atlas-primary shadow-[0_0_8px_rgba(16,185,129,0.9)] light:shadow-none brand:bg-white brand:shadow-none';
 
-/** Icon tile on a card: tinted well that lights up when the card is hovered. */
+/** Icon tile on a card: a soft mint tile with a deep emerald icon in the light theme. */
 export const iconWell =
-  'border border-atlas-primary/20 bg-atlas-primary/10 text-atlas-primary light:border-brand-deep/30 light:bg-gradient-to-br light:from-atlas-primary light:to-brand-deep light:text-on-accent light:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_18px_-8px_rgba(16,107,77,0.55)]';
+  'border border-atlas-primary/20 bg-atlas-primary/10 text-atlas-primary light:border-transparent light:bg-brand-pale light:text-brand-deep';

@@ -4,7 +4,7 @@ import { Reveal, SectionHeading, SECTION_SPACING, prefersReducedMotion } from '.
 import { buttonPrimary, buttonSecondary, cardHover, cardInteractive, fieldInput } from '../ui';
 
 /** Round icon badge on the contact cards. */
-const contactIcon = 'mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:shadow-glow light:bg-gradient-to-br light:from-atlas-primary light:to-brand-deep light:text-on-accent light:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_18px_-8px_rgba(16,107,77,0.55)] light:group-hover/card:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_12px_24px_-8px_rgba(16,107,77,0.65)]';
+const contactIcon = 'mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:shadow-glow light:bg-brand-pale light:text-brand-deep light:shadow-none light:group-hover/card:bg-atlas-primary light:group-hover/card:text-on-accent light:group-hover/card:shadow-[0_8px_18px_-8px_rgba(21,128,90,0.5)]';
 
 interface ContactProps {
   /** Set when a visitor clicks "Enquire" on a program card; pre-fills the message. */
@@ -140,11 +140,11 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
   ];
 
   return (
-    <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden light:bg-[linear-gradient(180deg,#f7f6f2_0%,#eef5ef_70%,#e4f0e8_100%)]`}>
+    <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden light:bg-canvas-cool`}>
       {/* Background Ambient Glow */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none" aria-hidden="true">
-          <div className="absolute top-[15%] right-[4%] w-96 h-96 bg-atlas-primary/10 light:bg-[#34d399]/25 rounded-full blur-[100px]"></div>
-          <div className="absolute bottom-[12%] left-[4%] w-72 h-72 bg-emerald-600/10 light:bg-[#2dd4bf]/20 rounded-full blur-[80px]"></div>
+          <div className="absolute top-[15%] right-[4%] w-96 h-96 bg-atlas-primary/10 light:bg-[#6ee7b7]/20 rounded-full blur-[100px]"></div>
+          <div className="absolute bottom-[12%] left-[4%] w-72 h-72 bg-emerald-600/10 light:bg-[#7dd3fc]/15 rounded-full blur-[80px]"></div>
       </div>
 
       <div className="container mx-auto px-6 relative z-10">
@@ -196,7 +196,7 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
             {/* Right Column: Contact Form */}
             <Reveal variant="right" delay={120} className="order-1 lg:order-2 min-w-0">
                 <div ref={formCardRef} className={`${cardHover} spotlight-flat overflow-hidden rounded-3xl p-6 sm:p-8 md:p-10`}>
-                     <div className="pointer-events-none absolute -inset-1 bg-gradient-to-br from-atlas-primary/15 to-transparent opacity-60 blur-2xl light:from-brand-pale light:opacity-90" aria-hidden="true" />
+                     <div className="pointer-events-none absolute -inset-1 bg-gradient-to-br from-atlas-primary/15 to-transparent opacity-60 blur-2xl light:from-brand-pale light:opacity-70" aria-hidden="true" />
 
                     {/* The form steps back (blurs, dims, recedes) while the confirmation plays over it */}
                     <div
