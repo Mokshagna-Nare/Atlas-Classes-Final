@@ -46,7 +46,7 @@ const LiveClock: React.FC = () => {
   }, []);
   return (
     <span
-      className="hidden sm:inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-xs font-semibold text-gray-400 shrink-0"
+      className="hidden sm:inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 light:bg-gray-950 light:border-gray-700 text-xs font-semibold text-gray-400 shrink-0"
       title="India Standard Time (UTC+5:30)"
     >
       <span>{istDate(now)}</span>
@@ -84,7 +84,7 @@ function DashboardShell<V extends string>({
         <div className="fixed inset-0 bg-scrim/60 backdrop-blur-sm z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 bg-atlas-soft/95 backdrop-blur-xl border-r border-white/5 flex flex-col z-30 w-64 xl:w-72 shrink-0 h-screen transform transition-transform duration-300 ease-out md:sticky md:top-0 md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 bg-atlas-soft/95 backdrop-blur-xl border-r border-white/5 light:bg-paper light:border-gray-700 flex flex-col z-30 w-64 xl:w-72 shrink-0 h-screen transform transition-transform duration-300 ease-out md:sticky md:top-0 md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex justify-between items-center px-6 pt-6 pb-2">
           <div className="min-w-0">{brand}</div>
           <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-white transition-colors" aria-label="Close menu">
@@ -106,11 +106,11 @@ function DashboardShell<V extends string>({
                       onClick={() => go(view)}
                       aria-current={isActive ? 'page' : undefined}
                       className={`group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                        isActive ? 'bg-atlas-primary/10 text-white' : 'text-gray-400 hover:bg-white/[0.04] hover:text-white'
+                        isActive ? 'bg-atlas-primary/10 text-white light:bg-gray-100 light:text-on-accent light:shadow-[0_6px_16px_-6px_rgba(16,24,40,0.4)]' : 'text-gray-400 hover:bg-white/[0.04] hover:text-white light:hover:bg-gray-800'
                       }`}
                     >
-                      <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-atlas-primary transition-all duration-300 ${isActive ? 'opacity-100' : 'opacity-0 -translate-x-1'}`} />
-                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${isActive ? 'bg-atlas-primary/15 text-atlas-primary' : 'bg-white/[0.03] text-gray-500 group-hover:text-gray-300'}`}>
+                      <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-atlas-primary transition-all duration-300 light:hidden ${isActive ? 'opacity-100' : 'opacity-0 -translate-x-1'}`} />
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${isActive ? 'bg-atlas-primary/15 text-atlas-primary light:bg-paper/15 light:text-[#6ee7b7]' : 'bg-white/[0.03] text-gray-500 group-hover:text-gray-300 light:bg-gray-800 light:text-gray-500 light:group-hover:text-gray-200'}`}>
                         <Icon className="h-5 w-5" />
                       </span>
                       <span className="truncate">{label}</span>
@@ -123,7 +123,7 @@ function DashboardShell<V extends string>({
         </nav>
 
         <div className="p-4 border-t border-white/5">
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5 light:bg-gray-950 light:border-gray-700">
             {user.avatarUrl ? (
               <div className="h-10 w-10 shrink-0 rounded-xl bg-paper p-1 flex items-center justify-center">
                 <img src={user.avatarUrl} alt="" className="h-full w-full object-contain" />
@@ -147,7 +147,7 @@ function DashboardShell<V extends string>({
       <main ref={mainRef} className="relative flex-1 min-w-0 h-screen overflow-y-auto">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.08),transparent_70%)]" />
 
-        <header className="sticky top-0 z-10 bg-atlas-black/80 backdrop-blur-xl border-b border-white/5 px-4 sm:px-8 py-4 flex items-center gap-4">
+        <header className="sticky top-0 z-10 bg-atlas-black/80 backdrop-blur-xl border-b border-white/5 light:bg-paper/85 light:border-gray-700 px-4 sm:px-8 py-4 flex items-center gap-4">
           <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-gray-300 p-1" aria-label="Open menu">
             <MenuIcon className="h-6 w-6" />
           </button>

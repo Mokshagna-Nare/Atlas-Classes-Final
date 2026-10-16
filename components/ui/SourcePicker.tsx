@@ -111,7 +111,7 @@ const SourcePicker: React.FC<SourcePickerProps> = ({ value, onChange, placeholde
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={`group flex ${compact ? 'h-9' : 'h-11'} w-full items-center gap-3 rounded-xl px-4 text-left text-sm transition-all duration-200 ${
-          isOpen ? 'bg-black/35 ring-1 ring-emerald-400/60 shadow-[0_0_0_4px_rgba(16,185,129,0.1)]' : 'bg-black/25 ring-1 ring-inset ring-white/10 hover:ring-white/20'
+          isOpen ? 'bg-black/35 ring-1 ring-emerald-400/60 shadow-[0_0_0_4px_rgba(16,185,129,0.1)]' : 'bg-black/25 ring-1 ring-inset ring-white/10 light:bg-paper light:ring-field-line/40 light:shadow-[0_1px_2px_rgba(16,24,40,0.04)] hover:ring-white/20'
         }`}
       >
         <span className={`shrink-0 ${current ? 'text-emerald-300' : 'text-gray-500'}`}><Svg d={ICONS.book} /></span>
@@ -142,7 +142,7 @@ const SourcePicker: React.FC<SourcePickerProps> = ({ value, onChange, placeholde
                   setActiveIndex(0);
                 }}
                 placeholder="Search, or type a new source…"
-                className="w-full rounded-lg bg-black/30 py-2 pl-8 pr-3 text-xs text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 outline-none transition focus:ring-emerald-400/50"
+                className="w-full rounded-lg bg-black/30 py-2 pl-8 pr-3 text-xs text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 light:bg-paper light:ring-field-line/40 light:shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none transition focus:ring-emerald-400/50"
               />
             </div>
           </div>

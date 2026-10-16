@@ -37,7 +37,7 @@ const friendly = (raw: string): string => {
   return raw;
 };
 
-const fieldWrap = 'group flex items-center gap-3 px-4 rounded-xl bg-atlas-black/60 border border-white/10 focus-within:border-atlas-primary/60 focus-within:ring-4 focus-within:ring-atlas-primary/10 transition-all';
+const fieldWrap = 'group flex items-center gap-3 px-4 rounded-xl bg-atlas-black/60 border border-white/10 light:bg-paper light:border-field-line/40 focus-within:border-atlas-primary/60 focus-within:ring-4 focus-within:ring-atlas-primary/10 transition-all';
 const fieldInput = 'w-full py-3.5 bg-transparent outline-none text-white placeholder-gray-600 text-sm';
 const primaryBtn = 'relative w-full overflow-hidden rounded-xl py-3.5 font-black text-sm bg-gradient-to-r from-atlas-primary to-emerald-400 text-atlas-black transition-all duration-300 hover:shadow-[0_12px_40px_-12px_rgba(16,185,129,0.9)] hover:-translate-y-0.5 active:scale-[0.99] disabled:opacity-60 disabled:cursor-wait disabled:hover:translate-y-0';
 const linkBtn = 'text-sm font-bold text-atlas-primary hover:text-emerald-300 transition-colors';
@@ -83,7 +83,7 @@ const CodeInput: React.FC<{ onComplete: (code: string) => void; disabled: boolea
       autoComplete="one-time-code"
       aria-label="Six-digit code from your authenticator app"
       placeholder="••••••"
-      className="w-full rounded-xl bg-atlas-black/60 border border-white/10 py-4 text-center font-mono text-2xl tracking-[0.6em] text-white placeholder-gray-700 outline-none focus:border-atlas-primary/60 focus:ring-4 focus:ring-atlas-primary/10 disabled:opacity-50"
+      className="w-full rounded-xl bg-atlas-black/60 border border-white/10 light:bg-paper light:border-field-line/40 py-4 text-center font-mono text-2xl tracking-[0.6em] text-white placeholder-gray-700 outline-none focus:border-atlas-primary/60 focus:ring-4 focus:ring-atlas-primary/10 disabled:opacity-50"
     />
   );
 };
@@ -289,7 +289,7 @@ const AdminSignInPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { navigator.clipboard?.writeText(step.secret); setCopied(true); setTimeout(() => setCopied(false), 1800); }}
-                className="mt-1.5 flex w-full items-center justify-between gap-3 rounded-xl bg-atlas-black/60 border border-white/10 px-3.5 py-2.5 font-mono text-xs text-gray-200 hover:border-white/20"
+                className="mt-1.5 flex w-full items-center justify-between gap-3 rounded-xl bg-atlas-black/60 border border-white/10 light:bg-paper light:border-field-line/40 px-3.5 py-2.5 font-mono text-xs text-gray-200 hover:border-white/20"
               >
                 <span className="break-all text-left">{step.secret}</span>
                 <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-sans font-bold text-atlas-primary">

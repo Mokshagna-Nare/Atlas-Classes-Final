@@ -78,12 +78,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
   const detectCaps = (e: React.KeyboardEvent<HTMLInputElement>) => setCapsLock(e.getModifierState?.('CapsLock') ?? false);
 
   return (
-    <div className="min-h-screen bg-atlas-black text-white flex">
+    <div className="min-h-screen bg-atlas-black text-white flex light:bg-paper">
       {/* Brand panel */}
-      <aside className="relative hidden lg:flex lg:w-[46%] xl:w-1/2 flex-col justify-between overflow-hidden border-r border-white/5 p-12 xl:p-16">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.22),transparent_45%),radial-gradient(circle_at_80%_90%,rgba(52,211,153,0.12),transparent_40%)]" />
-        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-atlas-primary/10 blur-3xl animate-pulse-slow" />
-        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(rgb(var(--c-white)) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--c-white)) 1px, transparent 1px)', backgroundSize: '56px 56px' }} />
+      <aside className="relative hidden lg:flex lg:w-[46%] xl:w-1/2 flex-col justify-between overflow-hidden border-r border-white/5 p-12 xl:p-16 light:border-gray-700 light:bg-gray-950">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.22),transparent_45%),radial-gradient(circle_at_80%_90%,rgba(52,211,153,0.12),transparent_40%)] light:bg-[radial-gradient(40%_35%_at_18%_18%,rgba(110,231,183,0.45),transparent_72%),radial-gradient(36%_32%_at_85%_30%,rgba(125,211,252,0.35),transparent_72%),radial-gradient(40%_30%_at_70%_88%,rgba(253,230,138,0.35),transparent_72%),radial-gradient(34%_28%_at_20%_80%,rgba(254,205,211,0.30),transparent_72%)] light:blur-2xl" />
+        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-atlas-primary/10 blur-3xl animate-pulse-slow light:hidden" />
+        <svg aria-hidden="true" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 hidden h-full w-full light:block">
+          <g fill="none" strokeWidth="1.2">
+            <ellipse cx="300" cy="420" rx="300" ry="120" transform="rotate(-18 300 420)" stroke="rgba(21,128,90,0.18)" />
+            <ellipse cx="300" cy="430" rx="250" ry="170" transform="rotate(12 300 430)" stroke="rgba(56,189,248,0.16)" />
+          </g>
+          <path d="M498 250l5 13 13 5-13 5-5 13-5-13-13-5 13-5z" fill="rgba(21,128,90,0.35)" />
+        </svg>
+        <div className="absolute inset-0 opacity-[0.05] light:hidden" style={{ backgroundImage: 'linear-gradient(rgb(var(--c-white)) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--c-white)) 1px, transparent 1px)', backgroundSize: '56px 56px' }} />
 
         <div className="relative animate-auth-in">{brand}</div>
 
@@ -93,7 +100,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
           <div className="mt-10 space-y-5">
             {features.map(({ icon: Icon, title: ft, text }, i) => (
               <div key={ft} className="flex items-start gap-4 animate-auth-in" style={{ animationDelay: `${0.35 + i * 0.12}s` }}>
-                <div className="p-2.5 rounded-xl bg-atlas-primary/10 border border-atlas-primary/20 text-atlas-primary shrink-0"><Icon className="h-5 w-5" /></div>
+                <div className="p-2.5 rounded-xl bg-atlas-primary/10 border border-atlas-primary/20 text-atlas-primary shrink-0 light:bg-paper light:border-gray-700 light:text-brand-deep light:shadow-[0_1px_2px_rgba(16,24,40,0.05)]"><Icon className="h-5 w-5" /></div>
                 <div>
                   <p className="font-bold text-white">{ft}</p>
                   <p className="text-sm text-gray-400 mt-0.5">{text}</p>
@@ -108,16 +115,16 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
 
       {/* Form panel */}
       <main className="relative flex-1 flex flex-col items-center justify-center px-5 py-10 sm:px-10">
-        <div className="absolute inset-0 lg:hidden bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.14),transparent_55%)]" />
+        <div className="absolute inset-0 lg:hidden bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.14),transparent_55%)] light:bg-[radial-gradient(60%_30%_at_30%_0%,rgba(110,231,183,0.30),transparent_72%),radial-gradient(50%_25%_at_85%_5%,rgba(125,211,252,0.25),transparent_72%)]" />
         <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6"><ThemeToggle /></div>
 
         <div className="relative w-full max-w-md">
           <div className="lg:hidden flex justify-center mb-8 animate-auth-in">{brand}</div>
 
           {role !== 'admin' ? (
-            <div className="relative grid grid-cols-2 p-1 mb-8 rounded-2xl bg-white/[0.03] border border-white/5 animate-auth-in" role="tablist" aria-label="Choose portal">
+            <div className="relative grid grid-cols-2 p-1 mb-8 rounded-2xl bg-white/[0.03] border border-white/5 light:bg-gray-800 light:border-gray-700 animate-auth-in" role="tablist" aria-label="Choose portal">
               <span
-                className="absolute top-1 bottom-1 left-1 rounded-xl bg-atlas-primary/15 border border-atlas-primary/30 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                className="absolute top-1 bottom-1 left-1 rounded-xl bg-atlas-primary/15 border border-atlas-primary/30 light:bg-gray-100 light:border-transparent light:shadow-[0_4px_12px_-4px_rgba(16,24,40,0.35)] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
                 style={{ width: 'calc(50% - 0.25rem)', transform: `translateX(${switchIndex * 100}%)` }}
               />
               {SWITCHABLE.map(s => (
@@ -126,7 +133,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
                   role="tab"
                   aria-selected={s.role === role}
                   onClick={() => s.role !== role && navigate(s.path)}
-                  className={`relative z-10 py-2.5 text-sm font-bold rounded-xl transition-colors ${s.role === role ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                  className={`relative z-10 py-2.5 text-sm font-bold rounded-xl transition-colors ${s.role === role ? 'text-white light:text-on-accent' : 'text-gray-500 hover:text-gray-300'}`}
                 >
                   {s.label}
                 </button>
@@ -138,7 +145,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
             </div>
           )}
 
-          <div key={role} className="rounded-[2rem] bg-atlas-dark/80 backdrop-blur-xl border border-white/5 p-7 sm:p-9 shadow-[0_40px_80px_-30px_rgb(var(--shadow-rgb)/calc(0.8*var(--shadow-k)))] animate-auth-in" style={{ animationDelay: '0.08s' }}>
+          <div key={role} className="rounded-[2rem] bg-atlas-dark/80 backdrop-blur-xl border border-white/5 p-7 sm:p-9 shadow-[0_40px_80px_-30px_rgb(var(--shadow-rgb)/calc(0.8*var(--shadow-k)))] light:bg-paper light:border-gray-700 light:shadow-[0_1px_2px_rgba(16,24,40,0.04),0_24px_48px_-20px_rgba(16,24,40,0.14)] animate-auth-in" style={{ animationDelay: '0.08s' }}>
             {panel ?? (<>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{title}</h2>
             <p className="text-sm text-gray-500 mt-2">{subtitle}</p>
@@ -146,7 +153,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               <label className="block">
                 <span className="block text-xs font-bold text-gray-400 mb-2">Email address</span>
-                <div className="group flex items-center gap-3 px-4 rounded-xl bg-atlas-black/60 border border-white/10 focus-within:border-atlas-primary/60 focus-within:ring-4 focus-within:ring-atlas-primary/10 transition-all">
+                <div className="group flex items-center gap-3 px-4 rounded-xl bg-atlas-black/60 border border-white/10 light:bg-paper light:border-field-line/40 focus-within:border-atlas-primary/60 focus-within:ring-4 focus-within:ring-atlas-primary/10 transition-all">
                   <EnvelopeIcon className="h-5 w-5 text-gray-600 group-focus-within:text-atlas-primary transition-colors shrink-0" />
                   <input
                     type="email"
@@ -163,7 +170,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
 
               <label className="block">
                 <span className="block text-xs font-bold text-gray-400 mb-2">Password</span>
-                <div className="group flex items-center gap-3 px-4 rounded-xl bg-atlas-black/60 border border-white/10 focus-within:border-atlas-primary/60 focus-within:ring-4 focus-within:ring-atlas-primary/10 transition-all">
+                <div className="group flex items-center gap-3 px-4 rounded-xl bg-atlas-black/60 border border-white/10 light:bg-paper light:border-field-line/40 focus-within:border-atlas-primary/60 focus-within:ring-4 focus-within:ring-atlas-primary/10 transition-all">
                   <KeyIcon className="h-5 w-5 text-gray-600 group-focus-within:text-atlas-primary transition-colors shrink-0" />
                   <input
                     type={showPassword ? 'text' : 'password'}

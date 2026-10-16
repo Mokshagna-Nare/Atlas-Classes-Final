@@ -774,7 +774,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ onEdit }) => {
               placeholder={searchType === 'text' ? 'Search question text…' : 'Search by question ID…'}
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full h-11 rounded-xl bg-black/25 pl-12 pr-28 text-sm text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 outline-none transition-all duration-200 hover:ring-white/20 focus:bg-black/35 focus:ring-emerald-400/60 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.1)]"
+              className="w-full h-11 rounded-xl bg-black/25 pl-12 pr-28 text-sm text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 light:bg-paper light:ring-field-line/40 light:shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none transition-all duration-200 hover:ring-white/20 focus:bg-black/35 focus:ring-emerald-400/60 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.1)]"
             />
             <div className="absolute right-1.5 flex items-center rounded-lg bg-white/[0.04] p-0.5 ring-1 ring-inset ring-white/10" role="group" aria-label="Search by">
               {(['text', 'id'] as const).map(type => (

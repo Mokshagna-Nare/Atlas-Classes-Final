@@ -225,7 +225,7 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({
                     setActiveIndex(0);
                   }}
                   placeholder={`Search ${title.toLowerCase()}…`}
-                  className="w-full rounded-lg bg-black/30 py-2 pl-8 pr-3 text-xs text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 outline-none transition focus:ring-emerald-400/50"
+                  className="w-full rounded-lg bg-black/30 py-2 pl-8 pr-3 text-xs text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 light:bg-paper light:ring-field-line/40 light:shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none transition focus:ring-emerald-400/50"
                 />
               </div>
             </div>

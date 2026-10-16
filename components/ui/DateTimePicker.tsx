@@ -286,7 +286,7 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, placeh
             ? 'bg-black/35 ring-1 ring-emerald-400/60 shadow-[0_0_0_4px_rgba(16,185,129,0.1)]'
             : invalid
               ? 'bg-black/25 ring-1 ring-inset ring-rose-400/60'
-              : 'bg-black/25 ring-1 ring-inset ring-white/10 hover:ring-white/20'
+              : 'bg-black/25 ring-1 ring-inset ring-white/10 light:bg-paper light:ring-field-line/40 light:shadow-[0_1px_2px_rgba(16,24,40,0.04)] hover:ring-white/20'
         }`}
       >
         <svg className={`h-4 w-4 shrink-0 ${parts ? 'text-emerald-300' : 'text-gray-500'}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">

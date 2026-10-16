@@ -26,10 +26,10 @@ export const percentileOf = (rank: number, total: number) => (total > 0 ? Math.r
 export const topPercentOf = (rank: number, total: number) => (total > 0 ? Math.max(1, Math.round((rank / total) * 100)) : 100);
 
 export const Card: React.FC<{ title: string; caption?: string; icon?: React.ReactNode; className?: string; action?: React.ReactNode; children: React.ReactNode }> = ({ title, caption, icon, className = '', action, children }) => (
-  <section className={`bg-atlas-dark rounded-[1.75rem] border border-white/5 p-6 sm:p-8 ${className}`}>
+  <section className={`bg-atlas-dark rounded-[1.75rem] border border-white/5 p-6 sm:p-8 light:border-gray-700 light:shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-12px_rgba(16,24,40,0.10)] ${className}`}>
     <header className="flex items-start justify-between gap-4 mb-6">
       <div className="flex items-start gap-3 min-w-0">
-        {icon && <div className="p-2.5 rounded-xl bg-atlas-primary/10 text-atlas-primary shrink-0">{icon}</div>}
+        {icon && <div className="p-2.5 rounded-xl bg-atlas-primary/10 text-atlas-primary shrink-0 light:bg-brand-pale light:text-brand-deep">{icon}</div>}
         <div className="min-w-0">
           <h3 className="text-lg font-black text-white tracking-tight">{title}</h3>
           {caption && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{caption}</p>}
@@ -42,7 +42,7 @@ export const Card: React.FC<{ title: string; caption?: string; icon?: React.Reac
 );
 
 export const StatTile: React.FC<{ label: string; value: string; hint?: string; valueClass?: string; icon: React.ReactNode }> = ({ label, value, hint, valueClass, icon }) => (
-  <div className="group bg-atlas-dark p-5 sm:p-6 rounded-3xl border border-white/5 hover:border-atlas-primary/30 hover:-translate-y-0.5 transition-all duration-300 min-w-0">
+  <div className="group bg-atlas-dark p-5 sm:p-6 rounded-3xl border border-white/5 light:border-gray-700 light:shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-12px_rgba(16,24,40,0.10)] hover:border-atlas-primary/30 hover:-translate-y-0.5 transition-all duration-300 min-w-0">
     <div className="flex items-center gap-2.5 mb-4 min-w-0">
       <span className="p-2 rounded-xl bg-atlas-primary/10 text-atlas-primary shrink-0 group-hover:scale-110 transition-transform">{icon}</span>
       <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 truncate">{label}</p>

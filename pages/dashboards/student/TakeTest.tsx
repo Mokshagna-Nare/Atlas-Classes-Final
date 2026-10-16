@@ -126,16 +126,16 @@ const BRAND_LOGO = 'https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png';
 // ---------------------------------------------------------------------------
 
 const Backdrop: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="relative min-h-screen overflow-hidden bg-atlas-black text-white font-sans">
-    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.12),transparent_60%)]" />
-    <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:linear-gradient(rgb(var(--c-white))_1px,transparent_1px),linear-gradient(90deg,rgb(var(--c-white))_1px,transparent_1px)] [background-size:48px_48px]" />
+  <div className="relative min-h-screen overflow-hidden bg-atlas-black text-white font-sans light:bg-gray-950">
+    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.12),transparent_60%)] light:bg-[radial-gradient(32%_36%_at_20%_18%,rgba(110,231,183,0.40),transparent_72%),radial-gradient(30%_34%_at_82%_22%,rgba(125,211,252,0.32),transparent_72%),radial-gradient(32%_28%_at_75%_85%,rgba(253,230,138,0.32),transparent_72%),radial-gradient(28%_26%_at_22%_82%,rgba(254,205,211,0.28),transparent_72%)] light:blur-2xl" />
+    <div className="pointer-events-none absolute inset-0 opacity-[0.035] light:hidden [background-image:linear-gradient(rgb(var(--c-white))_1px,transparent_1px),linear-gradient(90deg,rgb(var(--c-white))_1px,transparent_1px)] [background-size:48px_48px]" />
     <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6"><ThemeToggle /></div>
     <div className="relative">{children}</div>
   </div>
 );
 
 const Panel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <div className={`rounded-3xl bg-gradient-to-b from-white/[0.06] to-white/[0.02] ring-1 light:from-paper light:to-paper/90 ring-inset ring-white/10 shadow-[0_40px_80px_-32px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k))),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl ${className}`}>
+  <div className={`rounded-3xl bg-gradient-to-b from-white/[0.06] to-white/[0.02] ring-1 light:from-paper light:to-paper light:ring-gray-700 light:shadow-[0_1px_2px_rgba(16,24,40,0.04),0_24px_48px_-20px_rgba(16,24,40,0.14)] ring-inset ring-white/10 shadow-[0_40px_80px_-32px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k))),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl ${className}`}>
     {children}
   </div>
 );
@@ -735,7 +735,7 @@ const TakeTest: React.FC = () => {
                       value={field.value}
                       onChange={e => field.set(e.target.value)}
                       placeholder={field.placeholder}
-                      className="w-full rounded-xl bg-black/30 py-3.5 pl-11 pr-4 text-[15px] text-white placeholder-gray-600 ring-1 ring-inset ring-white/10 outline-none transition focus:bg-black/40 focus:ring-emerald-400/60 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.1)] [&:-webkit-autofill]:[-webkit-text-fill-color:#fff] [&:-webkit-autofill]:[transition:background-color_9999s]"
+                      className="w-full rounded-xl bg-black/30 py-3.5 pl-11 pr-4 text-[15px] text-white placeholder-gray-600 ring-1 ring-inset ring-white/10 light:bg-paper light:ring-field-line/40 light:placeholder-gray-500 outline-none transition focus:bg-black/40 focus:ring-emerald-400/60 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.1)] [&:-webkit-autofill]:[-webkit-text-fill-color:#fff] [&:-webkit-autofill]:[transition:background-color_9999s]"
                     />
                   </span>
                 </label>

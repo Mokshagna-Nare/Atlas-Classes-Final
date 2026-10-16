@@ -76,6 +76,16 @@
     filter: hue-rotate(60deg) saturate(1.5) brightness(0.88) !important;
 }
 
+/* Light theme panels: in the portals, a bordered white surface (bg-atlas-dark / bg-gray-900 /
+   bg-atlas-surface — all white in the light palette) is a card. Give every such card the same
+   hairline border and soft, wide elevation as the home page. The selector weighs exactly two
+   classes: it beats a plain border/shadow utility, while a card's own hover:/light: utilities
+   (also two) are emitted later and still take over. */
+:where([data-theme="light"]) .border:is(.bg-atlas-dark, .bg-gray-900, .bg-atlas-surface):not(:where([data-theme="brand"] *)) {
+    border-color: rgb(var(--c-gray-700));
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -12px rgba(16, 24, 40, 0.10);
+}
+
 /* Global Reset & Base Styles */
 html {
     scroll-behavior: smooth;

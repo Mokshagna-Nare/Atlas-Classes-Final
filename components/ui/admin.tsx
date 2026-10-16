@@ -44,14 +44,14 @@ export const Card: React.FC<{
   bodyClassName?: string;
 }> = ({ step, icon, title, subtitle, aside, children, raised, className = '', bodyClassName = 'p-5 sm:p-6' }) => (
   <section
-    className={`relative rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-24px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k))),inset_0_1px_0_rgba(255,255,255,0.04)] ${raised ? 'z-10' : ''} ${className}`}
+    className={`relative rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-24px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k))),inset_0_1px_0_rgba(255,255,255,0.04)] light:rounded-[1.25rem] light:from-paper light:to-paper light:ring-gray-700 light:shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-12px_rgba(16,24,40,0.10)] ${raised ? 'z-10' : ''} ${className}`}
   >
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-5 sm:px-6 py-4">
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] light:border-gray-700 px-5 sm:px-6 py-4">
       <div className="flex items-center gap-3">
         {step !== undefined ? (
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-400/10 text-sm font-black text-emerald-300 ring-1 ring-inset ring-emerald-400/30">{step}</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-400/10 text-sm font-black text-emerald-300 ring-1 ring-inset ring-emerald-400/30 light:bg-brand-pale light:text-brand-deep light:ring-brand-line">{step}</span>
         ) : icon ? (
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300 ring-1 ring-inset ring-emerald-400/30"><Svg d={icon} /></span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300 ring-1 ring-inset ring-emerald-400/30 light:bg-brand-pale light:text-brand-deep light:ring-brand-line"><Svg d={icon} /></span>
         ) : null}
         <div>
           <h3 className="text-lg font-bold tracking-tight">{title}</h3>
@@ -80,16 +80,16 @@ export const Field: React.FC<{ label: string; required?: boolean; optional?: boo
 );
 
 const fieldBase =
-  'w-full rounded-xl bg-black/25 px-4 text-sm text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 outline-none transition-all duration-200 hover:ring-white/20 focus:bg-black/35 focus:ring-emerald-400/60 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.1)]';
+  'w-full rounded-xl bg-black/25 px-4 text-sm text-white placeholder-gray-500 ring-1 ring-inset ring-white/10 outline-none transition-all duration-200 hover:ring-white/20 focus:bg-black/35 focus:ring-emerald-400/60 focus:shadow-[0_0_0_4px_rgba(16,185,129,0.1)] light:bg-paper light:ring-field-line/40 light:shadow-[0_1px_2px_rgba(16,24,40,0.04)] light:hover:ring-field-line/70 light:focus:bg-paper light:focus:ring-atlas-primary/70 light:focus:shadow-[0_0_0_4px_rgba(21,128,90,0.12)]';
 
 export const inputCls = `h-11 ${fieldBase}`;
 export const textareaCls = `py-3 leading-relaxed resize-y ${fieldBase}`;
 
 export const primaryBtn =
-  'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-500 font-bold text-gray-950 shadow-[0_12px_30px_-12px_rgba(16,185,129,0.9),inset_0_1px_0_rgba(255,255,255,0.35)] transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none';
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-500 font-bold text-gray-950 shadow-[0_12px_30px_-12px_rgba(16,185,129,0.9),inset_0_1px_0_rgba(255,255,255,0.35)] transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none light:from-atlas-primary light:to-atlas-primary light:text-on-accent light:shadow-[0_1px_2px_rgba(16,24,40,0.08),0_8px_20px_-8px_rgba(21,128,90,0.55)] light:hover:from-brand-deep light:hover:to-brand-deep light:hover:brightness-100';
 
 export const secondaryBtn =
-  'inline-flex items-center justify-center gap-2 rounded-xl bg-white/[0.04] font-semibold text-gray-200 ring-1 ring-inset ring-white/10 transition hover:bg-white/[0.08] hover:text-white hover:ring-white/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40';
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-white/[0.04] font-semibold text-gray-200 ring-1 ring-inset ring-white/10 transition hover:bg-white/[0.08] hover:text-white hover:ring-white/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 light:bg-paper light:ring-gray-700 light:text-gray-200 light:shadow-[0_1px_2px_rgba(16,24,40,0.05)] light:hover:bg-gray-800 light:hover:ring-gray-700';
 
 export const dangerBtn =
   'inline-flex items-center justify-center gap-2 rounded-xl bg-rose-500/10 font-semibold text-rose-300 ring-1 ring-inset ring-rose-400/30 transition hover:bg-rose-500/20 hover:text-rose-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40';
@@ -130,10 +130,10 @@ export const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void
 export function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: React.ReactNode }[] }) {
   const index = Math.max(0, options.findIndex(o => o.value === value));
   return (
-    <div className="relative inline-grid rounded-xl bg-black/30 p-1 ring-1 ring-inset ring-white/10" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+    <div className="relative inline-grid rounded-xl bg-black/30 p-1 ring-1 ring-inset ring-white/10 light:bg-gray-800 light:ring-gray-700" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       <span
         aria-hidden="true"
-        className="absolute top-1 bottom-1 left-1 rounded-lg bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 ring-1 ring-inset ring-emerald-400/40 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        className="absolute top-1 bottom-1 left-1 rounded-lg bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 ring-1 ring-inset ring-emerald-400/40 light:from-gray-100 light:to-gray-100 light:ring-transparent light:shadow-[0_4px_12px_-4px_rgba(16,24,40,0.35)] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
         style={{ width: `calc((100% - 0.5rem) / ${options.length})`, transform: `translateX(${index * 100}%)` }}
       />
       {options.map(o => (
@@ -142,7 +142,7 @@ export function Segmented<T extends string>({ value, onChange, options }: { valu
           type="button"
           aria-pressed={o.value === value}
           onClick={() => onChange(o.value)}
-          className={`relative z-10 px-4 py-2 text-sm font-bold transition-colors ${o.value === value ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+          className={`relative z-10 px-4 py-2 text-sm font-bold transition-colors ${o.value === value ? 'text-white light:text-on-accent' : 'text-gray-500 hover:text-gray-300'}`}
         >
           {o.label}
         </button>
@@ -221,10 +221,10 @@ export const AdminModal: React.FC<{
         <div
           role="dialog"
           aria-modal="true"
-          className={`relative flex max-h-[90vh] w-full ${width} flex-col overflow-hidden rounded-3xl bg-gradient-to-b from-atlas-raised to-atlas-dark text-white ring-1 ring-white/10 shadow-[0_40px_100px_-20px_rgb(var(--shadow-rgb)/calc(0.95*var(--shadow-k)))] animate-success-pop`}
+          className={`relative flex max-h-[90vh] w-full ${width} flex-col overflow-hidden rounded-3xl bg-gradient-to-b from-atlas-raised to-atlas-dark text-white ring-1 ring-white/10 light:from-paper light:to-paper light:ring-gray-700 shadow-[0_40px_100px_-20px_rgb(var(--shadow-rgb)/calc(0.95*var(--shadow-k)))] animate-success-pop`}
         >
           <div className={`pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent ${glow} to-transparent`} />
-          <header className="flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5">
+          <header className="flex items-start justify-between gap-4 border-b border-white/[0.06] light:border-gray-700 px-6 py-5">
             <div className="flex items-center gap-3 min-w-0">
               {icon && <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset ${toneRing}`}><Svg d={icon} className="h-5 w-5" /></span>}
               <div className="min-w-0">
@@ -237,7 +237,7 @@ export const AdminModal: React.FC<{
             </button>
           </header>
           <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5">{children}</div>
-          {footer && <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-white/[0.06] bg-black/20 px-6 py-4">{footer}</footer>}
+          {footer && <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-white/[0.06] bg-black/20 light:border-gray-700 light:bg-gray-950 px-6 py-4">{footer}</footer>}
         </div>
       </div>
     </ModalPortal>
