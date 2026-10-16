@@ -52,10 +52,10 @@ const BenefitCard: React.FC<{ title: string; icon: string; items: string[] }> = 
 
 const Benefits: React.FC = () => {
   return (
-    <section className={`${SECTION_SPACING} bg-canvas-cool relative overflow-hidden light:bg-gradient-to-b light:from-canvas light:via-canvas-cool light:to-canvas`}>
+    <section className={`${SECTION_SPACING} bg-canvas-cool relative overflow-hidden light:bg-[linear-gradient(180deg,#f7f6f2_0%,#e6f2ea_16%,#dfeee5_50%,#e6f2ea_84%,#f7f6f2_100%)]`}>
       {/* Ambient Background Glows */}
-      <div className="absolute top-[18%] left-1/4 w-96 h-96 bg-atlas-primary/5 light:bg-brand-bright/10 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
-      <div className="absolute bottom-[18%] right-1/4 w-96 h-96 bg-emerald-600/5 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
+      <div className="absolute top-[18%] left-1/4 w-96 h-96 bg-atlas-primary/5 light:bg-[#34d399]/25 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
+      <div className="absolute bottom-[18%] right-1/4 w-96 h-96 bg-emerald-600/5 light:bg-[#2dd4bf]/20 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
 
       <div className="container mx-auto px-6 relative z-10">
         <SectionHeading

@@ -60,7 +60,7 @@ const PhilosophyCard: React.FC<(typeof philosophy)[number]> = ({ title, icon, qu
 
 const Mission: React.FC = () => {
     return (
-        <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden`}>
+        <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden light:bg-[radial-gradient(45%_30%_at_88%_6%,rgba(250,204,21,0.10),transparent_70%),radial-gradient(50%_35%_at_8%_48%,rgba(16,185,129,0.10),transparent_70%),radial-gradient(60%_30%_at_50%_100%,rgba(45,212,191,0.10),transparent_70%)]`}>
             {/* Background Ambiance */}
             <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
                  <div className="absolute top-[10%] left-[5%] w-[500px] h-[500px] bg-atlas-primary/5 light:bg-brand-bright/10 rounded-full blur-[120px] animate-pulse-slow"></div>

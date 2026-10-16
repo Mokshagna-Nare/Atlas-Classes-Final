@@ -140,11 +140,11 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
   ];
 
   return (
-    <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden`}>
+    <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden light:bg-[linear-gradient(180deg,#f7f6f2_0%,#eef5ef_70%,#e4f0e8_100%)]`}>
       {/* Background Ambient Glow */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none" aria-hidden="true">
-          <div className="absolute top-[15%] right-[4%] w-96 h-96 bg-atlas-primary/10 light:bg-brand-bright/[0.14] rounded-full blur-[100px]"></div>
-          <div className="absolute bottom-[12%] left-[4%] w-72 h-72 bg-emerald-600/10 rounded-full blur-[80px]"></div>
+          <div className="absolute top-[15%] right-[4%] w-96 h-96 bg-atlas-primary/10 light:bg-[#34d399]/25 rounded-full blur-[100px]"></div>
+          <div className="absolute bottom-[12%] left-[4%] w-72 h-72 bg-emerald-600/10 light:bg-[#2dd4bf]/20 rounded-full blur-[80px]"></div>
       </div>
 
       <div className="container mx-auto px-6 relative z-10">

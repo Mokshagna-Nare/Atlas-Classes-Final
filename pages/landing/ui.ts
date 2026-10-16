@@ -21,15 +21,22 @@ export const buttonPrimary = `${buttonBase} rounded-full bg-gradient-to-b from-e
 /** Quiet outlined action that sits beside a primary button. */
 export const buttonSecondary = `${buttonBase} rounded-full border border-white/15 bg-white/[0.04] text-gray-100 backdrop-blur-sm hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.08] light:border-gray-700 light:bg-paper light:shadow-[0_1px_2px_rgba(28,25,23,0.05),0_6px_16px_-10px_rgba(28,25,23,0.18)] light:hover:border-atlas-primary/45 light:hover:bg-brand-pale/40 light:hover:text-brand-deep ${focusRing}`;
 
+/**
+ * Light-theme card surface: white paper inside a 1px gradient border that catches emerald light
+ * at the top-left corner and fades to warm stone (padding-box / border-box backgrounds).
+ */
+const lightCardSurface =
+  'light:border-transparent light:[background:linear-gradient(180deg,#ffffff,#fcfbf8)_padding-box,linear-gradient(150deg,rgba(16,150,112,0.45),rgba(224,221,212,0.95)_32%,rgba(224,221,212,0.95)_72%,rgba(16,150,112,0.22))_border-box]';
+
 /** Base card surface (no hover). */
-export const cardStatic = `rounded-2xl border border-white/[0.07] bg-gradient-to-b from-atlas-raised/90 to-atlas-surface/80 shadow-card light:border-gray-700/80 light:from-paper light:to-atlas-raised ${lightCardShadow}`;
+export const cardStatic = `rounded-2xl border border-white/[0.07] bg-gradient-to-b from-atlas-raised/90 to-atlas-surface/80 shadow-card ${lightCardSurface} ${lightCardShadow}`;
 
 /**
  * Card with the premium hover: cursor spotlight wash, glowing edge, lift and deeper shadow
  * (see .spotlight in styles.css). Keeps the default cursor, so content cards don't read as links.
  * Put data-spotlight-group on the grid so neighbouring cards' edges catch the light too.
  */
-export const cardHover = `${cardStatic} spotlight light:hover:border-brand-line light:hover:shadow-[0_2px_4px_rgba(28,25,23,0.04),0_28px_56px_-26px_rgba(28,25,23,0.22),0_18px_40px_-26px_rgba(21,128,90,0.32)]`;
+export const cardHover = `${cardStatic} spotlight light:hover:[background:linear-gradient(180deg,#ffffff,#f7fbf8)_padding-box,linear-gradient(150deg,rgba(16,150,112,0.85),rgba(16,150,112,0.25)_45%,rgba(224,221,212,0.95)_75%,rgba(16,150,112,0.4))_border-box] light:hover:shadow-[0_2px_4px_rgba(28,25,23,0.04),0_28px_56px_-26px_rgba(28,25,23,0.22),0_20px_44px_-24px_rgba(16,150,112,0.38)]`;
 
 /** Card that is itself a link or button: the same hover plus a keyboard focus ring. */
 export const cardInteractive = `${cardHover} ${focusRing}`;

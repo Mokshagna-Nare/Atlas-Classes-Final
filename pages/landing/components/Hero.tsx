@@ -51,27 +51,28 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
     // Vertical balance: the navbar visibly ends ~81px down, so the top padding (128px) is "navbar + 47px".
     // Bottom padding 64px = 47px + a 16px optical lift: the content block sits centred in the space
     // below the navbar, a touch above true centre (true centre reads slightly low to the eye).
-    <section className="relative min-h-[100svh] flex items-center justify-center overflow-hidden pt-28 pb-16 md:pt-32">
+    <section className="relative min-h-[100svh] flex items-center justify-center overflow-hidden pt-28 pb-16 md:pt-32 light:bg-[linear-gradient(180deg,#dff1e6_0%,#ecf5ee_38%,#f7f6f2_100%)]">
       {/* Background with Parallax Effect */}
       <div ref={bgRef} className="absolute inset-0 z-0 will-change-transform">
         <img
           src="https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2070&auto=format&fit=crop" 
           alt="Mathematics and Science formulas background"
-          className="w-full h-full object-cover scale-105 animate-pulse-slow opacity-40 light:opacity-[0.14] light:invert light:hue-rotate-180"
+          className="w-full h-full object-cover scale-105 animate-pulse-slow opacity-40 light:opacity-[0.07] light:invert light:hue-rotate-180"
         />
         {/* Gradient Overlays */}
-        <div className="absolute inset-0 bg-gradient-to-b from-canvas/95 via-canvas/80 to-canvas light:from-canvas/90 light:via-canvas/70"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgb(var(--c-canvas))_100%)] opacity-90"></div>
-        {/* Light theme: an emerald / teal / sage light field behind the headline, and a fine
-            blueprint grid that fades out towards the edges */}
-        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(42%_52%_at_18%_32%,rgba(16,185,129,0.20),transparent_70%),radial-gradient(38%_48%_at_84%_26%,rgba(45,212,191,0.16),transparent_70%),radial-gradient(50%_42%_at_55%_92%,rgba(190,214,170,0.35),transparent_72%)]"></div>
-        <div className="absolute inset-0 hidden light:block bg-[linear-gradient(rgba(28,25,23,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(28,25,23,0.05)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_65%_60%_at_50%_42%,#000_30%,transparent_78%)]"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-canvas/95 via-canvas/80 to-canvas light:from-transparent light:via-transparent light:to-transparent"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgb(var(--c-canvas))_100%)] opacity-90 light:opacity-0"></div>
+        {/* Light theme: an aurora of emerald, teal, mint and a touch of warm gold over a fading
+            blueprint grid, with a soft white halo that keeps the headline crisp */}
+        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(38%_46%_at_14%_24%,rgba(16,185,129,0.34),transparent_70%),radial-gradient(34%_42%_at_86%_18%,rgba(45,212,191,0.30),transparent_70%),radial-gradient(40%_34%_at_78%_78%,rgba(250,204,21,0.16),transparent_72%),radial-gradient(42%_36%_at_22%_82%,rgba(132,204,22,0.16),transparent_72%)]"></div>
+        <div className="absolute inset-0 hidden light:block bg-[linear-gradient(rgba(16,107,77,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(16,107,77,0.07)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_70%_62%_at_50%_45%,#000_25%,transparent_80%)]"></div>
+        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(36%_30%_at_50%_44%,rgba(255,255,255,0.85),transparent_75%)]"></div>
         <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20"></div>
       </div>
 
       {/* Floating Abstract Elements */}
-      <div className="absolute top-1/3 -left-20 w-72 h-72 bg-atlas-primary/[0.14] light:bg-brand-bright/[0.18] rounded-full blur-[110px] animate-float delay-0" aria-hidden="true"></div>
-      <div className="absolute bottom-1/4 -right-20 w-72 h-72 bg-atlas-primary/[0.14] light:bg-brand-bright/[0.18] rounded-full blur-[110px] animate-float" style={{animationDelay: '2s'}} aria-hidden="true"></div>
+      <div className="absolute top-1/3 -left-20 w-72 h-72 bg-atlas-primary/[0.14] light:bg-[#34d399]/30 rounded-full blur-[110px] animate-float delay-0" aria-hidden="true"></div>
+      <div className="absolute bottom-1/4 -right-20 w-72 h-72 bg-atlas-primary/[0.14] light:bg-[#2dd4bf]/25 rounded-full blur-[110px] animate-float" style={{animationDelay: '2s'}} aria-hidden="true"></div>
 
       {/* Soft hand-off into the next section (no hard seam) */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-40 bg-gradient-to-b from-transparent to-canvas" />
@@ -117,8 +118,8 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
                 { val: '15+', label: 'Expert Faculty' },
                 { val: '10+', label: 'Partner Schools' }
             ].map((stat, idx) => (
-                <div key={idx} className="group/stat spotlight p-4 rounded-2xl bg-atlas-soft/30 border border-white/[0.06] backdrop-blur-sm light:bg-paper/80 light:border-gray-700/80 light:shadow-[0_1px_2px_rgba(28,25,23,0.05),0_12px_28px_-18px_rgba(28,25,23,0.18)] light:hover:border-brand-line">
-                    <p className={`text-3xl md:text-4xl ${TALL}text-5xl font-bold text-white mb-1`}><CountUp value={stat.val} /></p>
+                <div key={idx} className="group/stat spotlight p-4 rounded-2xl bg-atlas-soft/30 border border-white/[0.06] backdrop-blur-sm light:bg-paper/65 light:backdrop-blur-xl light:border-paper light:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_2px_rgba(28,25,23,0.05),0_18px_40px_-22px_rgba(16,107,77,0.35)] light:hover:border-brand-line">
+                    <p className={`text-3xl md:text-4xl ${TALL}text-5xl font-bold text-white mb-1 light:bg-gradient-to-b light:from-gray-100 light:to-brand-deep light:bg-clip-text light:text-transparent`}><CountUp value={stat.val} /></p>
                     <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold transition-colors duration-500 group-hover/stat:text-emerald-300 light:text-gray-500">{stat.label}</p>
                 </div>
             ))}
