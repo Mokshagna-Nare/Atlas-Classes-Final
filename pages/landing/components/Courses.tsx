@@ -7,9 +7,9 @@ import { Reveal, SectionHeading, SECTION_SPACING } from '../motion';
 import { buttonSecondary, cardHover } from '../ui';
 
 const courseIcons: { [key: string]: React.ReactNode } = {
-    'COMPASS – Foundation for IIT-JEE': <CompassIllustration className="h-24 w-24 text-atlas-primary mb-6" />,
-    'AXIS – Foundation for NEET': <AxisIllustration className="h-24 w-24 text-atlas-primary mb-6" />,
-    'NEXUS – Comprehensive Foundation': <NexusIllustration className="h-24 w-24 text-atlas-primary mb-6" />
+    'COMPASS – Foundation for IIT-JEE': <CompassIllustration className="h-24 w-24 text-atlas-primary light:text-brand-deep mb-6" />,
+    'AXIS – Foundation for NEET': <AxisIllustration className="h-24 w-24 text-atlas-primary light:text-brand-deep mb-6" />,
+    'NEXUS – Comprehensive Foundation': <NexusIllustration className="h-24 w-24 text-atlas-primary light:text-brand-deep mb-6" />
 };
 
 /** "COMPASS – Foundation for IIT-JEE" → "COMPASS" */
@@ -17,8 +17,8 @@ const programName = (title: string) => title.split('–')[0].trim();
 
 const CourseCard: React.FC<{ course: Course; onEnquire: (title: string) => void }> = ({ course, onEnquire }) => (
     <article className={`group/card ${cardHover} h-full p-8 sm:p-10 flex flex-col items-center text-center overflow-hidden`}>
-        <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-48 -translate-x-1/2 rounded-full bg-atlas-primary/10 blur-3xl transition-all duration-700 ease-premium group-hover/card:bg-atlas-primary/20 group-hover/card:scale-125" aria-hidden="true" />
-        <div className="relative p-6 bg-atlas-dark rounded-full mb-8 border border-white/10 shadow-inner transition-[border-color,box-shadow] duration-500 ease-premium group-hover/card:border-emerald-400/40 group-hover/card:shadow-[0_0_0_6px_rgba(16,185,129,0.06),0_0_40px_-6px_rgba(16,185,129,0.55)]">
+        <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-48 -translate-x-1/2 rounded-full bg-atlas-primary/10 blur-3xl transition-all duration-700 ease-premium group-hover/card:bg-atlas-primary/20 group-hover/card:scale-125 light:bg-brand-bright/[0.16] light:group-hover/card:bg-brand-bright/25" aria-hidden="true" />
+        <div className="relative p-6 bg-atlas-dark rounded-full mb-8 border border-white/10 shadow-inner transition-[border-color,box-shadow] duration-500 ease-premium group-hover/card:border-emerald-400/40 group-hover/card:shadow-[0_0_0_6px_rgba(16,185,129,0.06),0_0_40px_-6px_rgba(16,185,129,0.55)] light:border-brand-line light:bg-gradient-to-b light:from-brand-pale light:to-paper light:shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_20px_-12px_rgba(21,128,90,0.35)] light:group-hover/card:border-atlas-primary/40 light:group-hover/card:shadow-[0_0_0_6px_rgba(39,201,145,0.10),0_14px_30px_-12px_rgba(21,128,90,0.45)]">
             <span className="block transition-transform duration-700 ease-premium group-hover/card:-translate-y-1 group-hover/card:scale-110 group-hover/card:-rotate-6">
                 {courseIcons[course.title]}
             </span>
@@ -38,7 +38,7 @@ const CourseCard: React.FC<{ course: Course; onEnquire: (title: string) => void 
 
 const Courses: React.FC<{ onEnquire: (programTitle: string) => void }> = ({ onEnquire }) => {
   return (
-    <section className={`${SECTION_SPACING} bg-atlas-dark relative`}>
+    <section className={`${SECTION_SPACING} bg-canvas relative`}>
       <div className="container mx-auto px-6">
         <SectionHeading
           eyebrow="Programs"

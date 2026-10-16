@@ -5,6 +5,8 @@ import {
 } from 'recharts';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useStudentResults } from '../../../../hooks/useStudentResults';
+import { useChartColors } from '../../../../hooks/useChartColors';
+import { tooltipStyle, tooltipItem, tooltipLabel } from '../../../../components/analytics/AnalyticsUI';
 import { XIcon, InformationCircleIcon, ChartBarIcon, SparklesIcon, CheckCircleIcon, TrophyIcon, ShieldCheckIcon } from '../../../../components/icons';
 import ModalPortal from '../../../../components/ModalPortal';
 import { replacePlaceholdersWithImages } from '../../../../utils/imagePlaceholder';
@@ -18,6 +20,7 @@ interface ResultsProps {
 const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelection }) => {
     const { user } = useAuth()!;
     const { results: studentResults, loading } = useStudentResults(user?.id);
+    const cc = useChartColors();
     const [reviewingTestId, setReviewingTestId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -41,7 +44,7 @@ const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelecti
             value: data.score
         }));
 
-        const COLORS = ['#10B981', '#34D399', '#059669', '#6EE7B7', '#A7F3D0'];
+        const COLORS = cc.greenRamp;
 
         // Analysis and Improvement Criteria Logic
         const getInsight = (percentage: number) => {
@@ -67,8 +70,8 @@ const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelecti
 
         return (
             <ModalPortal>
-            <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-[100] p-4 md:p-8 animate-scale-in">
-                <div className="bg-atlas-soft border border-gray-800 w-full max-w-6xl max-h-[95vh] rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col">
+            <div className="fixed inset-0 bg-scrim/95 backdrop-blur-md flex items-center justify-center z-[100] p-4 md:p-8 animate-scale-in">
+                <div className="bg-atlas-soft border border-gray-800 w-full max-w-6xl max-h-[95vh] rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgb(var(--shadow-rgb)/calc(0.5*var(--shadow-k)))] flex flex-col">
                     <div className="p-8 border-b border-gray-800 flex justify-between items-center bg-atlas-dark/50">
                         <div className="flex items-center gap-5">
                             <div className="p-4 bg-atlas-primary/10 rounded-2xl border border-atlas-primary/20 shadow-glow">
@@ -122,11 +125,11 @@ const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelecti
                                                 ))}
                                             </Pie>
                                             <Tooltip
-                                                contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '15px', padding: '12px' }}
-                                                itemStyle={{ color: '#fff', fontWeight: 'bold' }}
-                                                labelStyle={{ color: '#10B981', fontWeight: 'bold' }}
+                                                contentStyle={{ ...tooltipStyle, borderRadius: '15px', padding: '12px' }}
+                                                itemStyle={{ ...tooltipItem, fontWeight: 'bold' }}
+                                                labelStyle={{ ...tooltipLabel, fontWeight: 'bold' }}
                                             />
-                                            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: '20px', color: '#9CA3AF', textTransform: 'uppercase', fontSize: '10px', fontWeight: 'bold' }} />
+                                            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: '20px', color: cc.label, textTransform: 'uppercase', fontSize: '10px', fontWeight: 'bold' }} />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -185,7 +188,7 @@ const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelecti
                                     return (
                                         <div key={q.id} className={`p-8 rounded-3xl border-2 transition-all ${q.isCorrect ? 'bg-emerald-500/5 border-emerald-500/10' : isUnanswered ? 'bg-gray-800/10 border-gray-800' : 'bg-atlas-primary/5 border-atlas-primary/10'}`}>
                                             <div className="flex gap-6">
-                                                <div className={`flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-xl ${q.isCorrect ? 'bg-emerald-500 text-white' : isUnanswered ? 'bg-gray-700 text-gray-400' : 'bg-atlas-primary text-white'}`}>
+                                                <div className={`flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-xl ${q.isCorrect ? 'bg-emerald-500 text-on-accent' : isUnanswered ? 'bg-gray-700 text-gray-400' : 'bg-atlas-primary text-on-accent'}`}>
                                                     {idx + 1}
                                                 </div>
                                                 <div className="flex-1">
@@ -220,7 +223,7 @@ const Results: React.FC<ResultsProps> = ({ initialSelectedTestId, onClearSelecti
         <div className="space-y-8">
             {loading ? (
                 <div className="space-y-3">
-                    {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-28 rounded-3xl bg-[linear-gradient(90deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0.07)_50%,rgba(255,255,255,0.03)_100%)] bg-[length:800px_100%] animate-shimmer" />)}
+                    {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-28 rounded-3xl bg-[linear-gradient(90deg,rgb(var(--c-white)/0.03)_0%,rgb(var(--c-white)/0.07)_50%,rgb(var(--c-white)/0.03)_100%)] bg-[length:800px_100%] animate-shimmer" />)}
                 </div>
             ) : studentResults.length === 0 ? (
                 <div className="p-16 rounded-3xl border border-dashed border-white/10 text-center">

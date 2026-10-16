@@ -174,13 +174,13 @@ const PublishedModal: React.FC<{ test: PublishedTest; onClose: () => void }> = (
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md animate-fade-in" onClick={onClose}>
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-scrim/70 p-4 backdrop-blur-md animate-fade-in" onClick={onClose}>
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="published-title"
           onClick={e => e.stopPropagation()}
-          className="relative w-full max-w-md overflow-hidden rounded-3xl bg-gradient-to-b from-[#111a24] to-[#0b1118] p-7 text-center ring-1 ring-white/10 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.95)] animate-success-pop"
+          className="relative w-full max-w-md overflow-hidden rounded-3xl bg-gradient-to-b from-atlas-raised to-atlas-dark p-7 text-center ring-1 ring-white/10 shadow-[0_40px_100px_-20px_rgb(var(--shadow-rgb)/calc(0.95*var(--shadow-k)))] animate-success-pop"
         >
           <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-72 -translate-x-1/2 rounded-full bg-emerald-500/20 blur-3xl" aria-hidden="true" />
 
@@ -190,12 +190,12 @@ const PublishedModal: React.FC<{ test: PublishedTest; onClose: () => void }> = (
             <svg viewBox="0 0 80 80" className="relative h-20 w-20" aria-hidden="true">
               <circle cx="40" cy="40" r="36" className="fill-emerald-400/10" />
               <circle
-                cx="40" cy="40" r="36" fill="none" stroke="#34d399" strokeWidth="4" strokeLinecap="round"
-                pathLength={1} strokeDasharray="1" className="animate-draw-circle" transform="rotate(-90 40 40)"
+                cx="40" cy="40" r="36" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"
+                pathLength={1} strokeDasharray="1" className="animate-draw-circle text-emerald-400" transform="rotate(-90 40 40)"
               />
               <path
-                d="M25 41.5l10 10 20-22" fill="none" stroke="#34d399" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"
-                pathLength={1} strokeDasharray="1" className="animate-draw-check"
+                d="M25 41.5l10 10 20-22" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"
+                pathLength={1} strokeDasharray="1" className="animate-draw-check text-emerald-400"
               />
             </svg>
           </div>
@@ -671,7 +671,7 @@ const CreateTest: React.FC = () => {
               onClick={() => setActiveTab(key)}
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 ${
                 activeTab === key
-                  ? 'bg-gradient-to-b from-white/[0.12] to-white/[0.06] text-white shadow-[0_4px_14px_-6px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-inset ring-white/10'
+                  ? 'bg-gradient-to-b from-white/[0.12] to-white/[0.06] text-white light:from-paper light:to-paper/90 shadow-[0_4px_14px_-6px_rgb(var(--shadow-rgb)/calc(0.8*var(--shadow-k))),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-inset ring-white/10'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -773,7 +773,7 @@ const CreateTest: React.FC = () => {
                   className="flex items-center gap-3"
                 >
                   <span className={`relative h-6 w-11 rounded-full transition-colors duration-200 ${useDistribution ? 'bg-emerald-500' : 'bg-white/10'}`}>
-                    <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${useDistribution ? 'translate-x-5' : ''}`} />
+                    <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-paper shadow-md transition-transform duration-200 ${useDistribution ? 'translate-x-5' : ''}`} />
                   </span>
                   <span className="text-left">
                     <span className="block text-sm font-bold">Difficulty distribution</span>
@@ -835,7 +835,7 @@ const CreateTest: React.FC = () => {
             </div>
             <div className="max-h-96 overflow-y-auto rounded-2xl ring-1 ring-inset ring-white/[0.07] custom-scrollbar">
               <table className="w-full text-left">
-                <thead className="sticky top-0 z-10 bg-[#111827]/95 backdrop-blur">
+                <thead className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur">
                   <tr className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-500">
                     <th className="w-12 p-3 text-center">#</th>
                     <th className="p-3">Question</th>
@@ -927,7 +927,7 @@ const CreateTest: React.FC = () => {
               <span className="block text-xs text-gray-500">Atlas Demo Academy · shows in the demo login's My Tests, Results and Analytics</span>
             </span>
             <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${assignDemo ? 'bg-emerald-500' : 'bg-white/15'}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${assignDemo ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-paper shadow transition-transform ${assignDemo ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
             </span>
           </button>
         )}

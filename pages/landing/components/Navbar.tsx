@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import ThemeToggle from '../../../components/ui/ThemeToggle';
 import { Link } from 'react-router-dom';
 import { NAV_LINKS } from '../../../constants';
 import { MenuIcon, XIcon, ChevronDownIcon, ChevronUpIcon } from '../../../components/icons';
@@ -138,7 +139,7 @@ const DesktopNav: React.FC<{ activeSection: string; onNavigate: (href: string) =
             className={`relative hidden lg:flex items-center justify-self-center rounded-full p-1.5 transition-[background-color,box-shadow] duration-500 ease-premium ${
                 compact
                     ? 'bg-transparent shadow-none'
-                    : 'bg-atlas-soft/40 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1),0_4px_20px_-5px_rgba(0,0,0,0.3)] backdrop-blur-2xl'
+                    : 'bg-atlas-soft/40 shadow-[inset_0_0_0_1px_rgb(var(--c-white)/0.1),0_4px_20px_-5px_rgb(var(--shadow-rgb)/calc(0.3*var(--shadow-k)))] backdrop-blur-2xl light:bg-paper/75 light:shadow-[inset_0_0_0_1px_rgba(16,24,39,0.08),0_8px_24px_-12px_rgba(16,24,39,0.2)]'
             }`}
         >
             {/* Hover pill: follows the mouse between items */}
@@ -153,10 +154,10 @@ const DesktopNav: React.FC<{ activeSection: string; onNavigate: (href: string) =
             {active && (
                 <span
                     aria-hidden="true"
-                    className={`pointer-events-none absolute left-0 top-0 rounded-full bg-gradient-to-b from-emerald-400/20 to-emerald-500/[0.08] shadow-[inset_0_0_0_1px_rgba(52,211,153,0.4),0_0_12px_-2px_rgba(16,185,129,0.45)] ${glide}`}
+                    className={`pointer-events-none absolute left-0 top-0 rounded-full bg-gradient-to-b from-emerald-400/20 to-emerald-500/[0.08] shadow-[inset_0_0_0_1px_rgba(52,211,153,0.4),0_0_12px_-2px_rgba(16,185,129,0.45)] light:from-brand-pale light:to-brand-pale/70 light:shadow-[inset_0_0_0_1px_rgba(21,128,90,0.3),0_2px_6px_-2px_rgba(21,128,90,0.25)] ${glide}`}
                     style={pillStyle(active)}
                 >
-                    <span className="absolute inset-0 rounded-full bg-gradient-to-b from-white/[0.07] to-transparent" />
+                    <span className="absolute inset-0 rounded-full bg-gradient-to-b from-white/[0.07] to-transparent light:hidden" />
                 </span>
             )}
 
@@ -174,7 +175,7 @@ const DesktopNav: React.FC<{ activeSection: string; onNavigate: (href: string) =
                         }}
                         aria-current={isActive ? 'true' : undefined}
                         className={`relative z-10 min-h-[40px] whitespace-nowrap rounded-full px-4 xl:px-6 py-2.5 text-xs xl:text-sm font-medium transition-colors duration-300 ${focusRing} ${
-                            isActive ? 'text-white' : 'text-gray-400 hover:text-white'
+                            isActive ? 'text-white light:font-semibold light:text-brand-deep' : 'text-gray-400 hover:text-white'
                         }`}
                     >
                         {link.name}
@@ -244,10 +245,10 @@ const Navbar: React.FC<NavbarProps> = ({ activeSection, scrollToSection }) => {
         <header
             className={`fixed inset-x-0 top-0 z-50 transition-[padding,background-color,box-shadow] duration-500 ease-premium ${
                 isOpen
-                    ? 'bg-atlas-dark/95 shadow-[inset_0_-1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl'
+                    ? 'bg-atlas-dark/95 shadow-[inset_0_-1px_0_rgb(var(--c-white)/0.05)] backdrop-blur-xl'
                     : compact
                         // Phones: a slim blurred bar. Desktop: the header goes transparent and the bar floats as a capsule.
-                        ? 'bg-atlas-dark/80 shadow-[inset_0_-1px_0_rgba(255,255,255,0.06),0_10px_30px_-12px_rgba(0,0,0,0.6)] backdrop-blur-xl lg:bg-transparent lg:pt-3 lg:shadow-none lg:backdrop-blur-none'
+                        ? 'bg-atlas-dark/80 shadow-[inset_0_-1px_0_rgb(var(--c-white)/0.06),0_10px_30px_-12px_rgb(var(--shadow-rgb)/calc(0.6*var(--shadow-k)))] backdrop-blur-xl lg:bg-transparent lg:pt-3 lg:shadow-none lg:backdrop-blur-none light:max-lg:bg-paper/90'
                         : 'bg-transparent'
             }`}
         >
@@ -257,7 +258,7 @@ const Navbar: React.FC<NavbarProps> = ({ activeSection, scrollToSection }) => {
                 // so its curve runs concentric with the capsule's, matching the round pills inside it.
                 className={`container relative mx-auto flex items-center justify-between transition-[max-width,padding,background-color,box-shadow,border-radius] duration-500 ease-premium lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6 ${
                     compact
-                        ? 'px-4 py-2.5 sm:px-6 lg:max-w-6xl lg:rounded-full lg:bg-atlas-dark/75 lg:py-2 lg:pl-7 lg:pr-[11px] lg:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09),inset_0_1px_0_rgba(255,255,255,0.06),0_24px_50px_-20px_rgba(0,0,0,0.9)] lg:backdrop-blur-xl lg:backdrop-saturate-150'
+                        ? 'px-4 py-2.5 sm:px-6 lg:max-w-6xl lg:rounded-full lg:bg-atlas-dark/75 lg:py-2 lg:pl-7 lg:pr-[11px] lg:shadow-[inset_0_0_0_1px_rgb(var(--c-white)/0.09),inset_0_1px_0_rgba(255,255,255,0.06),0_24px_50px_-20px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] lg:backdrop-blur-xl lg:backdrop-saturate-150 light:lg:bg-paper/85 light:lg:shadow-[inset_0_0_0_1px_rgba(16,24,39,0.08),0_14px_36px_-16px_rgba(16,24,39,0.24)]'
                         : 'px-4 py-4 sm:px-6 lg:rounded-full lg:px-8 lg:py-6'
                 }`}
             >
@@ -275,6 +276,7 @@ const Navbar: React.FC<NavbarProps> = ({ activeSection, scrollToSection }) => {
 
                 {/* Desktop Actions - Visible on Large Screens */}
                 <div className="hidden lg:flex items-center justify-self-end gap-2 xl:gap-4 flex-shrink-0">
+                    <ThemeToggle className="rounded-full" />
                     <Dropdown
                         buttonText="Login"
                         buttonClassName="min-h-[40px] text-xs xl:text-sm font-semibold text-gray-400 hover:text-white px-3 py-2 hover:bg-white/5 rounded-lg"
@@ -293,7 +295,8 @@ const Navbar: React.FC<NavbarProps> = ({ activeSection, scrollToSection }) => {
                 </div>
                 
                 {/* Mobile/Tablet Nav Toggle */}
-                <div className="lg:hidden flex items-center">
+                <div className="lg:hidden flex items-center gap-1.5">
+                    <ThemeToggle className="rounded-full" />
                     <button
                         type="button"
                         onClick={() => setIsOpen(!isOpen)}

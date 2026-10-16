@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { eyebrowChip, eyebrowDot } from './ui';
 
 // Motion toolkit for the home page: smooth in-page navigation, reveal-on-scroll, count-up
 // numbers, a scroll progress bar and the shared section heading. Scrolling itself stays
@@ -211,8 +212,8 @@ export const SectionHeading: React.FC<{
   return (
     <div className={`${centered ? 'mx-auto max-w-3xl text-center' : 'text-left'} mb-14 md:mb-16 ${className}`}>
       <Reveal>
-        <span className="inline-flex items-center gap-2 rounded-full border border-atlas-primary/25 bg-atlas-primary/[0.08] px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-atlas-primary">
-          <span className="h-1.5 w-1.5 rounded-full bg-atlas-primary shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
+        <span className={eyebrowChip}>
+          <span className={eyebrowDot} />
           {eyebrow}
         </span>
       </Reveal>
@@ -220,7 +221,7 @@ export const SectionHeading: React.FC<{
         <h2 className="mt-5 text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1] text-white">{title}</h2>
       </Reveal>
       <Reveal delay={170} variant="scale">
-        <div className={`mt-6 h-1.5 w-20 rounded-full bg-gradient-to-r from-atlas-primary to-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.5)] ${centered ? 'mx-auto' : ''}`} />
+        <div className={`mt-6 h-1.5 w-20 rounded-full bg-gradient-to-r from-atlas-primary to-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.5)] light:from-brand-deep light:to-brand-bright light:shadow-[0_4px_12px_-4px_rgba(21,128,90,0.45)] ${centered ? 'mx-auto' : ''}`} />
       </Reveal>
       {subtitle && (
         <Reveal delay={240}>

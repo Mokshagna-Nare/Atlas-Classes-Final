@@ -48,7 +48,7 @@ const CreateTestModal: React.FC<CreateTestModalProps> = ({ onClose, testToEdit }
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-scrim/80 backdrop-blur-sm animate-fade-in" onClick={onClose}>
         <div className="relative w-full max-w-lg rounded-3xl bg-atlas-dark border border-white/10 p-7 sm:p-8 shadow-2xl animate-scale-in" onClick={e => e.stopPropagation()}>
           <button onClick={onClose} className="absolute top-5 right-5 p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors" aria-label="Close">
             <XIcon className="h-5 w-5" />

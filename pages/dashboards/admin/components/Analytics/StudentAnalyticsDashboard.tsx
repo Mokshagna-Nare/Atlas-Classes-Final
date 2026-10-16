@@ -5,6 +5,9 @@ import {
 } from "recharts";
 import { Target, Clock, Trophy, AlertTriangle, Users, Download, Filter, FileText } from "lucide-react";
 import html2canvas from "html2canvas";
+import { useChartColors } from "../../../../../hooks/useChartColors";
+import { tooltipStyle } from "../../../../../components/analytics/AnalyticsUI";
+import { tc } from "../../../../../utils/themeColors";
 import { jsPDF } from "jspdf";
 
 // --- GLOBAL STYLES FOR RECHARTS FIX ---
@@ -78,7 +81,7 @@ const mockOnlineTests = {
 // --- UI COMPONENTS ---
 function StatCard({ title, value, subtitle, icon }: any) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-[#0f1523] p-5 shadow-lg flex flex-col justify-between transition-all duration-500 hover:border-emerald-500/30">
+    <div className="rounded-2xl border border-slate-800 bg-atlas-surface p-5 shadow-lg flex flex-col justify-between transition-all duration-500 hover:border-emerald-500/30">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">{title}</div>
         <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-2 text-emerald-400">{icon}</div>
@@ -93,7 +96,7 @@ function StatCard({ title, value, subtitle, icon }: any) {
 
 function CardShell({ title, subtitle, right, children, className = "" }: any) {
   return (
-    <div className={`rounded-2xl border border-slate-800 bg-[#0f1523] p-5 shadow-lg flex flex-col h-full transition-all duration-500 hover:border-slate-700 ${className}`}>
+    <div className={`rounded-2xl border border-slate-800 bg-atlas-surface p-5 shadow-lg flex flex-col h-full transition-all duration-500 hover:border-slate-700 ${className}`}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <div className="text-lg font-semibold text-white">{title}</div>
@@ -108,6 +111,7 @@ function CardShell({ title, subtitle, right, children, className = "" }: any) {
 
 // --- MAIN DASHBOARD ---
 export default function StudentAnalyticsDashboard() {
+  const cc = useChartColors();
   const [selectedStudentId, setSelectedStudentId] = useState<string>("s1");
   const [activeTab, setActiveTab] = useState<"cumulative" | "online" | "offline">("online");
   const [selectedTestId, setSelectedTestId] = useState<string>("t1");
@@ -133,7 +137,7 @@ export default function StudentAnalyticsDashboard() {
     if (!printRef.current) return;
     try {
       setIsExporting(true);
-      const canvas = await html2canvas(printRef.current, { scale: 2, useCORS: true, backgroundColor: '#0a0f18' });
+      const canvas = await html2canvas(printRef.current, { scale: 2, useCORS: true, backgroundColor: getComputedStyle(printRef.current).backgroundColor });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -152,7 +156,7 @@ export default function StudentAnalyticsDashboard() {
       <RechartsFixStyles /> {/* Inject anti-outline CSS */}
       
       {/* GLOBAL CONTROLS & TAB NAVIGATION */}
-      <div data-html2canvas-ignore="true" className="mb-6 flex flex-col gap-4 bg-[#0f1523] p-4 rounded-2xl border border-slate-800">
+      <div data-html2canvas-ignore="true" className="mb-6 flex flex-col gap-4 bg-atlas-surface p-4 rounded-2xl border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
             <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-2 text-emerald-400">
@@ -191,7 +195,7 @@ export default function StudentAnalyticsDashboard() {
 
       {/* ONLINE TEST SPECIFIC VIEW */}
       {activeTab === "online" && (
-        <div ref={printRef} className="bg-[#0a0f18] p-4 sm:p-6 rounded-xl border border-slate-800/50 animate-in fade-in duration-500">
+        <div ref={printRef} className="bg-atlas-dark p-4 sm:p-6 rounded-xl border border-slate-800/50 animate-in fade-in duration-500">
           
           {/* Header & Specific Test Selector */}
           <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -243,10 +247,10 @@ export default function StudentAnalyticsDashboard() {
               <div className="flex h-56 mt-2 items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={[{ value: currentTest.accuracy.correct, color: "#22c55e" }, { value: currentTest.accuracy.wrong, color: "#ef4444" }, { value: currentTest.accuracy.skipped, color: "#334155" }]} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={3} stroke="none" isAnimationActive={true} animationDuration={1000}>
-                      {[{ color: "#22c55e" }, { color: "#ef4444" }, { color: "#334155" }].map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                    <Pie data={[{ value: currentTest.accuracy.correct, color: cc.green }, { value: currentTest.accuracy.wrong, color: cc.red }, { value: currentTest.accuracy.skipped, color: cc.track }]} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={3} stroke="none" isAnimationActive={true} animationDuration={1000}>
+                      {[{ color: cc.green }, { color: cc.red }, { color: cc.track }].map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: "#0b1220", borderColor: "#1e293b", borderRadius: 8 }} />
+                    <Tooltip contentStyle={{ ...tooltipStyle, borderRadius: 8 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -261,10 +265,10 @@ export default function StudentAnalyticsDashboard() {
               <div className="h-64 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={currentTest.cognitiveData} outerRadius="70%">
-                    <PolarGrid stroke="#1e293b" />
-                    <PolarAngleAxis dataKey="skill" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <Radar dataKey="value" stroke="#22c55e" fill="#22c55e" fillOpacity={0.3} isAnimationActive={true} animationDuration={1200} />
-                    <Tooltip contentStyle={{ backgroundColor: "#0b1220", borderColor: "#1e293b", borderRadius: 8 }} />
+                    <PolarGrid stroke={cc.grid} />
+                    <PolarAngleAxis dataKey="skill" tick={{ fill: cc.label, fontSize: 11 }} />
+                    <Radar dataKey="value" stroke={cc.green} fill={cc.green} fillOpacity={0.3} isAnimationActive={true} animationDuration={1200} />
+                    <Tooltip contentStyle={{ ...tooltipStyle, borderRadius: 8 }} />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
@@ -290,9 +294,9 @@ export default function StudentAnalyticsDashboard() {
               <div className="h-64 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={currentTest.subjectMasteryData} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
-                    <XAxis dataKey="subject" stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#475569" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
-                    <Tooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} contentStyle={{ backgroundColor: "#0b1220", borderColor: "#1e293b", borderRadius: 8 }} />
+                    <XAxis dataKey="subject" stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
+                    <Tooltip cursor={{ fill: cc.cursor }} contentStyle={{ ...tooltipStyle, borderRadius: 8 }} />
                     <Bar 
                       dataKey="score" 
                       radius={[4, 4, 0, 0]} 
@@ -309,7 +313,7 @@ export default function StudentAnalyticsDashboard() {
                       {currentTest.subjectMasteryData.map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
-                          fill={selectedSubject === "All" || selectedSubject === entry.subject ? "#22c55e" : "#1e293b"} 
+                          fill={selectedSubject === "All" || selectedSubject === entry.subject ? cc.green : cc.grid} 
                         />
                       ))}
                     </Bar>
@@ -345,7 +349,7 @@ export default function StudentAnalyticsDashboard() {
                           className="h-1.5 rounded-full transition-all duration-1000 ease-out" 
                           style={{ 
                             width: `${x.pct}%`, 
-                            backgroundColor: x.pct < 50 ? '#ef4444' : x.pct < 75 ? '#f59e0b' : '#22c55e'
+                            backgroundColor: x.pct < 50 ? tc('red-500') : x.pct < 75 ? tc('amber-500') : tc('green-500')
                           }} 
                         />
                       </div>

@@ -13,7 +13,7 @@ const FacultyModal: React.FC<FacultyModalProps> = ({ member, onClose }) => {
   return (
     <ModalPortal>
     <div
-      className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4 animate-fade-in-up"
+      className="fixed inset-0 bg-scrim/75 flex justify-center items-center z-50 p-4 animate-fade-in-up"
       style={{animationDuration: '0.3s'}}
       onClick={onClose}
     >

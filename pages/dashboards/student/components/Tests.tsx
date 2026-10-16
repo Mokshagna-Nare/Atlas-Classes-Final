@@ -120,7 +120,7 @@ const Tests: React.FC = () => {
 
                     <div key={activeTab} className="space-y-3 animate-view-in">
                         {loading ? (
-                            Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 rounded-2xl bg-[linear-gradient(90deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0.07)_50%,rgba(255,255,255,0.03)_100%)] bg-[length:800px_100%] animate-shimmer" />)
+                            Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 rounded-2xl bg-[linear-gradient(90deg,rgb(var(--c-white)/0.03)_0%,rgb(var(--c-white)/0.07)_50%,rgb(var(--c-white)/0.03)_100%)] bg-[length:800px_100%] animate-shimmer" />)
                         ) : filtered.length === 0 ? (
                             <div className="p-14 text-center border border-dashed border-white/10 rounded-3xl flex flex-col items-center gap-3">
                                 <ClipboardCheckIcon className="h-8 w-8 text-gray-700" />
@@ -140,7 +140,7 @@ const Tests: React.FC = () => {
                                     </div>
                                     {t.status === 'available' && (
                                         <button onClick={() => navigate(`/test/${t.testId}`)}
-                                            className="bg-atlas-primary text-white font-black py-3 px-8 rounded-xl hover:bg-emerald-600 transition-all hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest shrink-0">
+                                            className="bg-atlas-primary text-on-accent font-black py-3 px-8 rounded-xl hover:bg-emerald-600 transition-all hover:-translate-y-0.5 active:scale-95 text-xs uppercase tracking-widest shrink-0">
                                             Start Test
                                         </button>
                                     )}

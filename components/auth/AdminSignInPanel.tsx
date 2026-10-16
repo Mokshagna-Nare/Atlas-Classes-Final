@@ -282,7 +282,7 @@ const AdminSignInPanel: React.FC = () => {
           <ol className="mt-6 space-y-5 text-sm text-gray-300">
             <li>
               <span className="font-bold text-white">1. Scan this QR code</span> with Google Authenticator, Microsoft Authenticator, 1Password or Authy.
-              <div className="mt-3 flex justify-center rounded-2xl bg-white p-3 w-fit mx-auto">
+              <div className="mt-3 flex justify-center rounded-2xl bg-paper p-3 w-fit mx-auto">
                 <img src={step.qr} alt="QR code for your authenticator app" className="h-44 w-44" />
               </div>
               <p className="mt-3 text-xs text-gray-500">Can't scan? Enter this key in the app instead:</p>
@@ -382,7 +382,7 @@ const AdminSignInPanel: React.FC = () => {
             type="button"
             onClick={signInWithGoogle}
             disabled={busy || googleEnabled === false}
-            className="mt-8 flex w-full items-center justify-center gap-3 rounded-xl bg-white py-3.5 text-sm font-bold text-gray-900 transition-all hover:bg-gray-100 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-8 flex w-full items-center justify-center gap-3 rounded-xl bg-paper py-3.5 text-sm font-bold text-ink ring-1 ring-inset ring-white/10 transition-all hover:bg-[#f1f3f4] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <GoogleMark /> Continue with Google
           </button>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { LogoutIcon, MenuIcon, XIcon } from '../icons';
 import WelcomeSplash, { shouldShowWelcome } from './WelcomeSplash';
+import ThemeToggle from '../ui/ThemeToggle';
 
 export interface ShellNavItem<V extends string> {
   view: V;
@@ -80,7 +81,7 @@ function DashboardShell<V extends string>({
       {showWelcome && <WelcomeSplash name={welcome.name} portalLabel={portalLabel} tagline={welcome.tagline} onDone={handleWelcomeDone} />}
 
       {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-scrim/60 backdrop-blur-sm z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}
 
       <aside className={`fixed inset-y-0 left-0 bg-atlas-soft/95 backdrop-blur-xl border-r border-white/5 flex flex-col z-30 w-64 xl:w-72 shrink-0 h-screen transform transition-transform duration-300 ease-out md:sticky md:top-0 md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -124,7 +125,7 @@ function DashboardShell<V extends string>({
         <div className="p-4 border-t border-white/5">
           <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5">
             {user.avatarUrl ? (
-              <div className="h-10 w-10 shrink-0 rounded-xl bg-white p-1 flex items-center justify-center">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-paper p-1 flex items-center justify-center">
                 <img src={user.avatarUrl} alt="" className="h-full w-full object-contain" />
               </div>
             ) : (
@@ -159,6 +160,7 @@ function DashboardShell<V extends string>({
             {active && !active.hasOwnHeading && <p className="text-xs sm:text-sm text-gray-500 truncate mt-0.5">{active.subtitle}</p>}
           </div>
           <LiveClock />
+          <ThemeToggle />
         </header>
 
         <div className="relative px-4 sm:px-8 py-6 sm:py-8">

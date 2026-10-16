@@ -205,7 +205,7 @@ const ManageInstitutes: React.FC = () => {
                     onClick={() => setOpenInstitute(inst)}
                     onKeyDown={e => { if (e.key === 'Enter') setOpenInstitute(inst); }}
                     style={{ animationDelay: `${Math.min(i, 9) * 50}ms` }}
-                    className="group relative flex cursor-pointer flex-col rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 p-5 outline-none focus-visible:ring-emerald-400/60 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-28px_rgba(0,0,0,0.9)] transition-all duration-300 animate-rise-in hover:-translate-y-1 hover:ring-emerald-400/25 hover:shadow-[0_28px_60px_-28px_rgba(16,185,129,0.35)]"
+                    className="group relative flex cursor-pointer flex-col rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 p-5 outline-none focus-visible:ring-emerald-400/60 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-28px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] transition-all duration-300 animate-rise-in hover:-translate-y-1 hover:ring-emerald-400/25 hover:shadow-[0_28px_60px_-28px_rgba(16,185,129,0.35)]"
                   >
                     <div className="flex items-start gap-4">
                       <InstituteAvatar name={inst.name} logoUrl={inst.logo_url} size="lg" />

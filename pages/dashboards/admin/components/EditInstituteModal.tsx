@@ -95,7 +95,7 @@ const InstituteFormModal: React.FC<InstituteFormModalProps> = ({ institute, onCl
             className={`group flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed p-3.5 transition-all ${dragOver ? 'border-emerald-400/70 bg-emerald-400/[0.06]' : 'border-white/15 bg-black/15 hover:border-emerald-400/40'}`}
           >
             {logoPreview ? (
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 ring-1 ring-white/20">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-paper p-1 ring-1 ring-white/20">
                 <img src={logoPreview} alt="" className="keep-original-colors h-full w-full object-contain" />
               </span>
             ) : (

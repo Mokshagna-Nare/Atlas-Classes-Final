@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import ThemeToggle from '../../../components/ui/ThemeToggle';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../../services/api';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -125,15 +126,16 @@ const BRAND_LOGO = 'https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png';
 // ---------------------------------------------------------------------------
 
 const Backdrop: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="relative min-h-screen overflow-hidden bg-[#05080f] text-white font-sans">
+  <div className="relative min-h-screen overflow-hidden bg-atlas-black text-white font-sans">
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.12),transparent_60%)]" />
-    <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,1)_1px,transparent_1px)] [background-size:48px_48px]" />
+    <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:linear-gradient(rgb(var(--c-white))_1px,transparent_1px),linear-gradient(90deg,rgb(var(--c-white))_1px,transparent_1px)] [background-size:48px_48px]" />
+    <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6"><ThemeToggle /></div>
     <div className="relative">{children}</div>
   </div>
 );
 
 const Panel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <div className={`rounded-3xl bg-gradient-to-b from-white/[0.06] to-white/[0.02] ring-1 ring-inset ring-white/10 shadow-[0_40px_80px_-32px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl ${className}`}>
+  <div className={`rounded-3xl bg-gradient-to-b from-white/[0.06] to-white/[0.02] ring-1 light:from-paper light:to-paper/90 ring-inset ring-white/10 shadow-[0_40px_80px_-32px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k))),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl ${className}`}>
     {children}
   </div>
 );
@@ -983,9 +985,9 @@ const TakeTest: React.FC = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-[#05080f] text-white font-sans select-none">
+    <div className="h-screen flex flex-col overflow-hidden bg-atlas-black text-white font-sans select-none">
       {/* ── Header ── */}
-      <header className="relative z-30 shrink-0 border-b border-white/[0.06] bg-[#0a0f18]/95 backdrop-blur-xl">
+      <header className="relative z-30 shrink-0 border-b border-white/[0.06] bg-atlas-dark/95 backdrop-blur-xl">
         <div className="flex items-center gap-4 px-4 sm:px-6 py-3">
           <img src={BRAND_LOGO} alt="Atlas Classes" className="hidden sm:block h-8 w-auto object-contain" />
           <span className="hidden sm:block h-8 w-px bg-white/10" />
@@ -1024,6 +1026,7 @@ const TakeTest: React.FC = () => {
               <p className="font-mono text-lg font-bold tabular-nums">{timeLeft !== null ? formatTime(timeLeft) : '--:--'}</p>
             </div>
           </div>
+          <ThemeToggle className="hidden sm:inline-flex" />
         </div>
 
         {/* Section tabs */}
@@ -1088,7 +1091,7 @@ const TakeTest: React.FC = () => {
               </button>
             </div>
 
-            <div key={currentQ.id} className="mt-5 rounded-3xl bg-gradient-to-b from-white/[0.05] to-white/[0.015] p-6 sm:p-8 ring-1 ring-inset ring-white/[0.08] shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.05)] animate-view-in">
+            <div key={currentQ.id} className="mt-5 rounded-3xl bg-gradient-to-b from-white/[0.05] to-white/[0.015] p-6 light:from-paper light:to-paper/90 sm:p-8 ring-1 ring-inset ring-white/[0.08] shadow-[0_30px_60px_-30px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k))),inset_0_1px_0_rgba(255,255,255,0.05)] animate-view-in">
               <div
                 className="text-lg sm:text-xl font-medium leading-relaxed text-gray-100 prose prose-invert max-w-none"
                 dangerouslySetInnerHTML={{ __html: markersToHtml(replacePlaceholdersWithImages(currentQ.question, currentQ.inline_images)) }}
@@ -1168,7 +1171,7 @@ const TakeTest: React.FC = () => {
         </main>
 
         {/* ── Palette ── */}
-        <aside className="relative z-10 flex w-full shrink-0 flex-col border-t border-white/[0.06] bg-[#0a0f18] md:w-[340px] md:border-l md:border-t-0 min-h-0">
+        <aside className="relative z-10 flex w-full shrink-0 flex-col border-t border-white/[0.06] bg-atlas-dark md:w-[340px] md:border-l md:border-t-0 min-h-0">
           <div className="grid grid-cols-2 gap-2 border-b border-white/[0.06] p-4">
             {(Object.keys(PALETTE) as PaletteState[]).map(state => (
               <div key={state} className={`flex items-center gap-2 text-[11px] text-gray-400 ${state === 'flagged_answered' ? 'col-span-2' : ''}`}>
@@ -1339,8 +1342,8 @@ const TakeTest: React.FC = () => {
       )}
 
       {isSubmitting && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm" role="status">
-          <div className="flex items-center gap-3 rounded-2xl bg-[#0d131d] px-6 py-4 ring-1 ring-white/10">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-scrim/70 backdrop-blur-sm" role="status">
+          <div className="flex items-center gap-3 rounded-2xl bg-atlas-surface px-6 py-4 ring-1 ring-white/10">
             <div className="h-5 w-5 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin" />
             <span className="text-sm font-semibold">Submitting your answers…</span>
           </div>
@@ -1352,7 +1355,7 @@ const TakeTest: React.FC = () => {
 
 const PaletteSwatch: React.FC<{ state: PaletteState }> = ({ state }) => (
   <span className={`relative inline-block h-4 w-4 shrink-0 rounded-[5px] ${PALETTE[state].swatch}`}>
-    {state === 'flagged_answered' && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-[#0a0f18]" />}
+    {state === 'flagged_answered' && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-atlas-dark" />}
   </span>
 );
 
@@ -1361,11 +1364,11 @@ const PaletteBadges: React.FC<{ state: PaletteState }> = ({ state }) => {
   if (state !== 'flagged' && state !== 'flagged_answered') return null;
   return (
     <>
-      <span className="absolute -left-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-400 text-gray-950 ring-2 ring-[#0a0f18]">
+      <span className="absolute -left-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-400 text-gray-950 ring-2 ring-atlas-dark">
         <svg className="h-2 w-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2h2v20H4zM7 3h11l-2.5 4L18 11H7z" /></svg>
       </span>
       {state === 'flagged_answered' && (
-        <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 text-gray-950 ring-2 ring-[#0a0f18]">
+        <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 text-gray-950 ring-2 ring-atlas-dark">
           <svg className="h-2 w-2" fill="none" stroke="currentColor" strokeWidth={4} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
         </span>
       )}
@@ -1374,9 +1377,9 @@ const PaletteBadges: React.FC<{ state: PaletteState }> = ({ state }) => {
 };
 
 const Overlay: React.FC<{ children: React.ReactNode; tone?: 'neutral' | 'danger' }> = ({ children, tone = 'neutral' }) => (
-  <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true">
+  <div className="fixed inset-0 z-[70] flex items-center justify-center bg-scrim/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true">
     <div
-      className={`w-full max-w-md rounded-3xl bg-[#0d131d] p-7 ring-1 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] animate-menu-in ${
+      className={`w-full max-w-md rounded-3xl bg-atlas-surface p-7 ring-1 shadow-[0_40px_80px_-20px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] animate-menu-in ${
         tone === 'danger' ? 'ring-rose-400/40' : 'ring-white/10'
       }`}
     >

@@ -111,7 +111,7 @@ export const SafeImage = ({ src, alt, className }: { src: string; alt: string; c
 
   if (isLikelyFormula) {
     return (
-      <div className="inline-block bg-white rounded-md p-1 shadow-sm" title={alt || 'Formula'}>
+      <div className="inline-block bg-paper rounded-md p-1 shadow-sm" title={alt || 'Formula'}>
         <img src={src} alt={alt} className={className} style={{ backgroundColor: 'transparent' }} />
       </div>
     );
@@ -639,7 +639,7 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
           </Card>
 
           {/* ── Actions ─────────────────────────────────────────────── */}
-          <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-2xl bg-[#0b1118]/90 p-4 ring-1 ring-inset ring-white/10 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+          <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-2xl bg-atlas-dark/90 p-4 ring-1 ring-inset ring-white/10 shadow-[0_20px_50px_-20px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1" aria-live="polite">
               {notice ? (
                 <p className={`flex items-start gap-2 text-sm font-semibold animate-fade-in ${notice.tone === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>

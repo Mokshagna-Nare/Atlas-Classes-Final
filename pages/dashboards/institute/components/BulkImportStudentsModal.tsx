@@ -167,7 +167,7 @@ const BulkImportStudentsModal: React.FC<{
 
     return (
         <ModalPortal>
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+            <div className="fixed inset-0 bg-scrim/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
                 <div className="bg-atlas-dark border border-gray-800 rounded-3xl p-8 w-full max-w-3xl shadow-2xl my-8 animate-scale-in">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-3">
@@ -255,7 +255,7 @@ const BulkImportStudentsModal: React.FC<{
                                     Cancel
                                 </button>
                                 <button onClick={handleSubmit} disabled={validCount === 0 || isSubmitting}
-                                    className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-atlas-primary hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-40 flex items-center justify-center gap-2">
+                                    className="flex-1 px-4 py-3 rounded-xl font-bold text-on-accent bg-atlas-primary hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-40 flex items-center justify-center gap-2">
                                     {isSubmitting ? <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Creating {validCount} accounts...</> : `Import ${validCount || ''} Students`}
                                 </button>
                             </div>
@@ -310,7 +310,7 @@ const BulkImportStudentsModal: React.FC<{
                                 </div>
                             </div>
 
-                            <button onClick={onClose} className="w-full px-4 py-3 rounded-xl font-bold text-white bg-atlas-primary hover:bg-emerald-600 transition-all shadow-lg">
+                            <button onClick={onClose} className="w-full px-4 py-3 rounded-xl font-bold text-on-accent bg-atlas-primary hover:bg-emerald-600 transition-all shadow-lg">
                                 Done
                             </button>
                         </div>

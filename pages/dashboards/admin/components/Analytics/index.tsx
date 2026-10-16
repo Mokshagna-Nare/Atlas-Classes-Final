@@ -4,7 +4,7 @@ import StatCard from './StatCard';
 
 export default function StudentAnalyticsDashboard() {
   return (
-    <div className="min-h-screen bg-[#0a0f18] text-white p-6 rounded-lg font-sans">
+    <div className="min-h-screen bg-atlas-dark text-white p-6 rounded-lg font-sans">
       
       {/* Header Section */}
       <div className="flex items-center justify-between mb-8">
@@ -38,11 +38,11 @@ export default function StudentAnalyticsDashboard() {
         </div>
 
         <div className="flex space-x-3">
-          <select className="bg-[#0f1523] border border-gray-700 text-gray-300 text-sm rounded-lg px-4 py-2 focus:ring-green-500 focus:border-green-500 outline-none">
+          <select className="bg-atlas-surface border border-gray-700 text-gray-300 text-sm rounded-lg px-4 py-2 focus:ring-green-500 focus:border-green-500 outline-none">
             <option>Last 30 Days</option>
             <option>All Time</option>
           </select>
-          <button className="flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-black font-semibold px-4 py-2 rounded-lg transition-colors">
+          <button className="flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-gray-950 font-semibold px-4 py-2 rounded-lg transition-colors">
             <Download className="w-4 h-4" />
             <span>Export Report</span>
           </button>
@@ -83,10 +83,10 @@ export default function StudentAnalyticsDashboard() {
 
       {/* Placeholders for the charts we will build next */}
       <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 bg-[#0f1523] border border-gray-800 rounded-xl p-6 h-80 flex items-center justify-center text-gray-500">
+        <div className="col-span-2 bg-atlas-surface border border-gray-800 rounded-xl p-6 h-80 flex items-center justify-center text-gray-500">
           [Performance Trajectory Chart Goes Here]
         </div>
-        <div className="col-span-1 bg-[#0f1523] border border-gray-800 rounded-xl p-6 h-80 flex items-center justify-center text-gray-500">
+        <div className="col-span-1 bg-atlas-surface border border-gray-800 rounded-xl p-6 h-80 flex items-center justify-center text-gray-500">
           [Accuracy Profile Chart Goes Here]
         </div>
       </div>

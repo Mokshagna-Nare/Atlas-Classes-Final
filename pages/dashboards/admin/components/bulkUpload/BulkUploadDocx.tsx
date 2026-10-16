@@ -487,7 +487,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
   };
 
   const busyOverlay = loading && (
-    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-2xl bg-[#0b1118]/85 backdrop-blur-sm animate-fade-in">
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-2xl bg-atlas-dark/85 backdrop-blur-sm animate-fade-in">
       <span className="h-11 w-11 rounded-full border-4 border-emerald-400/20 border-t-emerald-400 animate-spin" />
       <p className="text-sm font-semibold text-gray-200">{statusMessage || "Working…"}</p>
     </div>
@@ -643,7 +643,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
                 <article
                   key={q.id || idx}
                   style={{ animationDelay: `${Math.min(n, 12) * 40}ms` }}
-                  className={`group relative rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 p-5 ring-1 ring-inset transition-all duration-300 animate-rise-in hover:-translate-y-0.5 hover:shadow-[0_24px_50px_-28px_rgba(0,0,0,0.9)] ${
+                  className={`group relative rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 p-5 ring-1 ring-inset transition-all duration-300 animate-rise-in hover:-translate-y-0.5 hover:shadow-[0_24px_50px_-28px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] ${
                     issues.length ? "ring-amber-400/25 hover:ring-amber-400/40" : "ring-white/[0.07] hover:ring-white/15"
                   }`}
                 >
@@ -707,7 +707,7 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
           </div>
 
           {/* ── Action bar ──────────────────────────────────────────────── */}
-          <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-2xl bg-[#0b1118]/90 p-4 ring-1 ring-inset ring-white/10 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+          <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-2xl bg-atlas-dark/90 p-4 ring-1 ring-inset ring-white/10 shadow-[0_20px_50px_-20px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-gray-400">
               <span className="font-semibold text-white">{questions.length}</span> question{questions.length === 1 ? "" : "s"} ready
               {issueCount > 0 && <span className="text-amber-300"> · {issueCount} still need attention</span>}

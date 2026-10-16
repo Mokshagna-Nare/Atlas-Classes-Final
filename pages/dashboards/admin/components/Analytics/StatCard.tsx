@@ -13,7 +13,7 @@ export default function StatCard({ title, value, trend, subtitle, icon }: StatCa
   const isPositive = trend?.startsWith('+') || false;
 
   return (
-    <div className="bg-[#0f1523] border border-gray-800 rounded-xl p-5 flex flex-col justify-between">
+    <div className="bg-atlas-surface border border-gray-800 rounded-xl p-5 flex flex-col justify-between">
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">{title}</h3>
         <div className="p-2 bg-gray-800/50 rounded-lg text-green-500 border border-gray-700/50">

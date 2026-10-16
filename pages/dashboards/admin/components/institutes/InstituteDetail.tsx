@@ -57,7 +57,7 @@ const InstituteDetail: React.FC<{ institute: Institute; onBack: () => void; onEd
         <Svg d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /> All institutes
       </button>
 
-      <div className="flex flex-wrap items-center gap-5 rounded-3xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 p-6 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-24px_rgba(0,0,0,0.9)]">
+      <div className="flex flex-wrap items-center gap-5 rounded-3xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 p-6 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-24px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))]">
         <InstituteAvatar name={institute.name} logoUrl={institute.logo_url} size="lg" />
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400">Partner institute</p>

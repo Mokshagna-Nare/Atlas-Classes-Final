@@ -1,19 +1,25 @@
 import React from 'react';
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar, Cell } from 'recharts';
 import { ChevronUpIcon } from '../icons';
+import { tc, shadowColor } from '../../utils/themeColors';
+import { useChartColors } from '../../hooks/useChartColors';
 
 // Visual building blocks shared by the student and institute analytics pages.
 
 export interface StatBucket { label: string; correct: number; total: number; percent: number }
 export const tooltipStyle = {
-  backgroundColor: '#0B0F19',
+  backgroundColor: tc('atlas-dark'),
   borderRadius: '14px',
   padding: '12px 14px',
-  boxShadow: '0 20px 40px -10px rgba(0,0,0,0.7)',
-  border: '1px solid rgba(255,255,255,0.08)',
+  boxShadow: `0 20px 40px -10px ${shadowColor(0.7)}`,
+  border: `1px solid ${tc('white', 0.08)}`,
 };
+/** Tooltip row / heading text */
+export const tooltipItem = { color: tc('white') };
+export const tooltipLabel = { color: tc('emerald-400'), fontWeight: 800 };
 
-export const perfColor = (p: number) => (p >= 75 ? '#10B981' : p >= 50 ? '#F59E0B' : '#EF4444');
+/** Performance colour for HTML (bars drawn with divs); charts use useChartColors().perf. */
+export const perfColor = (p: number) => (p >= 75 ? tc('emerald-500') : p >= 50 ? tc('amber-500') : tc('red-500'));
 export const perfText = (p: number) => (p >= 75 ? 'text-emerald-400' : p >= 50 ? 'text-amber-400' : 'text-red-400');
 export const shortDate = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 export const percentileOf = (rank: number, total: number) => (total > 0 ? Math.round(((total - rank + 1) / total) * 100) : 0);
@@ -64,7 +70,7 @@ export const EmptyNote: React.FC<{ text: string }> = ({ text }) => (
 );
 
 export const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <div className={`rounded-3xl bg-[linear-gradient(90deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0.07)_50%,rgba(255,255,255,0.03)_100%)] bg-[length:800px_100%] animate-shimmer ${className}`} />
+  <div className={`rounded-3xl bg-[linear-gradient(90deg,rgb(var(--c-white)/0.03)_0%,rgb(var(--c-white)/0.07)_50%,rgb(var(--c-white)/0.03)_100%)] bg-[length:800px_100%] animate-shimmer ${className}`} />
 );
 
 // Below this many questions a percentage is too noisy to judge — such bars are faded.
@@ -76,19 +82,20 @@ export const AccuracyBars: React.FC<{ data: StatBucket[]; emptyText: string; ord
   if (sorted.length === 0) return <EmptyNote text={emptyText} />;
   const rows = sorted.map(r => ({ ...r, display: `${r.label} · ${r.total}q` }));
   const hasLowSample = rows.some(r => r.total < LOW_SAMPLE);
+  const cc = useChartColors();
   return (
     <div>
       <div style={{ height: Math.max(160, rows.length * 44) }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} layout="vertical" margin={{ left: 0, right: 36, top: 4, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" horizontal={false} />
-            <XAxis type="number" domain={[0, 100]} stroke="#4B5563" fontSize={10} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-            <YAxis type="category" dataKey="display" stroke="#9CA3AF" fontSize={11} width={150} axisLine={false} tickLine={false} />
-            <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} labelStyle={{ color: '#9CA3AF', fontWeight: 700 }}
+            <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} horizontal={false} />
+            <XAxis type="number" domain={[0, 100]} stroke={cc.axis} fontSize={10} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+            <YAxis type="category" dataKey="display" stroke={cc.label} fontSize={11} width={150} axisLine={false} tickLine={false} />
+            <Tooltip cursor={{ fill: cc.cursor }} contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={{ color: tc('gray-400'), fontWeight: 700 }}
               labelFormatter={(_l: any, p: any) => p?.[0]?.payload.label || ''}
               formatter={(v: any, _n: any, p: any) => [`${v}% · ${p.payload.correct} of ${p.payload.total} correct${p.payload.total < LOW_SAMPLE ? ' (too few to judge)' : ''}`, 'Accuracy']} />
             <Bar dataKey="percent" radius={[0, 8, 8, 0]} barSize={20} animationDuration={900}>
-              {rows.map((r, i) => <Cell key={i} fill={perfColor(r.percent)} fillOpacity={r.total < LOW_SAMPLE ? 0.3 : 1} />)}
+              {rows.map((r, i) => <Cell key={i} fill={cc.perf(r.percent)} fillOpacity={r.total < LOW_SAMPLE ? 0.3 : 1} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>

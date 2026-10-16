@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useInstituteAnalytics, InstituteTestStat } from '../../../../hooks/useInstituteAnalytics';
-import { Card, StatTile, EmptyNote, Skeleton, AccuracyBars, tooltipStyle, perfText } from '../../../../components/analytics/AnalyticsUI';
+import { Card, StatTile, EmptyNote, Skeleton, AccuracyBars, tooltipStyle, tooltipItem, tooltipLabel, perfText } from '../../../../components/analytics/AnalyticsUI';
+import { useChartColors, ChartColors } from '../../../../hooks/useChartColors';
 import { ArrowLeftIcon, ArrowRightIcon, UserGroupIcon, ChartBarIcon, TrophyIcon, ShieldCheckIcon, ArrowUpTrayIcon, MagnifyingGlassIcon, DocumentTextIcon, AcademicCapIcon } from '../../../../components/icons';
 
-const BAND_COLORS = ['#EF4444', '#F97316', '#F59E0B', '#34D399', '#10B981'];
+// Score bands, lowest to highest
+const bandColors = (cc: ChartColors) => [cc.red, cc.orange, cc.amber, cc.greenSoft, cc.green];
 const longDate = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 const csvCell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
@@ -25,6 +27,7 @@ const exportCsv = (test: InstituteTestStat) => {
 };
 
 const TestDetail: React.FC<{ test: InstituteTestStat; onBack: () => void }> = ({ test, onBack }) => {
+  const cc = useChartColors();
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => test.attempts.filter(r => `${r.studentName} ${r.rollNo || ''}`.toLowerCase().includes(query.toLowerCase())), [test, query]);
@@ -62,11 +65,11 @@ const TestDetail: React.FC<{ test: InstituteTestStat; onBack: () => void }> = ({
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={test.distribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                <XAxis dataKey="band" stroke="#6B7280" fontSize={11} tickLine={false} axisLine={false} tickFormatter={b => `${b}%`} />
-                <YAxis allowDecimals={false} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} formatter={(v: any) => [v, 'Students']} labelFormatter={(l: any) => `${l}%`} />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]}>{test.distribution.map((_, i) => <Cell key={i} fill={BAND_COLORS[i]} />)}</Bar>
+                <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+                <XAxis dataKey="band" stroke={cc.axisStrong} fontSize={11} tickLine={false} axisLine={false} tickFormatter={b => `${b}%`} />
+                <YAxis allowDecimals={false} stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip cursor={{ fill: cc.cursor }} contentStyle={tooltipStyle} itemStyle={tooltipItem} formatter={(v: any) => [v, 'Students']} labelFormatter={(l: any) => `${l}%`} />
+                <Bar dataKey="count" radius={[8, 8, 0, 0]}>{test.distribution.map((_, i) => <Cell key={i} fill={bandColors(cc)[i]} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

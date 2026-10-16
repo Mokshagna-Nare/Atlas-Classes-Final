@@ -2,7 +2,7 @@
 import React from 'react';
 import { CheckCircleIcon } from '../../../components/icons';
 import { Reveal, SectionHeading, SECTION_SPACING } from '../motion';
-import { cardHover } from '../ui';
+import { cardHover, iconWell } from '../ui';
 
 const schoolBenefits = [
     'Enhanced Brand Value',
@@ -26,12 +26,12 @@ const STUDENT_ICON = 'M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.627 48.627 0
 const BenefitCard: React.FC<{ title: string; icon: string; items: string[] }> = ({ title, icon, items }) => (
     <div className={`group/card ${cardHover} h-full p-7 sm:p-8 md:p-10 overflow-hidden`}>
         {/* Decorative glow that blooms on hover */}
-        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-atlas-primary/10 blur-2xl transition-all duration-700 ease-premium group-hover/card:scale-150 group-hover/card:bg-atlas-primary/20" aria-hidden="true" />
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-atlas-primary/10 blur-2xl transition-all duration-700 ease-premium group-hover/card:scale-150 group-hover/card:bg-atlas-primary/20 light:bg-brand-bright/[0.14] light:group-hover/card:bg-brand-bright/25" aria-hidden="true" />
 
         <div className="relative">
             <div className="flex items-center mb-8">
-                <div className="mr-4 rounded-xl border border-atlas-primary/20 bg-atlas-primary/10 p-3 transition-all duration-500 ease-premium group-hover/card:border-emerald-400/50 group-hover/card:shadow-glow">
-                    <svg className="h-8 w-8 text-atlas-primary transition-transform duration-700 ease-premium group-hover/card:scale-110 group-hover/card:-rotate-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+                <div className={`mr-4 rounded-xl p-3 transition-all duration-500 ease-premium group-hover/card:border-emerald-400/50 group-hover/card:shadow-glow light:group-hover/card:shadow-[0_8px_20px_-10px_rgba(21,128,90,0.5)] ${iconWell}`}>
+                    <svg className="h-8 w-8 transition-transform duration-700 ease-premium group-hover/card:scale-110 group-hover/card:-rotate-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
                     </svg>
                 </div>
@@ -41,7 +41,7 @@ const BenefitCard: React.FC<{ title: string; icon: string; items: string[] }> = 
             <ul className="space-y-2">
                 {items.map(item => (
                     <li key={item} className="group/item -mx-3 flex items-start rounded-xl px-3 py-1.5 transition-colors duration-300 hover:bg-white/[0.03]">
-                        <CheckCircleIcon className="mr-3 mt-0.5 h-6 w-6 flex-shrink-0 text-atlas-primary/70 transition-all duration-300 ease-premium group-hover/item:scale-110 group-hover/item:text-emerald-300" />
+                        <CheckCircleIcon className="mr-3 mt-0.5 h-6 w-6 flex-shrink-0 text-atlas-primary/70 transition-all duration-300 ease-premium group-hover/item:scale-110 group-hover/item:text-emerald-300 light:text-atlas-primary" />
                         <span className="text-base sm:text-lg text-gray-300 transition-all duration-300 ease-premium group-hover/item:translate-x-1 group-hover/item:text-white">{item}</span>
                     </li>
                 ))}
@@ -52,15 +52,15 @@ const BenefitCard: React.FC<{ title: string; icon: string; items: string[] }> = 
 
 const Benefits: React.FC = () => {
   return (
-    <section className={`${SECTION_SPACING} bg-atlas-dark relative overflow-hidden`}>
+    <section className={`${SECTION_SPACING} bg-canvas-cool relative overflow-hidden light:bg-gradient-to-b light:from-canvas light:via-canvas-cool light:to-canvas`}>
       {/* Ambient Background Glows */}
-      <div className="absolute top-[18%] left-1/4 w-96 h-96 bg-atlas-primary/5 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
+      <div className="absolute top-[18%] left-1/4 w-96 h-96 bg-atlas-primary/5 light:bg-brand-bright/10 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
       <div className="absolute bottom-[18%] right-1/4 w-96 h-96 bg-emerald-600/5 rounded-full blur-[120px] pointer-events-none" aria-hidden="true"></div>
 
       <div className="container mx-auto px-6 relative z-10">
         <SectionHeading
             eyebrow="Benefits"
-            title={<>A Partnership That <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-400">Benefits Everyone</span></>}
+            title={<>A Partnership That <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-400 light:from-brand-deep light:to-atlas-primary">Benefits Everyone</span></>}
             subtitle="We create a win-win ecosystem where institutions grow and students excel through our integrated learning model."
         />
 

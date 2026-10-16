@@ -139,7 +139,7 @@ const UploadPaper: React.FC = () => {
         {error && <p className="text-red-500 text-sm">{error}</p>}
         {success && <p className="text-green-500 text-sm">{success}</p>}
 
-        <button type="submit" disabled={isUploading} className="w-full bg-atlas-orange text-white font-bold py-3 px-6 rounded-md hover:bg-orange-600 transition duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">
+        <button type="submit" disabled={isUploading} className="w-full bg-atlas-orange text-on-accent font-bold py-3 px-6 rounded-md hover:bg-orange-600 transition duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">
           {isUploading ? 'Uploading...' : 'Upload and Share'}
         </button>
       </form>

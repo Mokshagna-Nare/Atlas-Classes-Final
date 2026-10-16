@@ -12,7 +12,9 @@ import {
   ShieldCheckIcon, AcademicCapIcon, MagnifyingGlassIcon, SignalIcon
 } from '../../../../components/icons';
 
-import { tooltipStyle, perfColor, perfText, shortDate, percentileOf, topPercentOf, Card, StatTile, DeltaChip, EmptyNote, Skeleton, AccuracyBars } from '../../../../components/analytics/AnalyticsUI';
+import { tooltipStyle, tooltipItem, tooltipLabel, perfColor, perfText, shortDate, percentileOf, topPercentOf, Card, StatTile, DeltaChip, EmptyNote, Skeleton, AccuracyBars } from '../../../../components/analytics/AnalyticsUI';
+import { useChartColors } from '../../../../hooks/useChartColors';
+import { tc } from '../../../../utils/themeColors';
 
 
 const ConceptRow: React.FC<{ stat: BucketStat; tone: 'good' | 'bad' }> = ({ stat, tone }) => (
@@ -22,7 +24,7 @@ const ConceptRow: React.FC<{ stat: BucketStat; tone: 'good' | 'bad' }> = ({ stat
       <p className={`text-sm font-black shrink-0 ${tone === 'good' ? 'text-emerald-400' : perfText(stat.percent)}`}>{stat.percent}%</p>
     </div>
     <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${stat.percent}%`, backgroundColor: tone === 'good' ? '#10B981' : perfColor(stat.percent) }} />
+      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${stat.percent}%`, backgroundColor: tone === 'good' ? tc('emerald-500') : perfColor(stat.percent) }} />
     </div>
     <p className="text-[11px] text-gray-600 mt-1">{stat.correct} of {stat.total} questions correct</p>
   </div>
@@ -89,6 +91,7 @@ const SkillBreakdown: React.FC<{ data: BucketStat[]; scope: string }> = ({ data,
 // ─── Overall (also reused for any date range) ────────────────────────────────
 
 const OverallView: React.FC<{ results: StudentResult[]; analytics: StudentAnalytics }> = ({ results, analytics }) => {
+  const cc = useChartColors();
   const { overall, growthSeries, latestVsPrevious, subjectWise, topicWise, difficultyWise, skillWise, rankHistory, integrity } = analytics;
   const hasTrend = growthSeries.length >= 2;
   const first = growthSeries[0];
@@ -96,9 +99,9 @@ const OverallView: React.FC<{ results: StudentResult[]; analytics: StudentAnalyt
   const growth = hasTrend ? last.score - first.score : 0;
 
   const pieData = [
-    { name: 'Correct', value: overall.totalCorrect, color: '#10B981' },
-    { name: 'Wrong', value: overall.totalWrong, color: '#EF4444' },
-    { name: 'Skipped', value: overall.totalUnattempted, color: '#374151' },
+    { name: 'Correct', value: overall.totalCorrect, color: cc.green },
+    { name: 'Wrong', value: overall.totalWrong, color: cc.red },
+    { name: 'Skipped', value: overall.totalUnattempted, color: cc.track },
   ].filter(p => p.value > 0);
   const totalQs = overall.totalCorrect + overall.totalWrong + overall.totalUnattempted;
   const showRadar = subjectWise.filter(s => s.total >= 10).length >= 3;
@@ -154,17 +157,17 @@ const OverallView: React.FC<{ results: StudentResult[]; analytics: StudentAnalyt
               <AreaChart data={growthSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10B981" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                    <stop offset="0%" stopColor={cc.green} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={cc.green} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={shortDate} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} minTickGap={16} />
-                <YAxis stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={v => `${v}%`} />
-                <ReferenceLine y={overall.averageScore} stroke="#6B7280" strokeDasharray="4 4" label={{ value: `Avg ${overall.averageScore}%`, fill: '#6B7280', fontSize: 10, position: 'insideTopRight' }} />
-                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} labelStyle={{ color: '#10B981', fontWeight: 800 }}
+                <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+                <XAxis dataKey="date" tickFormatter={shortDate} stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} minTickGap={16} />
+                <YAxis stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={v => `${v}%`} />
+                <ReferenceLine y={overall.averageScore} stroke={cc.axisStrong} strokeDasharray="4 4" label={{ value: `Avg ${overall.averageScore}%`, fill: cc.axisStrong, fontSize: 10, position: 'insideTopRight' }} />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={tooltipLabel}
                   labelFormatter={(_l: any, p: any) => p?.[0] ? `${p[0].payload.title} · ${shortDate(p[0].payload.date)}` : ''} formatter={(v: any) => [`${v}%`, 'Score']} />
-                <Area type="monotone" dataKey="score" stroke="#10B981" strokeWidth={3} fill="url(#growthFill)" dot={{ r: 4, fill: '#10B981', strokeWidth: 0 }} activeDot={{ r: 6 }} animationDuration={1100} />
+                <Area type="monotone" dataKey="score" stroke={cc.green} strokeWidth={3} fill="url(#growthFill)" dot={{ r: 4, fill: cc.green, strokeWidth: 0 }} activeDot={{ r: 6 }} animationDuration={1100} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -176,13 +179,13 @@ const OverallView: React.FC<{ results: StudentResult[]; analytics: StudentAnalyt
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={rankHistory} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={shortDate} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} minTickGap={16} />
-                <YAxis stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} reversed allowDecimals={false} domain={[1, 'dataMax']} tickFormatter={v => `#${v}`} />
-                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} labelStyle={{ color: '#10B981', fontWeight: 800 }}
+                <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+                <XAxis dataKey="date" tickFormatter={shortDate} stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} minTickGap={16} />
+                <YAxis stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} reversed allowDecimals={false} domain={[1, 'dataMax']} tickFormatter={v => `#${v}`} />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={tooltipLabel}
                   labelFormatter={(_l: any, p: any) => p?.[0]?.payload.title || ''}
                   formatter={(v: any, _n: any, p: any) => [`#${v} of ${p.payload.totalStudents} · top ${topPercentOf(v, p.payload.totalStudents)}%`, 'Rank']} />
-                <Line type="monotone" dataKey="rank" stroke="#34D399" strokeWidth={3} dot={{ r: 4, fill: '#34D399', strokeWidth: 0 }} activeDot={{ r: 6 }} animationDuration={1100} />
+                <Line type="monotone" dataKey="rank" stroke={cc.greenSoft} strokeWidth={3} dot={{ r: 4, fill: cc.greenSoft, strokeWidth: 0 }} activeDot={{ r: 6 }} animationDuration={1100} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -196,11 +199,11 @@ const OverallView: React.FC<{ results: StudentResult[]; analytics: StudentAnalyt
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="75%" data={subjectWise.map(s => ({ subject: s.label, value: s.percent }))}>
-                  <PolarGrid stroke="#374151" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#9CA3AF', fontSize: 11, fontWeight: 700 }} />
+                  <PolarGrid stroke={cc.track} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: cc.label, fontSize: 11, fontWeight: 700 }} />
                   <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                  <Radar dataKey="value" stroke="#10B981" fill="#10B981" fillOpacity={0.35} animationDuration={1000} />
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} formatter={(v: any) => [`${v}%`, 'Accuracy']} />
+                  <Radar dataKey="value" stroke={cc.green} fill={cc.green} fillOpacity={0.35} animationDuration={1000} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItem} formatter={(v: any) => [`${v}%`, 'Accuracy']} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
@@ -218,7 +221,7 @@ const OverallView: React.FC<{ results: StudentResult[]; analytics: StudentAnalyt
                   <Pie data={pieData} cx="50%" cy="50%" innerRadius={72} outerRadius={104} paddingAngle={4} dataKey="value" stroke="none" animationDuration={900}>
                     {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff', fontWeight: 700 }} formatter={(v: any, n: any) => [`${v} (${Math.round((v / totalQs) * 100)}%)`, n]} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ ...tooltipItem, fontWeight: 700 }} formatter={(v: any, n: any) => [`${v} (${Math.round((v / totalQs) * 100)}%)`, n]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -313,6 +316,7 @@ const OverallView: React.FC<{ results: StudentResult[]; analytics: StudentAnalyt
 // ─── Test-wise ────────────────────────────────────────────────────────────────
 
 const TestWiseView: React.FC<{ results: StudentResult[] }> = ({ results }) => {
+  const cc = useChartColors();
   const [selectedId, setSelectedId] = useState(results[0]?.attemptId);
   const chronological = useMemo(() => results.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), [results]);
   const test = results.find(r => r.attemptId === selectedId) || results[0];
@@ -322,9 +326,9 @@ const TestWiseView: React.FC<{ results: StudentResult[] }> = ({ results }) => {
   const accuracy = answered > 0 ? Math.round((test.correctCount / answered) * 100) : 0;
   const subjectStats: BucketStat[] = Object.entries(test.subjectBreakdown).map(([label, v]) => ({ label, correct: v.score, total: v.maxScore, percent: v.maxScore ? Math.round((v.score / v.maxScore) * 100) : 0 }));
   const outcome = [
-    { name: 'Correct', value: test.correctCount, color: '#10B981' },
-    { name: 'Wrong', value: test.wrongCount, color: '#EF4444' },
-    { name: 'Skipped', value: test.unattemptedCount, color: '#374151' },
+    { name: 'Correct', value: test.correctCount, color: cc.green },
+    { name: 'Wrong', value: test.wrongCount, color: cc.red },
+    { name: 'Skipped', value: test.unattemptedCount, color: cc.track },
   ].filter(o => o.value > 0);
 
   return (
@@ -385,7 +389,7 @@ const TestWiseView: React.FC<{ results: StudentResult[] }> = ({ results }) => {
                   <Pie data={outcome} cx="50%" cy="50%" innerRadius={62} outerRadius={90} paddingAngle={4} dataKey="value" stroke="none" animationDuration={800}>
                     {outcome.map((o, i) => <Cell key={i} fill={o.color} />)}
                   </Pie>
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff', fontWeight: 700 }} />
+                  <Tooltip contentStyle={tooltipStyle} itemStyle={{ ...tooltipItem, fontWeight: 700 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">

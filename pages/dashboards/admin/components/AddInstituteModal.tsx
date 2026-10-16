@@ -28,7 +28,7 @@ const AddInstituteModal: React.FC<AddInstituteModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex justify-center items-center z-[100] p-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
+    <div className="fixed inset-0 bg-scrim/90 backdrop-blur-md flex justify-center items-center z-[100] p-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
       <div className="bg-atlas-soft border border-gray-800 rounded-[2.5rem] shadow-2xl w-full max-w-xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="p-10 relative z-10">
             <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
@@ -93,7 +93,7 @@ const AddInstituteModal: React.FC<AddInstituteModalProps> = ({ onClose }) => {
             </div>
             
             <div className="pt-6">
-                <button type="submit" className="w-full bg-atlas-primary text-white font-black py-5 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-sm active:scale-95">
+                <button type="submit" className="w-full bg-atlas-primary text-on-accent font-black py-5 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-sm active:scale-95">
                 Generate Network Access
                 </button>
             </div>

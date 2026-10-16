@@ -159,7 +159,7 @@ const AIPaperGenerator: React.FC = () => {
                          )}
                     </div>
 
-                    <button type="submit" disabled={isLoading} className="w-full flex justify-center items-center space-x-2 bg-gradient-to-r from-atlas-primary to-emerald-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-emerald-900/50 hover:shadow-emerald-900/70 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button type="submit" disabled={isLoading} className="w-full flex justify-center items-center space-x-2 bg-gradient-to-r from-atlas-primary to-emerald-600 text-on-accent font-bold py-4 px-6 rounded-xl shadow-lg shadow-emerald-900/50 hover:shadow-emerald-900/70 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
                         {isLoading ? (
                              <span className="animate-pulse">Processing...</span>
                         ) : (
@@ -218,7 +218,7 @@ const AIPaperGenerator: React.FC = () => {
                                         
                                         {/* SVG Diagram Rendering */}
                                         {q.diagramSvg ? (
-                                             <div className="mb-6 p-4 bg-white rounded-lg flex items-center justify-center border border-gray-600">
+                                             <div className="mb-6 p-4 bg-paper rounded-lg flex items-center justify-center border border-gray-600">
                                                  <div 
                                                     className="w-full max-w-sm"
                                                     dangerouslySetInnerHTML={{ __html: q.diagramSvg }} 

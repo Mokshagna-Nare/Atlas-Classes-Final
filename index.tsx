@@ -1,7 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './theme.css'; // Colour variables for the dark and light themes
 import './styles.css'; // Import consolidated CSS tokens and styles
+import { ThemeProvider } from './contexts/ThemeContext';
 import { DataProvider } from './contexts/DataContext'; // adjust path if needed
 import { completeAuthRedirect } from './services/authRedirect';
 
@@ -17,9 +19,11 @@ const root = ReactDOM.createRoot(rootElement);
 completeAuthRedirect().finally(() => {
   root.render(
     <React.StrictMode>
-      <DataProvider>
-        <App />
-      </DataProvider>
+      <ThemeProvider>
+        <DataProvider>
+          <App />
+        </DataProvider>
+      </ThemeProvider>
     </React.StrictMode>
   );
 });

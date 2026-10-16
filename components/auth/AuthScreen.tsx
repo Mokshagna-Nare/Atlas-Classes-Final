@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import ThemeToggle from '../ui/ThemeToggle';
 import { EnvelopeIcon, KeyIcon, EyeIcon, EyeSlashIcon, ArrowLeftIcon, CheckCircleIcon } from '../icons';
 
 export type AuthRole = 'student' | 'institute' | 'admin';
@@ -82,7 +83,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
       <aside className="relative hidden lg:flex lg:w-[46%] xl:w-1/2 flex-col justify-between overflow-hidden border-r border-white/5 p-12 xl:p-16">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.22),transparent_45%),radial-gradient(circle_at_80%_90%,rgba(52,211,153,0.12),transparent_40%)]" />
         <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-atlas-primary/10 blur-3xl animate-pulse-slow" />
-        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '56px 56px' }} />
+        <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(rgb(var(--c-white)) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--c-white)) 1px, transparent 1px)', backgroundSize: '56px 56px' }} />
 
         <div className="relative animate-auth-in">{brand}</div>
 
@@ -108,6 +109,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
       {/* Form panel */}
       <main className="relative flex-1 flex flex-col items-center justify-center px-5 py-10 sm:px-10">
         <div className="absolute inset-0 lg:hidden bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.14),transparent_55%)]" />
+        <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6"><ThemeToggle /></div>
 
         <div className="relative w-full max-w-md">
           <div className="lg:hidden flex justify-center mb-8 animate-auth-in">{brand}</div>
@@ -136,7 +138,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ role, portalLabel, title, subti
             </div>
           )}
 
-          <div key={role} className="rounded-[2rem] bg-atlas-dark/80 backdrop-blur-xl border border-white/5 p-7 sm:p-9 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.8)] animate-auth-in" style={{ animationDelay: '0.08s' }}>
+          <div key={role} className="rounded-[2rem] bg-atlas-dark/80 backdrop-blur-xl border border-white/5 p-7 sm:p-9 shadow-[0_40px_80px_-30px_rgb(var(--shadow-rgb)/calc(0.8*var(--shadow-k)))] animate-auth-in" style={{ animationDelay: '0.08s' }}>
             {panel ?? (<>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{title}</h2>
             <p className="text-sm text-gray-500 mt-2">{subtitle}</p>

@@ -79,7 +79,7 @@ const InstituteSignup: React.FC = () => {
             />
           </div>
           {localError && <p className="text-red-500 text-sm">{localError}</p>}
-          <button type="submit" disabled={auth?.isLoading} className="w-full bg-atlas-orange text-white font-bold py-3 px-6 rounded-md hover:bg-orange-600 transition duration-300 disabled:opacity-50">
+          <button type="submit" disabled={auth?.isLoading} className="w-full bg-atlas-orange text-on-accent font-bold py-3 px-6 rounded-md hover:bg-orange-600 transition duration-300 disabled:opacity-50">
             {auth?.isLoading ? 'Creating Account...' : 'Register Institute'}
           </button>
         </form>

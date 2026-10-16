@@ -145,7 +145,7 @@ const SelectMenu: React.FC<SelectMenuProps> = ({ value, onChange, options, place
           aria-label={title}
           onKeyDown={onKeyDown}
           style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width }}
-          className="fixed z-[60] overflow-hidden rounded-2xl bg-[#0d131d]/95 backdrop-blur-xl ring-1 ring-white/10 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] outline-none animate-menu-in"
+          className="fixed z-[60] overflow-hidden rounded-2xl bg-atlas-surface/95 backdrop-blur-xl ring-1 ring-white/10 shadow-[0_24px_60px_-12px_rgb(var(--shadow-rgb)/calc(0.85*var(--shadow-k)))] outline-none animate-menu-in"
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
           <p className="px-4 pt-3.5 pb-2 text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">{title}</p>

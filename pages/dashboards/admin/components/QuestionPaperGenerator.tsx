@@ -721,7 +721,7 @@ const QuestionPaperGenerator: React.FC = () => {
           <label className="text-[13px] font-extrabold text-gray-300 uppercase tracking-widest">{title}</label>
           {!disabled && items.length > 0 && !isLoading && (
             <button type="button" onClick={handleSelectAll} className={`text-xs font-bold px-3 py-1 rounded-md border transition-all duration-200 ${
-              selected.length === items.length && items.length > 0 ? 'bg-gray-700/50 border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white' : 'bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-white hover:border-green-500'}`}>
+              selected.length === items.length && items.length > 0 ? 'bg-gray-700/50 border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white' : 'bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-on-accent hover:border-green-500'}`}>
               {selected.length === items.length && items.length > 0 ? 'Deselect All' : 'Select All'}
             </button>
           )}
@@ -881,7 +881,7 @@ const QuestionPaperGenerator: React.FC = () => {
                       <div className="flex items-center gap-3 bg-gray-800 px-4 py-2 rounded-xl border border-gray-700">
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" checked={tracksEnabled} onChange={e => setTracksEnabled(e.target.checked)} className="sr-only peer" />
-                          <div className="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500" />
+                          <div className="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-paper after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-paper after:border-black/10 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500" />
                         </label>
                         <span className="text-sm font-bold text-gray-300">Enable Tracks</span>
                       </div>
@@ -930,7 +930,7 @@ const QuestionPaperGenerator: React.FC = () => {
                   <div className="flex-1 pr-4">
                     {message && <p className={`text-sm font-bold animate-fade-in ${message.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>{message.text}</p>}
                   </div>
-                  <button onClick={handleCreateExamProceed} disabled={saving} className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:opacity-50 text-white px-8 py-3.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2 transform active:scale-95">
+                  <button onClick={handleCreateExamProceed} disabled={saving} className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:opacity-50 text-on-accent px-8 py-3.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2 transform active:scale-95">
                     {saving ? 'Creating Draft...' : 'Save Draft & Proceed'} <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
                   </button>
                 </div>
@@ -990,7 +990,7 @@ const QuestionPaperGenerator: React.FC = () => {
                     <button 
                       onClick={handleOpenReviewModal} 
                       disabled={!isDraftComplete}
-                      className={`px-8 py-3.5 rounded-xl font-bold text-sm transition-all shadow-lg transform active:scale-95 ${isDraftComplete ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-blue-900/30' : 'bg-gray-800 border border-gray-700 text-gray-500 cursor-not-allowed opacity-50'}`}
+                      className={`px-8 py-3.5 rounded-xl font-bold text-sm transition-all shadow-lg transform active:scale-95 ${isDraftComplete ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-on-accent shadow-blue-900/30' : 'bg-gray-800 border border-gray-700 text-gray-500 cursor-not-allowed opacity-50'}`}
                     >
                       {isDraftComplete ? 'Review & Finalize Paper' : 'Fill All Buckets to Finalize'}
                     </button>
@@ -1046,7 +1046,7 @@ const QuestionPaperGenerator: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" checked={useDistribution} onChange={e => setUseDistribution(e.target.checked)} className="sr-only peer" />
-                            <div className="w-12 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 shadow-inner" />
+                            <div className="w-12 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-paper after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-paper after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 shadow-inner" />
                           </label>
                           <div>
                             <span className="text-sm font-bold text-white tracking-wide block">Use Global Difficulty Distribution</span>
@@ -1069,7 +1069,7 @@ const QuestionPaperGenerator: React.FC = () => {
                       <div className="flex-1 pr-4">
                         {message && <p className={`text-sm font-bold animate-fade-in ${message.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>{message.text}</p>}
                       </div>
-                      <button onClick={handleGenerate} disabled={generating || (useDistribution && !isDistributionValid) || loadingPool} className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:from-gray-700 disabled:to-gray-700 disabled:opacity-50 text-white px-8 py-3.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-green-900/20 flex items-center gap-2 transform active:scale-95 whitespace-nowrap">
+                      <button onClick={handleGenerate} disabled={generating || (useDistribution && !isDistributionValid) || loadingPool} className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:from-gray-700 disabled:to-gray-700 disabled:opacity-50 text-on-accent px-8 py-3.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-green-900/20 flex items-center gap-2 transform active:scale-95 whitespace-nowrap">
                         {generating ? 'Searching Bank...' : `Generate ${remainingInBucket} Questions`}
                         {!generating && <FunnelIcon className="h-4 w-4" />}
                       </button>
@@ -1099,7 +1099,7 @@ const QuestionPaperGenerator: React.FC = () => {
                           <h3 className="font-bold text-white text-lg tracking-wide">Pending Questions</h3>
                           <p className="text-xs text-gray-400 mt-1">Review these {generatedPaper.length} questions before adding them to {targetSubj}.</p>
                         </div>
-                        <button onClick={handleAddToDraft} disabled={saving} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-900/20 transform active:scale-95">
+                        <button onClick={handleAddToDraft} disabled={saving} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-on-accent px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-900/20 transform active:scale-95">
                           {saving ? 'Adding...' : `Add ${generatedPaper.length} Questions to Draft`}
                         </button>
                      </div>
@@ -1220,7 +1220,7 @@ const QuestionPaperGenerator: React.FC = () => {
                         <td className="p-6 text-right">
                           <div className="flex justify-end gap-3 items-center">
                             {paper.status === 'Draft' || filled < needed ? (
-                               <button onClick={() => handleResumeDraft(paper)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-900/20 whitespace-nowrap transform active:scale-95 flex items-center gap-2">
+                               <button onClick={() => handleResumeDraft(paper)} className="bg-blue-600 hover:bg-blue-500 text-on-accent px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-900/20 whitespace-nowrap transform active:scale-95 flex items-center gap-2">
                                  Resume Draft <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
                                </button>
                             ) : (
@@ -1305,7 +1305,7 @@ const QuestionPaperGenerator: React.FC = () => {
               <p className="text-sm font-bold text-gray-400">Please review carefully before locking. This action cannot be easily undone.</p>
               <div className="flex gap-3">
                 <button onClick={() => setReviewModalOpen(false)} className="px-6 py-3 rounded-xl font-bold text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 transition-colors border border-gray-700">Cancel & Edit</button>
-                <button onClick={handleFinalizePaper} disabled={saving} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/20 transform active:scale-95 flex items-center gap-2">
+                <button onClick={handleFinalizePaper} disabled={saving} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-on-accent px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/20 transform active:scale-95 flex items-center gap-2">
                   {saving ? 'Locking...' : 'Lock & Publish Exam'} <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                 </button>
               </div>
@@ -1332,7 +1332,7 @@ const QuestionPaperGenerator: React.FC = () => {
               <p className="text-sm text-gray-400 mb-2">Choose which version to generate for <span className="font-bold text-white">{downloadData?.title}</span>.</p>
               
               <div onClick={() => setDownloadType('student')} className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-4 ${downloadType === 'student' ? 'border-purple-500 bg-purple-500/10' : 'border-gray-700 bg-gray-800/40 hover:border-gray-500'}`}>
-                <div className={`p-3 rounded-xl flex-shrink-0 ${downloadType === 'student' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                <div className={`p-3 rounded-xl flex-shrink-0 ${downloadType === 'student' ? 'bg-purple-500 text-on-accent' : 'bg-gray-700 text-gray-400'}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
                 </div>
                 <div>
@@ -1342,7 +1342,7 @@ const QuestionPaperGenerator: React.FC = () => {
               </div>
 
               <div onClick={() => setDownloadType('teacher')} className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-4 ${downloadType === 'teacher' ? 'border-green-500 bg-green-500/10' : 'border-gray-700 bg-gray-800/40 hover:border-gray-500'}`}>
-                <div className={`p-3 rounded-xl flex-shrink-0 ${downloadType === 'teacher' ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                <div className={`p-3 rounded-xl flex-shrink-0 ${downloadType === 'teacher' ? 'bg-green-500 text-on-accent' : 'bg-gray-700 text-gray-400'}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" /></svg>
                 </div>
                 <div>
@@ -1379,7 +1379,7 @@ const QuestionPaperGenerator: React.FC = () => {
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-400 mb-2">Choose your preferred file format to download.</p>
               <div onClick={() => setSelectedFormat('pdf')} className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-4 ${selectedFormat === 'pdf' ? 'border-red-500 bg-red-500/10' : 'border-gray-700 bg-gray-800/40 hover:border-gray-500'}`}>
-                <div className={`p-3 rounded-xl flex-shrink-0 ${selectedFormat === 'pdf' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                <div className={`p-3 rounded-xl flex-shrink-0 ${selectedFormat === 'pdf' ? 'bg-red-500 text-on-accent' : 'bg-gray-700 text-gray-400'}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                 </div>
                 <div>
@@ -1388,7 +1388,7 @@ const QuestionPaperGenerator: React.FC = () => {
                 </div>
               </div>
               <div onClick={() => setSelectedFormat('docx')} className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-4 ${selectedFormat === 'docx' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-700 bg-gray-800/40 hover:border-gray-500'}`}>
-                <div className={`p-3 rounded-xl flex-shrink-0 ${selectedFormat === 'docx' ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                <div className={`p-3 rounded-xl flex-shrink-0 ${selectedFormat === 'docx' ? 'bg-blue-500 text-on-accent' : 'bg-gray-700 text-gray-400'}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.148.42-.24.63-.114.288-.257.565-.406.827m7.36-92a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" /></svg>
                 </div>
                 <div>

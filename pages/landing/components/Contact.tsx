@@ -3,6 +3,9 @@ import { EnvelopeIcon, GlobeAltIcon, MapPinIcon } from '../../../components/icon
 import { Reveal, SectionHeading, SECTION_SPACING, prefersReducedMotion } from '../motion';
 import { buttonPrimary, buttonSecondary, cardHover, cardInteractive, fieldInput } from '../ui';
 
+/** Round icon badge on the contact cards. */
+const contactIcon = 'mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:shadow-glow light:border light:border-brand-line light:bg-brand-pale light:text-brand-deep light:shadow-none light:group-hover/card:shadow-[0_8px_18px_-8px_rgba(21,128,90,0.5)]';
+
 interface ContactProps {
   /** Set when a visitor clicks "Enquire" on a program card; pre-fills the message. */
   enquiry?: { program: string; at: number } | null;
@@ -38,8 +41,8 @@ const SentConfirmation: React.FC<{ onReset: () => void }> = ({ onReset }) => {
           />
           <defs>
             <linearGradient id="trail" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0%" stopColor="#34d399" stopOpacity="0" />
-              <stop offset="100%" stopColor="#34d399" stopOpacity="0.9" />
+              <stop offset="0%" stopColor="currentColor" className="text-emerald-400" stopOpacity="0" />
+              <stop offset="100%" stopColor="currentColor" className="text-emerald-400" stopOpacity="0.9" />
             </linearGradient>
           </defs>
 
@@ -48,12 +51,12 @@ const SentConfirmation: React.FC<{ onReset: () => void }> = ({ onReset }) => {
             <circle cx="56" cy="56" r="40" className="fill-emerald-400/10" />
           </g>
           <circle
-            cx="56" cy="56" r="40" fill="none" stroke="#34d399" strokeWidth="4" strokeLinecap="round"
-            pathLength={1} strokeDasharray="1" transform="rotate(-90 56 56)" className="animate-draw-circle-late"
+            cx="56" cy="56" r="40" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"
+            pathLength={1} strokeDasharray="1" transform="rotate(-90 56 56)" className="animate-draw-circle-late text-emerald-400"
           />
           <path
-            d="M38 57.5l12 12 24-26" fill="none" stroke="#34d399" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"
-            pathLength={1} strokeDasharray="1" className="animate-draw-check-late"
+            d="M38 57.5l12 12 24-26" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"
+            pathLength={1} strokeDasharray="1" className="animate-draw-check-late text-emerald-400"
           />
         </svg>
 
@@ -137,10 +140,10 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
   ];
 
   return (
-    <section className={`${SECTION_SPACING} bg-atlas-dark relative overflow-hidden`}>
+    <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden`}>
       {/* Background Ambient Glow */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none" aria-hidden="true">
-          <div className="absolute top-[15%] right-[4%] w-96 h-96 bg-atlas-primary/10 rounded-full blur-[100px]"></div>
+          <div className="absolute top-[15%] right-[4%] w-96 h-96 bg-atlas-primary/10 light:bg-brand-bright/[0.14] rounded-full blur-[100px]"></div>
           <div className="absolute bottom-[12%] left-[4%] w-72 h-72 bg-emerald-600/10 rounded-full blur-[80px]"></div>
       </div>
 
@@ -152,7 +155,7 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
                 <SectionHeading
                     align="left"
                     eyebrow="Contact"
-                    title={<>Get in <span className="text-atlas-primary">Touch</span></>}
+                    title={<>Get in <span className="text-atlas-primary light:text-brand-deep">Touch</span></>}
                     subtitle="Have questions about our curriculum, faculty, or partnership model? We're here to answer all your queries and help you get started with Atlas Classes."
                     className="!mb-10"
                 />
@@ -165,11 +168,11 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
                                 {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                                 className={`group/card flex items-center p-5 ${cardInteractive}`}
                             >
-                                <span className="mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:bg-atlas-primary group-hover/card:text-gray-950 group-hover/card:shadow-glow">
+                                <span className={`${contactIcon} group-hover/card:bg-atlas-primary group-hover/card:text-gray-950 light:group-hover/card:border-atlas-primary light:group-hover/card:bg-atlas-primary light:group-hover/card:text-on-accent`}>
                                     <Icon className="h-6 w-6" />
                                 </span>
                                 <span className="min-w-0">
-                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-500">{label}</span>
+                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-500 light:text-gray-400">{label}</span>
                                     <span className="block text-base sm:text-lg font-bold text-white transition-colors duration-300 group-hover/card:text-emerald-300 [overflow-wrap:anywhere]">{value}</span>
                                 </span>
                             </a>
@@ -178,11 +181,11 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
 
                     <Reveal delay={200}>
                         <div className={`group/card flex items-center p-5 ${cardHover}`}>
-                            <span className="mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:-translate-y-0.5 group-hover/card:scale-110 group-hover/card:shadow-glow">
+                            <span className={`${contactIcon} group-hover/card:-translate-y-0.5`}>
                                 <MapPinIcon className="h-6 w-6" />
                             </span>
                             <span>
-                                <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-500">Headquarters</span>
+                                <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-500 light:text-gray-400">Headquarters</span>
                                 <span className="block text-base sm:text-lg font-bold text-white">Bellari, Karnataka, India</span>
                             </span>
                         </div>
@@ -193,7 +196,7 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
             {/* Right Column: Contact Form */}
             <Reveal variant="right" delay={120} className="order-1 lg:order-2 min-w-0">
                 <div ref={formCardRef} className={`${cardHover} spotlight-flat overflow-hidden rounded-3xl p-6 sm:p-8 md:p-10`}>
-                     <div className="pointer-events-none absolute -inset-1 bg-gradient-to-br from-atlas-primary/15 to-transparent opacity-60 blur-2xl" aria-hidden="true" />
+                     <div className="pointer-events-none absolute -inset-1 bg-gradient-to-br from-atlas-primary/15 to-transparent opacity-60 blur-2xl light:from-brand-pale light:opacity-90" aria-hidden="true" />
 
                     {/* The form steps back (blurs, dims, recedes) while the confirmation plays over it */}
                     <div
@@ -207,22 +210,22 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div className="grid sm:grid-cols-2 gap-5">
                                 <div className="space-y-2">
-                                    <label htmlFor="contact-name" className="ml-1 text-xs font-bold uppercase text-gray-400">Name</label>
+                                    <label htmlFor="contact-name" className="ml-1 text-xs font-bold uppercase text-gray-400 light:text-gray-300">Name</label>
                                     <input id="contact-name" type="text" autoComplete="name" value={name} onChange={e => setName(e.target.value)} required className={fieldInput} placeholder="John Doe" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label htmlFor="contact-phone" className="ml-1 text-xs font-bold uppercase text-gray-400">Phone</label>
+                                    <label htmlFor="contact-phone" className="ml-1 text-xs font-bold uppercase text-gray-400 light:text-gray-300">Phone</label>
                                     <input id="contact-phone" type="tel" autoComplete="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} required className={fieldInput} placeholder="+91 98765 43210" />
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <label htmlFor="contact-email" className="ml-1 text-xs font-bold uppercase text-gray-400">Email</label>
+                                <label htmlFor="contact-email" className="ml-1 text-xs font-bold uppercase text-gray-400 light:text-gray-300">Email</label>
                                 <input id="contact-email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required className={fieldInput} placeholder="john@example.com" />
                             </div>
 
                             <div className="space-y-2">
-                                <label htmlFor="contact-message" className="ml-1 text-xs font-bold uppercase text-gray-400">Message</label>
+                                <label htmlFor="contact-message" className="ml-1 text-xs font-bold uppercase text-gray-400 light:text-gray-300">Message</label>
                                 <textarea id="contact-message" ref={messageRef} rows={4} value={message} onChange={e => setMessage(e.target.value)} required className={`${fieldInput} resize-none`} placeholder="How can we help you?" />
                             </div>
 

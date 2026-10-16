@@ -2,10 +2,12 @@ import React from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, Legend } from 'recharts';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useInstituteAnalytics, InstituteStudentRow } from '../../../../hooks/useInstituteAnalytics';
-import { Card, StatTile, EmptyNote, Skeleton, AccuracyBars, tooltipStyle, perfText, shortDate } from '../../../../components/analytics/AnalyticsUI';
+import { Card, StatTile, EmptyNote, Skeleton, AccuracyBars, tooltipStyle, tooltipItem, tooltipLabel, perfText, shortDate } from '../../../../components/analytics/AnalyticsUI';
+import { useChartColors, ChartColors } from '../../../../hooks/useChartColors';
 import { UserGroupIcon, ClipboardDocumentListIcon, ChartPieIcon, ShieldCheckIcon, ChartBarIcon, AcademicCapIcon, SparklesIcon, TrophyIcon, InformationCircleIcon, ChevronUpIcon } from '../../../../components/icons';
 
-const BAND_COLORS = ['#EF4444', '#F97316', '#F59E0B', '#34D399', '#10B981'];
+// Score bands, lowest to highest
+const bandColors = (cc: ChartColors) => [cc.red, cc.orange, cc.amber, cc.greenSoft, cc.green];
 
 const StudentList: React.FC<{ rows: InstituteStudentRow[]; empty: string; metric: (s: InstituteStudentRow) => React.ReactNode }> = ({ rows, empty, metric }) =>
   rows.length === 0 ? <EmptyNote text={empty} /> : (
@@ -25,6 +27,7 @@ const StudentList: React.FC<{ rows: InstituteStudentRow[]; empty: string; metric
   );
 
 const Analysis: React.FC = () => {
+  const cc = useChartColors();
   const { user } = useAuth()!;
   const { analytics: a, loading, error } = useInstituteAnalytics(user?.id);
 
@@ -107,14 +110,14 @@ const Analysis: React.FC = () => {
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={a.trend} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                    <XAxis dataKey="date" tickFormatter={shortDate} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} minTickGap={16} />
-                    <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} labelStyle={{ color: '#10B981', fontWeight: 800 }}
+                    <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={shortDate} stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} minTickGap={16} />
+                    <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={tooltipLabel}
                       labelFormatter={(_l: any, p: any) => p?.[0]?.payload.title || ''} formatter={(v: any, n: any) => [`${v}%`, n]} />
                     <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                    <Line type="monotone" name="Class average" dataKey="average" stroke="#10B981" strokeWidth={3} dot={{ r: 4, fill: '#10B981', strokeWidth: 0 }} animationDuration={1100} />
-                    <Line type="monotone" name="Top score" dataKey="top" stroke="#6EE7B7" strokeWidth={2} strokeDasharray="5 4" dot={false} animationDuration={1100} />
+                    <Line type="monotone" name="Class average" dataKey="average" stroke={cc.green} strokeWidth={3} dot={{ r: 4, fill: cc.green, strokeWidth: 0 }} animationDuration={1100} />
+                    <Line type="monotone" name="Top score" dataKey="top" stroke={cc.greenPale} strokeWidth={2} strokeDasharray="5 4" dot={false} animationDuration={1100} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -126,12 +129,12 @@ const Analysis: React.FC = () => {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={a.distribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                    <XAxis dataKey="band" stroke="#6B7280" fontSize={11} tickLine={false} axisLine={false} tickFormatter={b => `${b}%`} />
-                    <YAxis allowDecimals={false} stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} formatter={(v: any) => [v, 'Attempts']} labelFormatter={(l: any) => `${l}%`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+                    <XAxis dataKey="band" stroke={cc.axisStrong} fontSize={11} tickLine={false} axisLine={false} tickFormatter={b => `${b}%`} />
+                    <YAxis allowDecimals={false} stroke={cc.axis} fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{ fill: cc.cursor }} contentStyle={tooltipStyle} itemStyle={tooltipItem} formatter={(v: any) => [v, 'Attempts']} labelFormatter={(l: any) => `${l}%`} />
                     <Bar dataKey="count" radius={[8, 8, 0, 0]} animationDuration={900}>
-                      {a.distribution.map((_, i) => <Cell key={i} fill={BAND_COLORS[i]} />)}
+                      {a.distribution.map((_, i) => <Cell key={i} fill={bandColors(cc)[i]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

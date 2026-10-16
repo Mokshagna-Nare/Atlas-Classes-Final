@@ -87,8 +87,8 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-atlas-dark font-sans relative isolate overflow-x-hidden text-white">
-      {/* Dark theme ambient glow */}
+    <div className="bg-canvas font-sans relative isolate overflow-x-hidden text-white">
+      {/* Ambient glow from the top of the page */}
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_center,rgba(16,185,129,0.08),transparent_40%)] pointer-events-none"></div>
       
       <ScrollProgress />
@@ -108,7 +108,7 @@ const LandingPage: React.FC = () => {
         aria-label="Back to top"
         tabIndex={showBackToTop ? 0 : -1}
         aria-hidden={!showBackToTop}
-        className={`fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 rounded-full border border-emerald-300/40 bg-gradient-to-b from-emerald-400 to-emerald-500 p-3 text-gray-950 shadow-glow transition-all duration-500 ease-premium hover:-translate-y-1 hover:shadow-glow-lg active:scale-95 ${focusRing} ${
+        className={`fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 rounded-full border border-emerald-300/40 bg-gradient-to-b from-emerald-400 to-emerald-500 p-3 text-gray-950 shadow-glow transition-all duration-500 ease-premium hover:-translate-y-1 hover:shadow-glow-lg active:scale-95 light:border-brand-deep/40 light:from-atlas-primary light:to-brand-deep light:text-on-accent light:shadow-[0_10px_24px_-10px_rgba(16,107,77,0.6)] ${focusRing} ${
           showBackToTop ? 'opacity-100 scale-100' : 'pointer-events-none opacity-0 scale-75 translate-y-4'
         }`}
       >

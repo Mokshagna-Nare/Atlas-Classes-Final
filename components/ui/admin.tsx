@@ -44,7 +44,7 @@ export const Card: React.FC<{
   bodyClassName?: string;
 }> = ({ step, icon, title, subtitle, aside, children, raised, className = '', bodyClassName = 'p-5 sm:p-6' }) => (
   <section
-    className={`relative rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-24px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.04)] ${raised ? 'z-10' : ''} ${className}`}
+    className={`relative rounded-2xl bg-gradient-to-b from-gray-900/80 to-gray-900/50 ring-1 ring-inset ring-white/[0.07] shadow-[0_20px_50px_-24px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k))),inset_0_1px_0_rgba(255,255,255,0.04)] ${raised ? 'z-10' : ''} ${className}`}
   >
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-5 sm:px-6 py-4">
       <div className="flex items-center gap-3">
@@ -120,7 +120,7 @@ export const IconButton: React.FC<{ icon: string; label: string; onClick: () => 
 export const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: React.ReactNode; tone?: 'emerald' | 'rose' }> = ({ checked, onChange, label, tone = 'emerald' }) => (
   <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="group inline-flex items-center gap-3 text-sm font-semibold text-gray-300 hover:text-white">
     <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-300 ${checked ? (tone === 'rose' ? 'bg-rose-500' : 'bg-emerald-500') : 'bg-white/15'}`}>
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${checked ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-paper shadow transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${checked ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
     </span>
     {label}
   </button>
@@ -217,11 +217,11 @@ export const AdminModal: React.FC<{
   const glow = tone === 'rose' ? 'via-rose-400/50' : tone === 'amber' ? 'via-amber-400/50' : 'via-emerald-400/50';
   return (
     <ModalPortal>
-      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md animate-fade-in" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-scrim/70 p-4 backdrop-blur-md animate-fade-in" onMouseDown={e => e.target === e.currentTarget && onClose()}>
         <div
           role="dialog"
           aria-modal="true"
-          className={`relative flex max-h-[90vh] w-full ${width} flex-col overflow-hidden rounded-3xl bg-gradient-to-b from-[#111a24] to-[#0b1118] text-white ring-1 ring-white/10 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.95)] animate-success-pop`}
+          className={`relative flex max-h-[90vh] w-full ${width} flex-col overflow-hidden rounded-3xl bg-gradient-to-b from-atlas-raised to-atlas-dark text-white ring-1 ring-white/10 shadow-[0_40px_100px_-20px_rgb(var(--shadow-rgb)/calc(0.95*var(--shadow-k)))] animate-success-pop`}
         >
           <div className={`pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent ${glow} to-transparent`} />
           <header className="flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5">
@@ -251,7 +251,7 @@ export const InstituteAvatar: React.FC<{ name: string; logoUrl?: string | null; 
   const box = `shrink-0 ${size === 'lg' ? 'h-14 w-14 rounded-2xl text-base' : 'h-7 w-7 rounded-lg text-[10px]'}`;
   if (logoUrl && !failed) {
     return (
-      <span className={`flex ${box} items-center justify-center overflow-hidden bg-white p-0.5 ring-1 ring-white/20`}>
+      <span className={`flex ${box} items-center justify-center overflow-hidden bg-paper p-0.5 ring-1 ring-white/20`}>
         {/* keep-original-colors: styles.css otherwise hue-shifts any img whose URL contains "logo". */}
         <img src={logoUrl} alt="" className="keep-original-colors h-full w-full object-contain" onError={() => setFailed(true)} loading="lazy" />
       </span>

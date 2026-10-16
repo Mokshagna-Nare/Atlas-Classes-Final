@@ -62,7 +62,7 @@ const WelcomeSplash: React.FC<WelcomeSplashProps> = ({ name, portalLabel, taglin
                 <div className="absolute -bottom-40 -right-40 h-[28rem] w-[28rem] rounded-full bg-emerald-400/10 blur-3xl animate-pulse-slow" />
                 <div
                     className="absolute inset-0 opacity-[0.04]"
-                    style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '48px 48px' }}
+                    style={{ backgroundImage: 'linear-gradient(rgb(var(--c-white)) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--c-white)) 1px, transparent 1px)', backgroundSize: '48px 48px' }}
                 />
 
                 <div className="relative text-center px-6 max-w-5xl">

@@ -57,34 +57,36 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
         <img
           src="https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2070&auto=format&fit=crop" 
           alt="Mathematics and Science formulas background"
-          className="w-full h-full object-cover scale-105 animate-pulse-slow opacity-40"
+          className="w-full h-full object-cover scale-105 animate-pulse-slow opacity-40 light:opacity-[0.2] light:invert light:hue-rotate-180"
         />
         {/* Gradient Overlays */}
-        <div className="absolute inset-0 bg-gradient-to-b from-atlas-dark/95 via-atlas-dark/80 to-atlas-dark"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#0B0F19_100%)] opacity-90"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-canvas/95 via-canvas/80 to-canvas light:from-canvas/90 light:via-canvas/70"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgb(var(--c-canvas))_100%)] opacity-90"></div>
+        {/* Light theme: soft emerald daylight behind the headline and a cool sage floor */}
+        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(ellipse_70%_55%_at_50%_30%,rgba(39,201,145,0.14),transparent_70%),radial-gradient(ellipse_60%_40%_at_50%_100%,rgba(199,230,215,0.55),transparent_75%)]"></div>
         <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20"></div>
       </div>
 
       {/* Floating Abstract Elements */}
-      <div className="absolute top-1/3 -left-20 w-72 h-72 bg-atlas-primary/[0.14] rounded-full blur-[110px] animate-float delay-0" aria-hidden="true"></div>
-      <div className="absolute bottom-1/4 -right-20 w-72 h-72 bg-atlas-primary/[0.14] rounded-full blur-[110px] animate-float" style={{animationDelay: '2s'}} aria-hidden="true"></div>
+      <div className="absolute top-1/3 -left-20 w-72 h-72 bg-atlas-primary/[0.14] light:bg-brand-bright/[0.18] rounded-full blur-[110px] animate-float delay-0" aria-hidden="true"></div>
+      <div className="absolute bottom-1/4 -right-20 w-72 h-72 bg-atlas-primary/[0.14] light:bg-brand-bright/[0.18] rounded-full blur-[110px] animate-float" style={{animationDelay: '2s'}} aria-hidden="true"></div>
 
       {/* Soft hand-off into the next section (no hard seam) */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-40 bg-gradient-to-b from-transparent to-atlas-dark" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-40 bg-gradient-to-b from-transparent to-canvas" />
 
       <div ref={contentRef} className="relative z-10 container mx-auto px-6 text-center max-w-5xl will-change-transform">
         {/* Chips */}
         <div className={`flex flex-wrap justify-center gap-3 mb-8 ${TALL}mb-10 animate-fade-in-up`} style={{animationDelay: '0.1s'}}>
-            <span className="px-4 py-1.5 rounded-full bg-atlas-primary/10 backdrop-blur-md border border-atlas-primary/30 text-xs sm:text-sm font-bold text-atlas-primary uppercase tracking-wider">IIT-JEE</span>
-            <span className="px-4 py-1.5 rounded-full bg-blue-500/10 backdrop-blur-md border border-blue-500/30 text-xs sm:text-sm font-bold text-blue-400 uppercase tracking-wider">NEET</span>
-            <span className="px-4 py-1.5 rounded-full bg-purple-500/10 backdrop-blur-md border border-purple-500/30 text-xs sm:text-sm font-bold text-purple-400 uppercase tracking-wider">Foundation</span>
+            <span className="px-4 py-1.5 rounded-full bg-atlas-primary/10 backdrop-blur-md border border-atlas-primary/30 text-xs sm:text-sm font-bold text-atlas-primary uppercase tracking-wider light:bg-brand-pale/80 light:border-brand-line light:text-brand-deep light:shadow-[0_1px_2px_rgba(16,24,39,0.05)]">IIT-JEE</span>
+            <span className="px-4 py-1.5 rounded-full bg-blue-500/10 backdrop-blur-md border border-blue-500/30 text-xs sm:text-sm font-bold text-blue-400 uppercase tracking-wider light:shadow-[0_1px_2px_rgba(16,24,39,0.05)]">NEET</span>
+            <span className="px-4 py-1.5 rounded-full bg-purple-500/10 backdrop-blur-md border border-purple-500/30 text-xs sm:text-sm font-bold text-purple-400 uppercase tracking-wider light:shadow-[0_1px_2px_rgba(16,24,39,0.05)]">Foundation</span>
         </div>
 
         {/* Main Headline */}
-        <h1 className={`text-5xl md:text-7xl xl:text-8xl ${TALL}text-9xl font-extrabold mb-6 ${TALL}mb-8 leading-[1.05] tracking-tight text-white drop-shadow-2xl animate-fade-in-up`} style={{animationDelay: '0.3s'}}>
-          Master the <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-400">Future.</span>
+        <h1 className={`text-5xl md:text-7xl xl:text-8xl ${TALL}text-9xl font-extrabold mb-6 ${TALL}mb-8 leading-[1.05] tracking-tight text-white drop-shadow-2xl light:drop-shadow-none animate-fade-in-up`} style={{animationDelay: '0.3s'}}>
+          Master the <span className="text-transparent bg-clip-text bg-gradient-to-r from-atlas-primary to-emerald-400 light:from-brand-deep light:to-atlas-primary">Future.</span>
           <br />
-          <span className={`text-4xl md:text-6xl xl:text-7xl ${TALL}text-8xl text-gray-300 font-bold`}>Begin Your Journey.</span>
+          <span className={`text-4xl md:text-6xl xl:text-7xl ${TALL}text-8xl text-gray-300 light:text-gray-200 font-bold`}>Begin Your Journey.</span>
         </h1>
 
         {/* Subheadline */}
@@ -113,9 +115,9 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
                 { val: '15+', label: 'Expert Faculty' },
                 { val: '10+', label: 'Partner Schools' }
             ].map((stat, idx) => (
-                <div key={idx} className="group/stat spotlight p-4 rounded-2xl bg-atlas-soft/30 border border-white/[0.06] backdrop-blur-sm">
+                <div key={idx} className="group/stat spotlight p-4 rounded-2xl bg-atlas-soft/30 border border-white/[0.06] backdrop-blur-sm light:bg-paper/80 light:border-gray-700/80 light:shadow-[0_1px_2px_rgba(16,24,39,0.05),0_12px_28px_-18px_rgba(16,24,39,0.18)] light:hover:border-brand-line">
                     <p className={`text-3xl md:text-4xl ${TALL}text-5xl font-bold text-white mb-1`}><CountUp value={stat.val} /></p>
-                    <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold transition-colors duration-500 group-hover/stat:text-emerald-300">{stat.label}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold transition-colors duration-500 group-hover/stat:text-emerald-300 light:text-gray-500">{stat.label}</p>
                 </div>
             ))}
         </div>

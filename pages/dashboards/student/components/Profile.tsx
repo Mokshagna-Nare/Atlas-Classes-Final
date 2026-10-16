@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useStudentResults } from '../../../../hooks/useStudentResults';
+import { useChartColors } from '../../../../hooks/useChartColors';
 import { supabase } from '../../../../services/supabase';
 import {
     TrophyIcon, SignalIcon, IdentificationIcon, AcademicCapIcon, ShieldCheckIcon,
@@ -12,7 +13,7 @@ import type { DashboardView } from '../StudentDashboard';
 const scoreColor = (p: number) => (p >= 85 ? 'text-emerald-400' : p >= 65 ? 'text-atlas-primary' : p >= 45 ? 'text-yellow-400' : 'text-red-400');
 
 const Skeleton: React.FC<{ className?: string }> = ({ className = '' }) => (
-    <div className={`rounded-2xl bg-[linear-gradient(90deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0.07)_50%,rgba(255,255,255,0.03)_100%)] bg-[length:800px_100%] animate-shimmer ${className}`} />
+    <div className={`rounded-2xl bg-[linear-gradient(90deg,rgb(var(--c-white)/0.03)_0%,rgb(var(--c-white)/0.07)_50%,rgb(var(--c-white)/0.03)_100%)] bg-[length:800px_100%] animate-shimmer ${className}`} />
 );
 
 const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string; subtext?: string; valueClass?: string }> = ({ icon, label, value, subtext, valueClass }) => (
@@ -38,6 +39,7 @@ const QuickAction: React.FC<{ icon: React.ReactNode; title: string; description:
 );
 
 const Profile: React.FC<{ onNavigate?: (view: DashboardView) => void }> = ({ onNavigate }) => {
+    const cc = useChartColors();
     const { user } = useAuth()!;
     const { results, loading, analytics } = useStudentResults(user?.id);
     const [className, setClassName] = useState<string | null>(null);
@@ -107,12 +109,12 @@ const Profile: React.FC<{ onNavigate?: (view: DashboardView) => void }> = ({ onN
                                     <AreaChart data={analytics.growthSeries} margin={{ top: 8, bottom: 0, left: 0, right: 0 }}>
                                         <defs>
                                             <linearGradient id="heroSpark" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#10B981" stopOpacity={0.35} />
-                                                <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                                                <stop offset="0%" stopColor={cc.green} stopOpacity={0.35} />
+                                                <stop offset="100%" stopColor={cc.green} stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
                                         <YAxis hide domain={[0, 100]} />
-                                        <Area type="monotone" dataKey="score" stroke="#10B981" strokeWidth={3} fill="url(#heroSpark)" isAnimationActive />
+                                        <Area type="monotone" dataKey="score" stroke={cc.green} strokeWidth={3} fill="url(#heroSpark)" isAnimationActive />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             ) : (

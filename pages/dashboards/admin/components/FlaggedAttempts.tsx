@@ -107,7 +107,7 @@ const FlaggedAttempts: React.FC = () => {
                                             <button
                                                 onClick={() => clearFlag(a.id)}
                                                 disabled={actingOn === a.id}
-                                                className="px-3 py-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg transition text-xs font-bold uppercase tracking-widest disabled:opacity-50"
+                                                className="px-3 py-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-on-accent rounded-lg transition text-xs font-bold uppercase tracking-widest disabled:opacity-50"
                                             >
                                                 Clear Flag
                                             </button>

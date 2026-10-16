@@ -169,7 +169,7 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({
             ? 'bg-white/[0.08] text-white ring-1 ring-emerald-400/70 shadow-[0_0_0_4px_rgba(16,185,129,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]'
             : hasSelection
               ? 'bg-gradient-to-b from-emerald-400/[0.18] to-emerald-500/[0.08] text-emerald-100 ring-1 ring-inset ring-emerald-400/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_18px_-8px_rgba(16,185,129,0.55)] hover:ring-emerald-300/60'
-              : 'bg-gradient-to-b from-white/[0.06] to-white/[0.02] text-gray-300 ring-1 ring-inset ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_1px_2px_rgba(0,0,0,0.35)] hover:text-white hover:ring-white/20 hover:from-white/[0.09] hover:-translate-y-px'
+              : 'bg-gradient-to-b from-white/[0.06] to-white/[0.02] text-gray-300 light:from-paper light:to-paper/90 ring-1 ring-inset ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_1px_2px_rgb(var(--shadow-rgb)/calc(0.35*var(--shadow-k)))] hover:text-white hover:ring-white/20 hover:from-white/[0.09] hover:-translate-y-px'
         }`}
       >
         {icon && (
@@ -203,7 +203,7 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({
           aria-label={title}
           onKeyDown={onMenuKeyDown}
           style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left }}
-          className={`fixed z-[60] w-72 ${menuPos.above ? 'origin-bottom-left' : 'origin-top-left'} overflow-hidden rounded-2xl bg-[#0d131d]/95 backdrop-blur-xl ring-1 ring-white/10 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85),0_0_0_1px_rgba(16,185,129,0.05)] outline-none animate-menu-in`}
+          className={`fixed z-[60] w-72 ${menuPos.above ? 'origin-bottom-left' : 'origin-top-left'} overflow-hidden rounded-2xl bg-atlas-surface/95 backdrop-blur-xl ring-1 ring-white/10 shadow-[0_24px_60px_-12px_rgb(var(--shadow-rgb)/calc(0.85*var(--shadow-k))),0_0_0_1px_rgba(16,185,129,0.05)] outline-none animate-menu-in`}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
 

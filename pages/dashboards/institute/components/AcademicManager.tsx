@@ -98,7 +98,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
             {activeTab === 'classes' && (
                 <div className="space-y-6">
                     <div className="flex justify-end">
-                        <button onClick={() => setIsAddClassModalOpen(true)} className="bg-atlas-primary text-white font-black px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-600 transition-all text-xs uppercase tracking-widest shadow-glow">
+                        <button onClick={() => setIsAddClassModalOpen(true)} className="bg-atlas-primary text-on-accent font-black px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-600 transition-all text-xs uppercase tracking-widest shadow-glow">
                             <PlusIcon className="h-4 w-4" /> Define Grade
                         </button>
                     </div>
@@ -138,7 +138,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                             <h3 className="text-lg font-black text-white uppercase tracking-widest">Global Schedule Repository</h3>
                             <p className="text-xs text-gray-500 mt-1">Manage weekly lesson topics per grade.</p>
                         </div>
-                        <button onClick={() => setIsAddScheduleModalOpen(true)} className="bg-atlas-primary text-white font-black px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-600 transition-all text-xs uppercase tracking-widest">
+                        <button onClick={() => setIsAddScheduleModalOpen(true)} className="bg-atlas-primary text-on-accent font-black px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-600 transition-all text-xs uppercase tracking-widest">
                             <PlusIcon className="h-4 w-4" /> Add Topic Entry
                         </button>
                     </div>
@@ -268,7 +268,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                                 </select>
                             </div>
                             {classError && <p className="text-red-500 text-sm font-medium">{classError}</p>}
-                            <button type="submit" disabled={isSavingClass} className="w-full bg-atlas-primary text-white font-black py-4 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-xs disabled:opacity-50">
+                            <button type="submit" disabled={isSavingClass} className="w-full bg-atlas-primary text-on-accent font-black py-4 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-xs disabled:opacity-50">
                                 {isSavingClass ? 'Creating...' : 'Confirm Grade'}
                             </button>
                         </div>
@@ -304,7 +304,7 @@ const AcademicsManager: React.FC<AcademicsManagerProps> = ({ initialTab }) => {
                                 <textarea value={schedTopic} onChange={e => setSchedTopic(e.target.value)} required placeholder="Primary lesson objective..." className="w-full p-4 bg-atlas-dark border border-white/5 rounded-2xl text-white outline-none resize-none" rows={3} />
                             </div>
                         </div>
-                        <button type="submit" className="w-full bg-atlas-primary text-white font-black py-4 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-xs">Confirm Schedule Entry</button>
+                        <button type="submit" className="w-full bg-atlas-primary text-on-accent font-black py-4 rounded-2xl shadow-glow hover:bg-emerald-600 transition-all uppercase tracking-widest text-xs">Confirm Schedule Entry</button>
                     </form>
                 </div>
                 </ModalPortal>

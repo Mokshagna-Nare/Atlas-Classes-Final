@@ -48,7 +48,7 @@
 //       <button
 //         onClick={handleProcess}
 //         disabled={isProcessing || !studentId}
-//         className="w-full bg-atlas-green text-white font-bold py-3 rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+//         className="w-full bg-atlas-green text-on-accent font-bold py-3 rounded-lg hover:bg-green-700 transition disabled:opacity-50"
 //       >
 //         {isProcessing ? "Processing..." : "Generate Analytics"}
 //       </button>

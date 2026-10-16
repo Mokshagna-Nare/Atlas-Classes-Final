@@ -6,6 +6,8 @@ import {
 } from 'recharts';
 import { ALL_RESULTS, INSTITUTE_STUDENTS, STUDENT_TESTS } from '../../../../constants';
 import { getPerformanceAnalysis } from '../../../../services/geminiService';
+import { useChartColors } from '../../../../hooks/useChartColors';
+import { tooltipStyle } from '../../../../components/analytics/AnalyticsUI';
 import { UserGroupIcon, ClipboardDocumentListIcon, ChartPieIcon, SparklesIcon } from '../../../../components/icons';
 
 const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string | number; }> = ({ icon, label, value }) => (
@@ -21,6 +23,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string |
 );
 
 const Analysis: React.FC = () => {
+    const cc = useChartColors();
     const [analysis, setAnalysis] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -31,7 +34,7 @@ const Analysis: React.FC = () => {
     }, {});
 
     const pieData = Object.entries(gradeCounts).map(([name, value]) => ({ name, value }));
-    const COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0', '#D1FAE5'];
+    const COLORS = cc.greenRamp;
 
     // 2. Exam Trends (Comparing average vs highest)
     const chartData = STUDENT_TESTS.filter(t => t.status === 'completed').map(test => {
@@ -95,7 +98,7 @@ const Analysis: React.FC = () => {
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip contentStyle={{ backgroundColor: '#111827', borderRadius: '15px', border: '1px solid #374151' }} />
+                                <Tooltip contentStyle={{ ...tooltipStyle, borderRadius: '15px' }} />
                                 <Legend />
                             </PieChart>
                         </ResponsiveContainer>
@@ -108,13 +111,13 @@ const Analysis: React.FC = () => {
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                                <XAxis dataKey="name" stroke="#6B7280" fontSize={10} axisLine={false} tickLine={false} />
-                                <YAxis stroke="#6B7280" fontSize={10} axisLine={false} tickLine={false} domain={[0, 100]} />
-                                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: '#111827', borderRadius: '15px', border: '1px solid #374151' }} />
+                                <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} vertical={false} />
+                                <XAxis dataKey="name" stroke={cc.axisStrong} fontSize={10} axisLine={false} tickLine={false} />
+                                <YAxis stroke={cc.axisStrong} fontSize={10} axisLine={false} tickLine={false} domain={[0, 100]} />
+                                <Tooltip cursor={{ fill: cc.cursor }} contentStyle={{ ...tooltipStyle, borderRadius: '15px' }} />
                                 <Legend />
-                                <Bar dataKey="avg" name="Class Average" fill="#10B981" radius={[10, 10, 0, 0]} barSize={25} />
-                                <Bar dataKey="top" name="Highest Achievement" fill="#34D399" radius={[10, 10, 0, 0]} barSize={25} opacity={0.6} />
+                                <Bar dataKey="avg" name="Class Average" fill={cc.green} radius={[10, 10, 0, 0]} barSize={25} />
+                                <Bar dataKey="top" name="Highest Achievement" fill={cc.greenSoft} radius={[10, 10, 0, 0]} barSize={25} opacity={0.6} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -130,7 +133,7 @@ const Analysis: React.FC = () => {
                     <button 
                         onClick={handleAnalyze} 
                         disabled={isLoading}
-                        className="bg-atlas-primary text-white font-black py-2 px-6 rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-50 text-xs uppercase tracking-widest"
+                        className="bg-atlas-primary text-on-accent font-black py-2 px-6 rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-50 text-xs uppercase tracking-widest"
                     >
                         {isLoading ? 'Processing...' : 'Generate New Insight'}
                     </button>
