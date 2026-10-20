@@ -46,14 +46,38 @@ export const eyebrowDot = 'h-1.5 w-1.5 rounded-full bg-atlas-primary shadow-[0_0
 
 /** Icon tile on a card: a soft mint tile with a deep emerald icon in the light theme. */
 export const iconWell =
-  'border border-atlas-primary/20 bg-atlas-primary/10 text-atlas-primary light:border-brand-line light:bg-brand-pale light:text-brand-deep';
+  'border border-atlas-primary/20 bg-atlas-primary/10 text-atlas-primary light:border-transparent light:bg-brand-pale light:text-brand-deep';
 
 /**
- * Light theme: the one accent wash used on featured cards — a soft mint fade at the top of a
- * white card (the palette is just white, light grey, mint, emerald and navy).
+ * Light-theme accent families, drawn from the hero's pastel palette, so each card or section can
+ * carry its own colour identity: `card` (tinted wash + border), `tile` (solid icon tile, white
+ * icon), `text` (accent text, AA on white), `bar` (small rules and check marks).
+ * Important (!) so they override the shared card / tile light styles they sit on.
  */
-export const lightCardWash = 'light:!bg-[linear-gradient(180deg,#eef8f3_0%,#ffffff_46%)] light:!border-[#d5ede1] light:hover:!border-[#a9dcc3]';
-
-/** Icon size/stroke used across the public site (Lucide). */
-export const ICON_STROKE = 1.75;
-
+export const lightAccent = {
+  emerald: {
+    card: 'light:!bg-[linear-gradient(180deg,#e7f7ef_0%,#ffffff_48%)] light:!border-[#cdeedc] light:hover:!border-[#9fdcbd]',
+    tile: 'light:!border-transparent light:!bg-[linear-gradient(135deg,#14a374,#0b6b4b)] light:!text-white light:!shadow-[0_10px_20px_-8px_rgba(15,122,85,0.55)]',
+    text: 'light:!text-[#0b5e42]',
+    bar: 'light:!bg-[#0f7a55] light:!text-[#0f7a55]',
+  },
+  sky: {
+    card: 'light:!bg-[linear-gradient(180deg,#e6f2fc_0%,#ffffff_48%)] light:!border-[#cfe3f6] light:hover:!border-[#a6cdf0]',
+    tile: 'light:!border-transparent light:!bg-[linear-gradient(135deg,#1f8fd6,#0b5c94)] light:!text-white light:!shadow-[0_10px_20px_-8px_rgba(11,106,168,0.5)]',
+    text: 'light:!text-[#0a5a8f]',
+    bar: 'light:!bg-[#0b6aa8] light:!text-[#0b6aa8]',
+  },
+  violet: {
+    card: 'light:!bg-[linear-gradient(180deg,#efebfd_0%,#ffffff_48%)] light:!border-[#e0d9f8] light:hover:!border-[#c7b9f2]',
+    tile: 'light:!border-transparent light:!bg-[linear-gradient(135deg,#7357e6,#4a31a8)] light:!text-white light:!shadow-[0_10px_20px_-8px_rgba(91,63,196,0.5)]',
+    text: 'light:!text-[#4a31a8]',
+    bar: 'light:!bg-[#5b3fc4] light:!text-[#5b3fc4]',
+  },
+  amber: {
+    card: 'light:!bg-[linear-gradient(180deg,#fef3e2_0%,#ffffff_48%)] light:!border-[#f6dcb6] light:hover:!border-[#efc07a]',
+    tile: 'light:!border-transparent light:!bg-[linear-gradient(135deg,#d97706,#92400e)] light:!text-white light:!shadow-[0_10px_20px_-8px_rgba(180,83,9,0.5)]',
+    text: 'light:!text-[#92400e]',
+    bar: 'light:!bg-[#b45309] light:!text-[#b45309]',
+  },
+} as const;
+export type LightAccent = (typeof lightAccent)[keyof typeof lightAccent];

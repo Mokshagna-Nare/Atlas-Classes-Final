@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mail, Globe, MapPin } from 'lucide-react';
+import { EnvelopeIcon, GlobeAltIcon, MapPinIcon } from '../../../components/icons';
 import { Reveal, SectionHeading, SECTION_SPACING, prefersReducedMotion } from '../motion';
 import { buttonPrimary, buttonSecondary, cardHover, cardInteractive, fieldInput } from '../ui';
 
 /** Round icon badge on the contact cards. */
-const contactIcon = 'mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:shadow-glow light:border light:border-brand-line light:bg-brand-pale light:text-brand-deep light:shadow-none light:group-hover/card:bg-atlas-primary light:group-hover/card:text-on-accent light:group-hover/card:shadow-[0_8px_18px_-8px_rgba(21,128,90,0.5)]';
+const contactIcon = 'mr-5 rounded-full bg-white/[0.05] p-3.5 text-atlas-primary shadow-inner transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:shadow-glow light:bg-brand-pale light:text-brand-deep light:shadow-none light:group-hover/card:bg-atlas-primary light:group-hover/card:text-on-accent light:group-hover/card:shadow-[0_8px_18px_-8px_rgba(21,128,90,0.5)]';
 
 interface ContactProps {
   /** Set when a visitor clicks "Enquire" on a program card; pre-fills the message. */
@@ -135,16 +135,16 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
   };
 
   const contactLinks = [
-    { href: 'mailto:contact@atlasclasses.com', label: 'Email Us', value: 'contact@atlasclasses.com', Icon: Mail, external: false },
-    { href: 'https://www.atlasclasses.com', label: 'Visit Website', value: 'www.atlasclasses.com', Icon: Globe, external: true },
+    { href: 'mailto:contact@atlasclasses.com', label: 'Email Us', value: 'contact@atlasclasses.com', Icon: EnvelopeIcon, external: false },
+    { href: 'https://www.atlasclasses.com', label: 'Visit Website', value: 'www.atlasclasses.com', Icon: GlobeAltIcon, external: true },
   ];
 
   return (
     <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden light:bg-canvas-cool`}>
       {/* Background Ambient Glow */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none" aria-hidden="true">
-          <div className="absolute top-[15%] right-[4%] w-96 h-96 bg-atlas-primary/10 light:hidden rounded-full blur-[100px]"></div>
-          <div className="absolute bottom-[12%] left-[4%] w-72 h-72 bg-emerald-600/10 light:hidden rounded-full blur-[80px]"></div>
+          <div className="absolute top-[15%] right-[4%] w-96 h-96 bg-atlas-primary/10 light:bg-[#6ee7b7]/20 rounded-full blur-[100px]"></div>
+          <div className="absolute bottom-[12%] left-[4%] w-72 h-72 bg-emerald-600/10 light:bg-[#7dd3fc]/15 rounded-full blur-[80px]"></div>
       </div>
 
       <div className="container mx-auto px-6 relative z-10">
@@ -169,7 +169,7 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
                                 className={`group/card flex items-center p-5 ${cardInteractive}`}
                             >
                                 <span className={`${contactIcon} group-hover/card:bg-atlas-primary group-hover/card:text-gray-950`}>
-                                    <Icon strokeWidth={1.75} aria-hidden="true" className="h-6 w-6" />
+                                    <Icon className="h-6 w-6" />
                                 </span>
                                 <span className="min-w-0">
                                     <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-500 light:text-gray-400">{label}</span>
@@ -182,7 +182,7 @@ const Contact: React.FC<ContactProps> = ({ enquiry }) => {
                     <Reveal delay={200}>
                         <div className={`group/card flex items-center p-5 ${cardHover}`}>
                             <span className={`${contactIcon} group-hover/card:-translate-y-0.5`}>
-                                <MapPin strokeWidth={1.75} aria-hidden="true" className="h-6 w-6" />
+                                <MapPinIcon className="h-6 w-6" />
                             </span>
                             <span>
                                 <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-500 light:text-gray-400">Headquarters</span>

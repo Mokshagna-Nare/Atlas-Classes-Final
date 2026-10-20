@@ -1,27 +1,31 @@
 
 import React from 'react';
-import { BookOpen, ClipboardCheck, MonitorSmartphone, Presentation, Target, Eye } from 'lucide-react';
+import { BookOpenIcon, ClipboardCheckIcon, DesktopComputerIcon, AcademicCapIcon, SparklesIcon, TrophyIcon } from '../../../components/icons';
 import { Reveal, SectionHeading, SECTION_SPACING } from '../motion';
-import { cardHover, iconWell } from '../ui';
+import { cardHover, iconWell, lightAccent, LightAccent } from '../ui';
+
+/** Light theme: Mission is amber, Vision violet; the four partnership features cycle the palette. */
+const PHILOSOPHY_ACCENTS: LightAccent[] = [lightAccent.amber, lightAccent.violet];
+const FEATURE_ACCENTS: LightAccent[] = [lightAccent.emerald, lightAccent.sky, lightAccent.violet, lightAccent.amber];
 
 const missionItems = [
     {
-        icon: <BookOpen strokeWidth={1.6} aria-hidden="true" className="h-8 w-8 text-atlas-primary light:text-brand-deep"/>,
+        icon: <BookOpenIcon className="h-8 w-8 text-atlas-primary light:text-on-accent"/>,
         title: 'Content & Curriculum',
         description: 'Foundation courses (Grade 6–10) meticulously aligned with IIT-JEE/NEET requirements.'
     },
     {
-        icon: <ClipboardCheck strokeWidth={1.6} aria-hidden="true" className="h-8 w-8 text-atlas-primary light:text-brand-deep"/>,
+        icon: <ClipboardCheckIcon className="h-8 w-8 text-atlas-primary light:text-on-accent"/>,
         title: 'Assessment',
         description: 'Weekly papers, professional evaluation, and detailed performance analysis.'
     },
     {
-        icon: <MonitorSmartphone strokeWidth={1.6} aria-hidden="true" className="h-8 w-8 text-atlas-primary light:text-brand-deep"/>,
+        icon: <DesktopComputerIcon className="h-8 w-8 text-atlas-primary light:text-on-accent"/>,
         title: 'Technology & Planning',
         description: 'Dedicated LMS access and structured Microplans for efficient lesson delivery.'
     },
     {
-        icon: <Presentation strokeWidth={1.6} aria-hidden="true" className="h-8 w-8 text-atlas-primary light:text-brand-deep"/>,
+        icon: <AcademicCapIcon className="h-8 w-8 text-atlas-primary light:text-on-accent"/>,
         title: 'Teacher Empowerment',
         description: 'Continuous Teacher Training and academic resource access.'
     },
@@ -30,40 +34,40 @@ const missionItems = [
 const philosophy = [
     {
         title: 'Our Mission',
-        icon: <Target strokeWidth={1.75} aria-hidden="true" className="h-6 w-6" />,
+        icon: <SparklesIcon className="h-6 w-6" />,
         quote: 'Providing accessible, affordable, and structured coaching to build a quality foundation of competitive skills in students everywhere.',
         tag: 'Excellence',
     },
     {
         title: 'Our Vision',
-        icon: <Eye strokeWidth={1.75} aria-hidden="true" className="h-6 w-6" />,
+        icon: <TrophyIcon className="h-6 w-6" />,
         quote: 'Empowering every learner to rise from basics to brilliance and from classrooms to the world.',
         tag: 'Empowerment',
     },
 ];
 
-const PhilosophyCard: React.FC<(typeof philosophy)[number]> = ({ title, icon, quote, tag }) => (
-    <div className={`group/card ${cardHover} h-full rounded-3xl p-7 sm:p-10 flex flex-col`}>
+const PhilosophyCard: React.FC<(typeof philosophy)[number] & { accent: LightAccent }> = ({ title, icon, quote, tag, accent }) => (
+    <div className={`group/card ${cardHover} ${accent.card} h-full rounded-3xl p-7 sm:p-10 flex flex-col`}>
         <div className="flex items-center mb-6">
-            <div className={`mr-4 rounded-xl p-3 transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:-rotate-6 group-hover/card:border-emerald-400/50 group-hover/card:shadow-glow ${iconWell}`}>
+            <div className={`mr-4 rounded-xl p-3 transition-all duration-500 ease-premium group-hover/card:scale-110 group-hover/card:-rotate-6 group-hover/card:border-emerald-400/50 group-hover/card:shadow-glow ${iconWell} ${accent.tile}`}>
                 {icon}
             </div>
-            <h3 className={`text-2xl sm:text-3xl font-bold text-white transition-colors duration-500 group-hover/card:text-emerald-300 light:group-hover/card:text-brand-deep`}>{title}</h3>
+            <h3 className={`text-2xl sm:text-3xl font-bold text-white transition-colors duration-500 group-hover/card:text-emerald-300 ${accent.text}`}>{title}</h3>
         </div>
         <p className="text-base sm:text-lg leading-relaxed text-gray-300 transition-colors duration-500 group-hover/card:text-white">"{quote}"</p>
         <div className="mt-auto flex items-center pt-6">
-            <div className={`mr-2 h-0.5 w-12 bg-atlas-primary transition-all duration-700 ease-premium group-hover/card:w-20 group-hover/card:shadow-glow-sm light:group-hover/card:shadow-none`} />
-            <span className={`text-sm font-bold uppercase tracking-widest text-atlas-primary light:text-brand-deep transition-[letter-spacing] duration-700 ease-premium group-hover/card:tracking-[0.2em]`}>{tag}</span>
+            <div className={`mr-2 h-0.5 w-12 bg-atlas-primary transition-all duration-700 ease-premium group-hover/card:w-20 group-hover/card:shadow-glow-sm light:group-hover/card:shadow-none ${accent.bar}`} />
+            <span className={`text-sm font-bold uppercase tracking-widest text-atlas-primary light:text-brand-deep ${accent.text} transition-[letter-spacing] duration-700 ease-premium group-hover/card:tracking-[0.2em]`}>{tag}</span>
         </div>
     </div>
 );
 
 const Mission: React.FC = () => {
     return (
-        <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden light:bg-[linear-gradient(180deg,#f3faf6_0%,#ecf6f0_100%)]`}>
+        <section className={`${SECTION_SPACING} bg-canvas relative overflow-hidden light:bg-[linear-gradient(180deg,#fff7ee_0%,#fdf0e3_100%)]`}>
             {/* Background Ambiance */}
             <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
-                 <div className="absolute top-[10%] left-[5%] w-[500px] h-[500px] bg-atlas-primary/5 light:hidden rounded-full blur-[120px] animate-pulse-slow"></div>
+                 <div className="absolute top-[10%] left-[5%] w-[500px] h-[500px] bg-atlas-primary/5 light:bg-[#fdba74]/20 rounded-full blur-[120px] animate-pulse-slow"></div>
                  <div className="absolute bottom-[10%] right-[5%] w-[400px] h-[400px] bg-emerald-600/5 rounded-full blur-[100px] animate-pulse-slow" style={{animationDelay: '2s'}}></div>
                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] opacity-30"></div>
             </div>
@@ -81,7 +85,7 @@ const Mission: React.FC = () => {
                 <div data-spotlight-group className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-12 mb-20">
                     {philosophy.map((card, i) => (
                         <Reveal key={card.title} variant={i === 0 ? 'left' : 'right'} delay={i * 120} className="h-full">
-                            <PhilosophyCard {...card} />
+                            <PhilosophyCard {...card} accent={PHILOSOPHY_ACCENTS[i]} />
                         </Reveal>
                     ))}
                 </div>
@@ -117,9 +121,9 @@ const Mission: React.FC = () => {
                 </div>
                 </Reveal>
 
-                {/* 4 Core Components Section — in the light theme it sits on its own full-width white band */}
+                {/* 4 Core Components Section — in the light theme it sits on its own full-width indigo-mist band */}
                 <div className="relative isolate">
-                <div aria-hidden="true" className="pointer-events-none absolute -top-16 -bottom-20 md:-bottom-28 left-1/2 -z-10 hidden w-screen -translate-x-1/2 border-t border-[#dcefe4] bg-paper light:block" />
+                <div aria-hidden="true" className="pointer-events-none absolute -top-16 -bottom-20 md:-bottom-28 left-1/2 -z-10 hidden w-screen -translate-x-1/2 border-t border-[#dfe4f7] bg-[radial-gradient(50%_60%_at_50%_0%,rgba(165,180,252,0.25),transparent_70%),linear-gradient(180deg,#f1f3fe_0%,#e9ecfb_100%)] light:block" />
                 <Reveal className="text-center mb-12">
                      <h3 className="text-3xl font-bold mb-4 text-white">An All-Inclusive Partnership</h3>
                      <p className="max-w-3xl mx-auto text-gray-400 text-lg">
@@ -134,10 +138,10 @@ const Mission: React.FC = () => {
                             className={`group/card ${cardHover} h-full p-7 sm:p-8 flex flex-col items-center text-center`}
                         >
                                                         
-                            <div className={`relative z-10 flex-shrink-0 bg-atlas-primary/10 p-5 rounded-full mb-6 border border-atlas-primary/25 shadow-inner transition-all duration-500 ease-premium group-hover/card:-translate-y-1 group-hover/card:rotate-6 group-hover/card:border-emerald-400/50 group-hover/card:bg-atlas-primary/15 group-hover/card:shadow-glow light:border-brand-line light:bg-brand-pale light:shadow-none light:group-hover/card:bg-brand-pale light:group-hover/card:shadow-[0_8px_18px_-8px_rgba(15,122,85,0.35)]`}>
+                            <div className={`relative z-10 flex-shrink-0 bg-atlas-primary/10 p-5 rounded-full mb-6 border border-atlas-primary/25 shadow-inner transition-all duration-500 ease-premium group-hover/card:-translate-y-1 group-hover/card:rotate-6 group-hover/card:border-emerald-400/50 group-hover/card:bg-atlas-primary/15 group-hover/card:shadow-glow light:border-transparent light:bg-brand-pale light:shadow-none light:group-hover/card:bg-brand-pale light:group-hover/card:shadow-none ${FEATURE_ACCENTS[index].tile}`}>
                                 {item.icon}
                             </div>
-                            <h3 className={`relative z-10 text-xl font-bold text-white mb-3 transition-colors duration-500 group-hover/card:text-emerald-300 light:group-hover/card:!text-brand-deep`}>{item.title}</h3>
+                            <h3 className={`relative z-10 text-xl font-bold text-white mb-3 transition-colors duration-500 group-hover/card:text-emerald-300 light:group-hover/card:!text-gray-100`}>{item.title}</h3>
                             <p className="relative z-10 text-gray-400 text-sm leading-relaxed transition-colors duration-500 group-hover/card:text-gray-300">{item.description}</p>
                         </div>
                         </Reveal>
