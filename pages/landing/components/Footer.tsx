@@ -11,15 +11,16 @@ const linkCls = `inline-flex min-h-[44px] items-center rounded-md px-1 text-sm t
 
 const Footer: React.FC<FooterProps> = ({ scrollToSection }) => {
   return (
-    <footer className="relative bg-canvas py-12 border-t border-white/[0.06] light:border-gray-700">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/30 to-transparent light:hidden" aria-hidden="true" />
+    // In the light theme the footer is a navy brand island: the page closes on the brand's second colour.
+    <footer data-theme="brand" className="relative bg-canvas py-12 border-t border-white/[0.06] light:border-transparent light:bg-[linear-gradient(180deg,#14213a,#0b1324)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/30 to-transparent" aria-hidden="true" />
       <div className="container mx-auto px-6">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
              <div className="text-center md:text-left">
                 <img
                     src="https://i.postimg.cc/xdCpx0Kj/Logo-new-(1).png"
                     alt="Atlas Classes"
-                    className="h-12 w-auto object-contain mb-4 mx-auto md:mx-0 opacity-80 light:opacity-100"
+                    className="h-12 w-auto object-contain mb-4 mx-auto md:mx-0 opacity-80"
                 />
                 <p className="text-gray-500 text-sm">Empowering students from basics to brilliance.</p>
             </div>
@@ -30,7 +31,7 @@ const Footer: React.FC<FooterProps> = ({ scrollToSection }) => {
                 <Link to="/login/admin" className={`${linkCls} !text-xs !text-gray-500 hover:!text-gray-300`}>Admin</Link>
             </nav>
         </div>
-        <div className="border-t border-white/[0.06] mt-8 pt-8 text-center text-gray-600 text-sm light:border-gray-700">
+        <div className="border-t border-white/[0.06] mt-8 pt-8 text-center text-gray-600 text-sm brand:border-white/10 brand:text-gray-500">
             <p>© {new Date().getFullYear()} Atlas Classes. All Rights Reserved.</p>
         </div>
       </div>
