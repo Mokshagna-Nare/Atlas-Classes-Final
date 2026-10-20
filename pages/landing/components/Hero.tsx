@@ -64,14 +64,14 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgb(var(--c-canvas))_100%)] opacity-90 light:opacity-0"></div>
         {/* Light theme: soft pastel colour clouds (mint, aqua, a little lemon and peach) on white,
             with thin orbit lines drifting around the headline */}
-        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(30%_38%_at_18%_30%,rgba(110,231,183,0.45),transparent_72%),radial-gradient(28%_36%_at_84%_26%,rgba(125,211,252,0.35),transparent_72%),radial-gradient(30%_30%_at_70%_74%,rgba(253,230,138,0.38),transparent_72%),radial-gradient(28%_28%_at_30%_76%,rgba(254,205,211,0.32),transparent_72%)] blur-2xl"></div>
+        <div className="absolute inset-0 hidden light:block bg-[radial-gradient(32%_40%_at_16%_28%,rgba(110,231,183,0.42),transparent_72%),radial-gradient(30%_38%_at_86%_24%,rgba(167,243,208,0.40),transparent_72%),radial-gradient(36%_30%_at_60%_88%,rgba(209,250,229,0.55),transparent_72%)] blur-2xl"></div>
         <svg aria-hidden="true" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 hidden h-full w-full light:block">
           <g fill="none" strokeWidth="1.2">
             <ellipse cx="600" cy="330" rx="520" ry="150" transform="rotate(-12 600 330)" stroke="rgba(21,128,90,0.16)" />
-            <ellipse cx="600" cy="340" rx="440" ry="200" transform="rotate(8 600 340)" stroke="rgba(56,189,248,0.14)" />
+            <ellipse cx="600" cy="340" rx="440" ry="200" transform="rotate(8 600 340)" stroke="rgba(16,24,40,0.08)" />
           </g>
           <path d="M1010 196l5 13 13 5-13 5-5 13-5-13-13-5 13-5z" fill="rgba(21,128,90,0.35)" />
-          <path d="M214 470l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="rgba(56,189,248,0.35)" />
+          <path d="M214 470l4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="rgba(21,128,90,0.25)" />
         </svg>
         <div className="absolute top-0 left-0 w-full h-full light:hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20"></div>
       </div>
@@ -86,9 +86,9 @@ const Hero: React.FC<HeroProps> = ({ scrollToSection }) => {
       <div ref={contentRef} className="relative z-10 container mx-auto px-6 text-center max-w-5xl will-change-transform">
         {/* Chips */}
         <div className={`flex flex-wrap justify-center gap-3 mb-8 ${TALL}mb-10 animate-fade-in-up`} style={{animationDelay: '0.1s'}}>
-            <span className="px-4 py-1.5 rounded-full bg-atlas-primary/10 backdrop-blur-md border border-atlas-primary/30 text-xs sm:text-sm font-bold text-atlas-primary uppercase tracking-wider light:bg-brand-pale light:border-brand-line light:text-brand-deep">IIT-JEE</span>
-            <span className="px-4 py-1.5 rounded-full bg-blue-500/10 backdrop-blur-md border border-blue-500/30 text-xs sm:text-sm font-bold text-blue-400 uppercase tracking-wider light:bg-sky-900/40 light:border-sky-800">NEET</span>
-            <span className="px-4 py-1.5 rounded-full bg-purple-500/10 backdrop-blur-md border border-purple-500/30 text-xs sm:text-sm font-bold text-purple-400 uppercase tracking-wider light:bg-violet-900/40 light:border-violet-800">Foundation</span>
+            <span className="px-4 py-1.5 rounded-full bg-atlas-primary/10 backdrop-blur-md border border-atlas-primary/30 text-xs sm:text-sm font-bold text-atlas-primary uppercase tracking-wider light:bg-paper light:border-gray-700 light:text-gray-200 light:shadow-[0_1px_2px_rgba(16,24,40,0.05)]">IIT-JEE</span>
+            <span className="px-4 py-1.5 rounded-full bg-blue-500/10 backdrop-blur-md border border-blue-500/30 text-xs sm:text-sm font-bold text-blue-400 uppercase tracking-wider light:bg-paper light:border-gray-700 light:text-gray-200 light:shadow-[0_1px_2px_rgba(16,24,40,0.05)]">NEET</span>
+            <span className="px-4 py-1.5 rounded-full bg-purple-500/10 backdrop-blur-md border border-purple-500/30 text-xs sm:text-sm font-bold text-purple-400 uppercase tracking-wider light:bg-paper light:border-gray-700 light:text-gray-200 light:shadow-[0_1px_2px_rgba(16,24,40,0.05)]">Foundation</span>
         </div>
 
         {/* Main Headline */}
