@@ -15,31 +15,46 @@ AI keys are stored only in this service's environment variables. The browser
 never sees them. Every request must come from a logged-in Atlas **admin**:
 the service checks the Supabase login token and the user's `role`.
 
-## Deploy (Render)
+## Deploy (Render) — quickest way
 
-1. Render → **New → Web Service** → connect this repository.
-2. **Root directory:** `qpg-service` · **Runtime:** Docker.
-3. **Instance type:** at least **2 GB RAM** (Render "Standard"). Figure
-   detection plus OCR peaked at about 870 MB in testing, so 512 MB plans will
-   crash.
-4. **Environment variables** (see `.env.example`):
-   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`: same values as the admin panel's
+1. Render → **New → Blueprint** → choose this repository. Render reads
+   `render.yaml` at the repo root and creates **only** the new
+   `atlas-questions-generator` service. Your existing services are untouched.
+2. Fill in the values it asks for:
+   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`: the same values as the site's
      `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
-   - `QPG_ALLOWED_ORIGINS`: your admin panel URL, e.g. `https://your-site.vercel.app`.
    - At least one AI key: `ANTHROPIC_API_KEY` (+ optional `CLAUDE_MODEL`),
-     `AGENTROUTER_API_KEY`, or `OMNIROUTE_API_KEY`. Only providers with a key
-     are offered in the admin panel. OCR extraction needs no key.
-   - `SUPABASE_SERVICE_ROLE_KEY`: optional. It's only needed if your `users`
-     table doesn't let a logged-in user read their own row (the admin check
-     returns 403 for a real admin).
-5. Deploy, then open `https://<service>.onrender.com/health`. It should show
-   `{"ok": true, "ocr": true}`.
-6. In the admin panel's hosting (Vercel → Project → Settings → Environment
-   Variables), add `VITE_QUESTIONS_GENERATOR_API=https://<service>.onrender.com`
-   and redeploy the frontend.
+     `AGENTROUTER_API_KEY` or `OMNIROUTE_API_KEY`. Only providers with a key
+     are offered. OCR extraction needs no key. Leave the others empty.
+3. Deploy, then open `https://atlas-questions-generator.onrender.com/health`.
+   It should show `{"ok": true, "ocr": true, "low_memory": true}`.
+4. The admin panel already points at that address. If Render gives the service
+   a different URL, set `VITE_QUESTIONS_GENERATOR_API=<that URL>` in the
+   website's hosting settings and redeploy the site.
 
-Other hosts work the same way, since it's a plain Docker image listening on
-`$PORT`. On Google Cloud Run, set memory to 2 GiB and the request timeout to
+### Memory: 512 MB (testing) vs 2 GB
+
+The blueprint uses Render's **free 512 MB** plan with `QPG_LOW_MEMORY=1`. In
+that mode the service:
+
+- Runs PDF analysis, OCR and Word export in short-lived child processes, so
+  memory never builds up.
+- Reads scanned pages in strips, with leaner OCR settings.
+- Does one heavy job at a time.
+
+It was tested under a hard 512 MB limit with a 20-page PDF, 16+ OCR pages in a
+row and parallel requests, without crashing. If a single file is too big, the
+admin sees a clear message instead of the service going down.
+
+Free-plan limits:
+- The service sleeps after about 15 minutes idle; the first visit then waits
+  about a minute while it wakes. The admin panel retries automatically.
+- It has 0.1 CPU, so OCR pages are slower.
+
+For everyday use, switch to **Standard (2 GB)** and remove `QPG_LOW_MEMORY`.
+That gives full OCR quality and speed, the same as the Streamlit app.
+
+Other hosts work too, since it's a plain Docker image listening on `$PORT`. On Google Cloud Run, set memory to 2 GiB and the request timeout to
 900 s. A page can take a few minutes when the AI provider is slow.
 
 ## Keeping it in sync with the Streamlit app

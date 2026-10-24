@@ -13,6 +13,7 @@ sync_core.py) runs unchanged inside this web service.
 import copy
 import functools
 import hashlib
+import os
 import threading
 from collections import OrderedDict
 
@@ -60,8 +61,10 @@ def _fingerprint(value):
     return ("value", repr(value))
 
 
-def cache_data(func=None, *, max_entries=8, **_ignored):
+def cache_data(func=None, *, max_entries=None, **_ignored):
     """Memoises on a fingerprint of the arguments (bytes hashed)."""
+
+    limit = max_entries or int(os.environ.get("QPG_CACHE_ENTRIES", "8"))
 
     def decorate(function):
         store = OrderedDict()
@@ -79,7 +82,7 @@ def cache_data(func=None, *, max_entries=8, **_ignored):
 
             with _cache_lock:
                 store[key] = result
-                while len(store) > max_entries:
+                while len(store) > limit:
                     store.popitem(last=False)
 
             return copy.deepcopy(result)

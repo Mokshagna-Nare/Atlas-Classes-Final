@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AddToBankModal from './AddToBankModal';
-import { QG_API_URL, qgJson } from './api';
+import { QGError, QG_API_URL, qgJson } from './api';
 import ExtractFlow from './ExtractFlow';
 import GenerateFlow from './GenerateFlow';
 import PaperViewer from './PaperViewer';
@@ -25,14 +25,33 @@ const QuestionsGenerator: React.FC = () => {
   const [adding, setAdding] = useState(false);
   const [runKey, setRunKey] = useState(0);
 
-  const loadConfig = () => {
+  const [waking, setWaking] = useState(false);
+
+  // A free-tier service sleeps when idle and needs about a minute to wake
+  // up, so keep retrying quietly for a while before showing an error.
+  const loadConfig = async () => {
     setConfigError(null);
-    qgJson<QGConfig>('/config')
-      .then(setConfig)
-      .catch((error) => setConfigError(error.message));
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        setConfig(await qgJson<QGConfig>('/config'));
+        setWaking(false);
+        return;
+      } catch (error: any) {
+        if (!(error instanceof QGError) || error.status !== 0 || attempt === 5) {
+          setWaking(false);
+          setConfigError(error.message);
+          return;
+        }
+        setWaking(true);
+        await new Promise((resolve) => setTimeout(resolve, 15000));
+      }
+    }
   };
 
-  useEffect(loadConfig, []);
+  useEffect(() => {
+    loadConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const finish = (next: RunResult) => {
     savedResult = next;
@@ -68,7 +87,13 @@ const QuestionsGenerator: React.FC = () => {
           <SecondaryButton onClick={loadConfig}>Try again</SecondaryButton>
         </div>
       )}
-      {!config && !configError && <p className="text-sm text-gray-400 animate-pulse">Connecting to the Questions generator service...</p>}
+      {!config && !configError && (
+        <p className="text-sm text-gray-400 animate-pulse">
+          {waking
+            ? 'Waking up the Questions generator service — this can take up to a minute after it has been idle...'
+            : 'Connecting to the Questions generator service...'}
+        </p>
+      )}
 
       {config && result && (
         <div className="bg-gray-800/40 border border-gray-700/80 rounded-2xl p-6 space-y-4">

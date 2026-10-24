@@ -2,8 +2,11 @@
 // set with VITE_QUESTIONS_GENERATOR_API; AI keys stay on that server.
 import { supabase } from '../../../../../services/supabase';
 
+// Default = the address Render gives the service from render.yaml.
+const DEFAULT_SERVICE_URL = 'https://atlas-questions-generator.onrender.com';
+
 export const QG_API_URL = (
-  (import.meta as any).env?.VITE_QUESTIONS_GENERATOR_API || 'http://localhost:8000'
+  (import.meta as any).env?.VITE_QUESTIONS_GENERATOR_API || DEFAULT_SERVICE_URL
 ).replace(/\/+$/, '');
 
 export class QGError extends Error {

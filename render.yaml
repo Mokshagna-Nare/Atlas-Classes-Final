@@ -1,0 +1,31 @@
+# Render Blueprint for the Questions generator service (qpg-service/).
+# Render → New → Blueprint → pick this repository. Only this new service is
+# created; existing Render services are not touched.
+services:
+  - type: web
+    name: atlas-questions-generator
+    runtime: docker
+    rootDir: qpg-service
+    dockerfilePath: ./Dockerfile
+    plan: free # 512 MB for testing; switch to "standard" (2 GB) for full OCR quality
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: QPG_LOW_MEMORY
+        value: "1" # lean mode for 512 MB; remove (or set 0) on a 2 GB plan
+      - key: QPG_ALLOWED_ORIGINS
+        value: https://atlasclasses.com,https://www.atlasclasses.com
+      - key: QPG_ALLOWED_ROLES
+        value: admin
+      - key: SUPABASE_URL
+        sync: false # same value as the site's VITE_SUPABASE_URL
+      - key: SUPABASE_ANON_KEY
+        sync: false # same value as the site's VITE_SUPABASE_ANON_KEY
+      - key: ANTHROPIC_API_KEY
+        sync: false # optional — any one AI key is enough
+      - key: CLAUDE_MODEL
+        sync: false
+      - key: AGENTROUTER_API_KEY
+        sync: false
+      - key: OMNIROUTE_API_KEY
+        sync: false
