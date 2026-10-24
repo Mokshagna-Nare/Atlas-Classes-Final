@@ -11,6 +11,7 @@ import {
   ClipboardCheckIcon,
   ShieldCheckIcon,
   ChartBarIcon,
+  DocumentDuplicateIcon,
 } from "../../../components/icons";
 import DashboardShell, { ShellNavGroup } from "../../../components/shell/DashboardShell";
 
@@ -23,6 +24,7 @@ import ManageTests from "./components/ManageTests";
 import QuestionPaperGenerator from "./components/QuestionPaperGenerator";
 import StudentAnalyticsDashboard from "./components/Analytics/StudentAnalyticsDashboard";
 import FlaggedAttempts from "./components/FlaggedAttempts";
+import QuestionsGenerator from "./components/questionsGenerator/QuestionsGenerator";
 
 import { MCQ } from "../../../types";
 
@@ -35,7 +37,8 @@ type DashboardView =
   | "tests"
   | "paper-generator"
   | "analytics"
-  | "flagged-attempts";
+  | "flagged-attempts"
+  | "questions-generator";
 
 const NAV: ShellNavGroup<DashboardView>[] = [
   {
@@ -45,6 +48,7 @@ const NAV: ShellNavGroup<DashboardView>[] = [
       { view: "mcq-upload", label: "MCQ Upload", subtitle: "Add questions one by one or in bulk", icon: PlusIcon, hasOwnHeading: true },
       { view: "question-bank", label: "Question Bank", subtitle: "Search, edit, and flag questions", icon: Squares2X2Icon, hasOwnHeading: true },
       { view: "paper-generator", label: "Generate Paper", subtitle: "Build printable question papers", icon: ClipboardDocumentListIcon, hasOwnHeading: true },
+      { view: "questions-generator", label: "Questions generator", subtitle: "Generate or extract questions from a PDF or image", icon: DocumentDuplicateIcon, hasOwnHeading: true },
     ],
   },
   {
@@ -108,6 +112,8 @@ const AdminDashboard: React.FC = () => {
         return <ManageTests />;
       case "flagged-attempts":
         return <FlaggedAttempts />;
+      case "questions-generator":
+        return <QuestionsGenerator />;
       case "analytics":
         return <StudentAnalyticsDashboard />;
       default:
