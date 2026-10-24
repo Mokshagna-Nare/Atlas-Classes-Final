@@ -27,6 +27,7 @@ import gc
 import hashlib
 import importlib.util
 import io
+import json
 import multiprocessing
 import os
 import pathlib
@@ -83,6 +84,9 @@ ALLOWED_ROLES = {
     if role.strip()
 }
 AUTH_DISABLED = os.environ.get("QPG_AUTH_DISABLED", "") == "1"
+# Match the admin panel's two-step verification: only sessions that passed
+# it (Supabase "aal2") may use the service.
+REQUIRE_MFA = os.environ.get("QPG_REQUIRE_MFA", "") == "1"
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get("QPG_ALLOWED_ORIGINS", "*").split(",")
@@ -331,6 +335,17 @@ _auth_lock = threading.Lock()
 AUTH_CACHE_SECONDS = 300
 
 
+def _token_claims(token):
+    """Claims of a token Supabase has just accepted (so they're genuine)."""
+
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:
+        return {}
+
+
 def _lookup_role(user_id, token):
     url = f"{SUPABASE_URL}/rest/v1/users"
     params = {"id": f"eq.{user_id}", "select": "role"}
@@ -387,6 +402,9 @@ def require_admin(authorization: str = Header(default="")):
         raise HTTPException(401, "Your login has expired — log in to the admin panel again.")
 
     user_id = response.json().get("id")
+
+    if REQUIRE_MFA and _token_claims(token).get("aal") != "aal2":
+        raise HTTPException(403, "Finish two-step verification in the admin panel, then try again.")
     role = _lookup_role(user_id, token) if user_id else ""
 
     if role not in ALLOWED_ROLES:

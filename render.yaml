@@ -17,6 +17,8 @@ services:
         value: https://atlasclasses.com,https://www.atlasclasses.com
       - key: QPG_ALLOWED_ROLES
         value: admin
+      - key: QPG_REQUIRE_MFA
+        value: "1" # admins must have passed two-step verification, like the panel
       - key: SUPABASE_URL
         sync: false # same value as the site's VITE_SUPABASE_URL
       - key: SUPABASE_ANON_KEY
