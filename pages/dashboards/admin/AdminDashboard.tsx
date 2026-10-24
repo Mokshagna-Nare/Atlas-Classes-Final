@@ -22,6 +22,7 @@ import QuestionBank from "./components/QuestionBank";
 import ManageTests from "./components/ManageTests";
 import QuestionPaperGenerator from "./components/QuestionPaperGenerator";
 import StudentAnalyticsDashboard from "./components/Analytics/StudentAnalyticsDashboard";
+import QuestionsGenerator from "./components/questionsGenerator/QuestionsGenerator";
 
 import { MCQ } from "../../../types";
 
@@ -33,7 +34,8 @@ type DashboardView =
   | "question-bank"
   | "tests"
   | "paper-generator"
-  | "analytics";
+  | "analytics"
+  | "questions-generator";
 
 const AdminDashboard: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -81,6 +83,8 @@ const AdminDashboard: React.FC = () => {
         return <ManageTests />;
       case "analytics":
         return <StudentAnalyticsDashboard />;
+      case "questions-generator":
+        return <QuestionsGenerator />;
       default:
         return <AIPaperGenerator />;
     }
@@ -160,6 +164,11 @@ const AdminDashboard: React.FC = () => {
             view="paper-generator"
             label="Generate Paper"
             icon={<ClipboardDocumentListIcon className="h-5 w-5" />}
+          />
+          <NavItem
+            view="questions-generator"
+            label="Questions generator"
+            icon={<SparklesIcon className="h-5 w-5" />}
           />
           <NavItem
             view="create-test"
