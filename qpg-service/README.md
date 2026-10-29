@@ -48,8 +48,13 @@ admin sees a clear message instead of the service going down.
 
 Free-plan limits:
 - The service sleeps after about 15 minutes idle; the first visit then waits
-  about a minute while it wakes. The admin panel retries automatically.
-- It has 0.1 CPU, so OCR pages are slower.
+  1–3 minutes while it wakes. The admin panel retries automatically.
+- It has 0.1 CPU, so OCR pages are slower (about a minute per image).
+
+The container starts with `boot.py`, which opens the port within seconds and
+loads the app in the background. Until it is ready, `/health` answers
+`{"starting": true}` and other requests get a 503 "starting up" reply, so
+the host never shows 502 while the libraries load.
 
 For everyday use, switch to **Standard (2 GB)** and remove `QPG_LOW_MEMORY`.
 That gives full OCR quality and speed, the same as the Streamlit app.
