@@ -31,13 +31,16 @@ const QuestionsGenerator: React.FC = () => {
   // up, so keep retrying quietly for a while before showing an error.
   const loadConfig = async () => {
     setConfigError(null);
-    for (let attempt = 0; attempt < 6; attempt++) {
+    // Unreachable (0), or the host/service still booting (502/503/504).
+    const WAKING_STATUSES = [0, 502, 503, 504];
+    const ATTEMPTS = 14; // ~3.5 minutes
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       try {
         setConfig(await qgJson<QGConfig>('/config'));
         setWaking(false);
         return;
       } catch (error: any) {
-        if (!(error instanceof QGError) || error.status !== 0 || attempt === 5) {
+        if (!(error instanceof QGError) || !WAKING_STATUSES.includes(error.status) || attempt === ATTEMPTS - 1) {
           setWaking(false);
           setConfigError(error.message);
           return;
@@ -90,7 +93,7 @@ const QuestionsGenerator: React.FC = () => {
       {!config && !configError && (
         <p className="text-sm text-gray-400 animate-pulse">
           {waking
-            ? 'Waking up the Questions generator service — this can take up to a minute after it has been idle...'
+            ? 'Waking up the Questions generator service — this can take 1–3 minutes after it has been idle...'
             : 'Connecting to the Questions generator service...'}
         </p>
       )}
