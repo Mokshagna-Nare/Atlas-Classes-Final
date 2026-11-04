@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useOngoingTask } from '../../../../../contexts/BackgroundTasks';
 import { QGError, qgJson, sleep } from './api';
 import ProviderPicker from './ProviderPicker';
 import { PageResult, QGConfig, Question, RunResult, countQuestions } from './types';
@@ -83,6 +84,15 @@ const GenerateFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => 
   const [runError, setRunError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const preparedFor = useRef('');
+
+  // Lets the admin panel keep a run going while another section is open.
+  useOngoingTask('generate', running || preparing || file
+    ? {
+        label: `Questions generator${file ? ` · ${file.name}` : ''}`,
+        busy: running || preparing,
+        detail: running ? progress.text || 'Generating questions…' : preparing ? 'Reading the PDF…' : 'Source chosen, not generated yet',
+      }
+    : null);
 
   // Upload (or re-read after a figure option changes) -> pages + figures.
   const prepare = async (target: File, signal?: AbortSignal): Promise<Prepared> => {

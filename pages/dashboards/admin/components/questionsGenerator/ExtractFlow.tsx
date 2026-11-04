@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useOngoingTask } from '../../../../../contexts/BackgroundTasks';
 import { QGError, qgJson, sleep } from './api';
 import { plainMath } from './MathText';
 import ProviderPicker from './ProviderPicker';
@@ -69,6 +70,16 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
   const [dialogOpen, setDialogOpen] = useState(false);
   const [building, setBuilding] = useState(false);
   const [pendingBuild, setPendingBuild] = useState(false);
+
+  // Lets the admin panel keep an extraction going while another section is open.
+  useOngoingTask('extract', running || preparing || building || files.length > 0
+    ? {
+        label: `Questions extraction${sourceName ? ` · ${sourceName}` : files[0] ? ` · ${files[0].name}` : ''}`,
+        busy: running || preparing || building,
+        detail: running ? progress.text || 'Extracting questions…' : preparing ? 'Reading the files…' : building ? 'Building the paper…'
+          : extracted ? 'Extracted questions waiting for review' : 'Files chosen, not extracted yet',
+      }
+    : null);
   const abortRef = useRef<AbortController | null>(null);
 
   const prepare = async (targets: File[], signal?: AbortSignal) => {
