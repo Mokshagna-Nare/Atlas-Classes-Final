@@ -71,6 +71,10 @@ if LOW_MEMORY:
 
 import st_shim  # noqa: E402
 import qpg_core as core  # noqa: E402
+import ocr_layout  # noqa: E402
+
+# Screenshot/photo layouts, unnumbered questions, option grids (see ocr_layout.py).
+ocr_layout.install(core)
 
 # ---------------------------------------------------------------------------
 # SETTINGS (environment variables)

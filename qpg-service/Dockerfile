@@ -6,11 +6,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY core ./core
-COPY main.py boot.py ./
+COPY main.py boot.py ocr_layout.py ./
 
 # Load the OCR models once at build time so the first request is fast.
 RUN python -c "import sys; sys.path.insert(0, 'core'); import qpg_core; assert qpg_core.get_ocr_engine() is not None" \
-    && python -m compileall -q main.py boot.py core
+    && python -m compileall -q main.py boot.py ocr_layout.py core
 
 ENV PORT=8000 \
     MALLOC_ARENA_MAX=2
