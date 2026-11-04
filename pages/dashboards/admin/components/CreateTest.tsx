@@ -6,6 +6,7 @@ import MultiSelectDropdown, { FilterOption } from '../../../../components/ui/Mul
 import SelectMenu from '../../../../components/ui/SelectMenu';
 import DateTimePicker from '../../../../components/ui/DateTimePicker';
 import ModalPortal from '../../../../components/ModalPortal';
+import { useOngoingTask } from '../../../../contexts/BackgroundTasks';
 import { Svg, Card, Field, inputCls, primaryBtn, InstituteAvatar } from '../../../../components/ui/admin';
 
 // ---------------------------------------------------------------------------
@@ -325,6 +326,16 @@ const CreateTest: React.FC = () => {
   const [previewQuestions, setPreviewQuestions] = useState<any[]>([]);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Background-task status: a test being put together (named or with questions picked).
+  useOngoingTask('test', title.trim() || finalQuestionIds.length > 0 || isSubmitting
+    ? {
+        label: `Online test${title.trim() ? ` · ${title.trim()}` : ''}`,
+        busy: isGenerating || isSubmitting,
+        detail: isSubmitting ? 'Publishing…' : isGenerating ? 'Picking questions…'
+          : `${finalQuestionIds.length} question${finalQuestionIds.length === 1 ? '' : 's'} selected`,
+      }
+    : null);
   const [published, setPublished] = useState<PublishedTest | null>(null);
 
   // Every unflagged question's filterable columns, paged past PostgREST's 1000-row cap.

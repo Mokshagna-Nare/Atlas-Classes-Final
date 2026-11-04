@@ -1,3 +1,4 @@
+import { useOngoingTask } from '../../../../../contexts/BackgroundTasks';
 import React, { useMemo, useState } from "react";
 import { supabase } from "../../../../../services/supabase";
 import { parseDocxOneTablePerQuestion, MCQInsert } from "./parseDocxQuestions";
@@ -251,6 +252,15 @@ const BulkUploadDocx: React.FC<Props> = ({ onDone }) => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [bulkSource, setBulkSource] = useState("");
   const [onlyIssues, setOnlyIssues] = useState(false);
+
+  // Background-task status: a parsed document under review (or being parsed / uploaded).
+  useOngoingTask('bulk', (questions.length > 0 && !uploadSuccess) || loading
+    ? {
+        label: `Bulk upload${fileName ? ` · ${fileName}` : ''}`,
+        busy: loading,
+        detail: loading ? (statusMessage || 'Working…') : `${questions.length} question${questions.length === 1 ? '' : 's'} to review before adding`,
+      }
+    : null);
 
   const issueCount = useMemo(() => questions.filter(q => issuesOf(q).length > 0).length, [questions]);
   const visible = useMemo(

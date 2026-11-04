@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useOngoingTask } from '../../../../contexts/BackgroundTasks';
 import { useData } from '../../../../contexts/DataContext';
 import { MCQ } from '../../../../types';
 import { supabase } from '../../../../services/supabase';
@@ -203,6 +204,16 @@ const MCQUpload: React.FC<MCQUploadProps> = ({ editingMcq, onFinished }) => {
     optionImageInputRefs.current.forEach((input) => { if (input) input.value = ''; });
     // Grade, subject, topic, sub-topic, skill, difficulty and source stay, so a run of similar questions is quick to enter.
   };
+
+  // Background-task status: a question being edited, or a new one with unsaved content.
+  const hasDraftContent = !!(question.trim() || options.some(o => o.trim()) || explanation.trim());
+  useOngoingTask('single', uploadMode === 'single' && (editingMcq || hasDraftContent)
+    ? {
+        label: editingMcq ? `Editing ${editingMcq.question_code || 'a question'}` : 'New question (not saved yet)',
+        busy: saving,
+        detail: saving ? 'Saving to the bank…' : `${subject} · Grade ${grade}${topic ? ` · ${topic}` : ''}`,
+      }
+    : null);
 
   // ── Populate form when editing ───────────────────────────────────────────
   useEffect(() => {

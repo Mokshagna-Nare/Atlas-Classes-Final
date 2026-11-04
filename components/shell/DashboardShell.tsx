@@ -27,6 +27,13 @@ interface DashboardShellProps<V extends string> {
   welcome: { name: string; tagline: string };
   onLogout: () => void;
   children: React.ReactNode;
+  /**
+   * The children manage their own mounting (several sections kept alive, the hidden ones
+   * using the `hidden` attribute), so the shell must not remount them on every view change.
+   */
+  keepMounted?: boolean;
+  /** Docked under the scrolling content (e.g. background tasks); never covers the page. */
+  statusBar?: React.ReactNode;
 }
 
 const IST_DATE = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -58,11 +65,11 @@ const LiveClock: React.FC = () => {
 };
 
 function DashboardShell<V extends string>({
-  portalLabel, brand, groups, activeView, onNavigate, user, welcome, onLogout, children,
+  portalLabel, brand, groups, activeView, onNavigate, user, welcome, onLogout, children, keepMounted, statusBar,
 }: DashboardShellProps<V>) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showWelcome, setShowWelcome] = useState(shouldShowWelcome);
-  const mainRef = useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
 
   const active = groups.flatMap(g => g.items).find(i => i.view === activeView);
   const handleWelcomeDone = useCallback(() => setShowWelcome(false), []);
@@ -144,7 +151,8 @@ function DashboardShell<V extends string>({
         </div>
       </aside>
 
-      <main ref={mainRef} className="relative flex-1 min-w-0 h-screen overflow-y-auto">
+      <main className="relative flex-1 min-w-0 h-screen flex flex-col">
+        <div ref={mainRef} className="relative flex-1 min-h-0 overflow-y-auto">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.08),transparent_70%)]" />
 
         <header className="sticky top-0 z-10 bg-atlas-black/80 backdrop-blur-xl border-b border-white/5 light:bg-paper/85 light:border-gray-700 px-4 sm:px-8 py-4 flex items-center gap-4">
@@ -166,10 +174,14 @@ function DashboardShell<V extends string>({
         <div className="relative px-4 sm:px-8 py-6 sm:py-8">
           {/* No per-section scroll animations here: animating sections gives each its own
               stacking context, which traps dropdowns (z-50) beneath the next section. */}
-          <div key={activeView} className="animate-view-in">
-            {children}
-          </div>
+          {keepMounted ? children : (
+            <div key={activeView} className="animate-view-in">
+              {children}
+            </div>
+          )}
         </div>
+        </div>
+        {statusBar}
       </main>
     </div>
   );
