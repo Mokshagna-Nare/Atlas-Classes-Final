@@ -349,12 +349,13 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
           <input
             type="file"
             multiple
-            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+            accept="application/pdf,.pdf,image/*,.heic,.heif,.webp,.avif,.bmp,.tif,.tiff,.gif,.jfif"
             disabled={running}
             onChange={(e) => setFiles(Array.from(e.target.files || []))}
             className="block w-full text-sm text-gray-300 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-green-600 file:text-on-accent hover:file:bg-green-500"
           />
           <p className="text-xs text-gray-500 mt-2">
+            Any image works: phone photos (including iPhone HEIC), screenshots and scans in JPG, PNG, WEBP, AVIF, BMP, TIFF or GIF.
             Every question is transcribed exactly as printed — nothing is invented. If a solution isn't visible, you'll be asked for it
             before the paper is created.
           </p>

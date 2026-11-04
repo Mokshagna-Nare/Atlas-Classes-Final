@@ -71,6 +71,7 @@ if LOW_MEMORY:
 
 import st_shim  # noqa: E402
 import qpg_core as core  # noqa: E402
+import image_input  # noqa: E402
 import ocr_layout  # noqa: E402
 
 # Screenshot/photo layouts, unnumbered questions, option grids (see ocr_layout.py).
@@ -289,20 +290,56 @@ def _page_strips(image_bytes):
     return strips
 
 
-def _read_image_page_in_strips(page):
+def _read_strips(image_bytes):
     texts = []
+    strips = _page_strips(image_bytes)
 
-    for strip in _page_strips(page["image_bytes"]):
-        text, error = core.ocr_image_to_text(strip)
+    if len(strips) == 1:
+        text, error = core.ocr_image_to_text(strips[0])
 
         if error:
             return [], "", error
 
-        texts.append(text)
-        gc.collect()
+        return core.parse_questions_from_text(text), text, None
+
+    with ocr_layout.single_pass():
+        for strip in strips:
+            text, error = core.ocr_image_to_text(strip)
+
+            if error:
+                return [], "", error
+
+            texts.append(text)
+            gc.collect()
 
     text = "\n".join(part for part in texts if part.strip())
     return core.parse_questions_from_text(text), text, None
+
+
+def _read_image_page_in_strips(page):
+    """
+    Reads the page the right way up: a sideways or upside-down page is
+    turned before it is cut into strips (strips of sideways text are
+    unreadable). Stops at the first orientation that gives a question.
+    """
+
+    best = None
+
+    for image_bytes in ocr_layout.page_orientations(core, page["image_bytes"]):
+        result = _read_strips(image_bytes)
+
+        if result[2]:
+            return result
+
+        if best is None or ocr_layout.score(result[0]) > ocr_layout.score(best[0]):
+            best = result
+
+        if ocr_layout.has_complete_question(result[0]):
+            break
+
+        gc.collect()
+
+    return best
 
 
 app = FastAPI(title="Atlas Questions generator service")
@@ -1012,8 +1049,17 @@ async def extract_prepare(files: list[UploadFile] = File(...)):
                     if is_pdf(upload, data):
                         pages.extend(isolated(_pdf_overview, data, name, doc_id))
                     else:
-                        mime = upload.content_type or "image/jpeg"
-                        pages.append(isolated(_image_overview, data, name, doc_id, mime))
+                        # Any image format; a multi-page TIFF becomes several pages.
+                        try:
+                            frames = image_input.split_pages(data)
+                        except ValueError as error:
+                            raise HTTPException(400, f"{name}: {error}")
+
+                        for number, (frame, mime) in enumerate(frames, start=1):
+                            label = name if len(frames) == 1 else f"{name} (page {number})"
+                            frame_id = doc_id if number == 1 else store_doc(frame)
+                            source = data if number == 1 else frame
+                            pages.append(isolated(_image_overview, source, label, frame_id, mime))
             except IsolatedJobFailed as error:
                 raise HTTPException(503, f"{name}: {error}")
 
