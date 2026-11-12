@@ -4,25 +4,7 @@ import { checkDuplicate, getNextSequenceNumber, getQuestionPrefix } from '../MCQ
 import { qgJson } from './api';
 import { RunResult } from './types';
 import { Checkbox, Modal, Notice, PrimaryButton, SecondaryButton } from './ui';
-
-// A question formatted for Atlas's `mcqs` table by the service
-// (superscripts as Unicode, answer = text of the correct option).
-interface BankRow {
-  question: string;
-  options: string[];
-  answer: string;
-  explanation: string;
-  grade: string;
-  subject: string;
-  topic: string;
-  sub_topic: string;
-  question_type: string;
-  difficulty: string;
-  marks: number;
-  type: 'Multiple Choice' | 'Short Answer';
-  imageUrl: string | null;
-  review_notes: string;
-}
+import BankReviewList, { BankRow } from './BankReviewList';
 
 const INSERT_BATCH = 50;
 
@@ -46,6 +28,15 @@ const AddToBankModal: React.FC<{ result: RunResult; onClose: () => void; onAdded
   const [error, setError] = useState<string | null>(null);
   const [duplicates, setDuplicates] = useState<number[] | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [editingOpen, setEditingOpen] = useState(false);
+
+  // Edits and removals live only in this window, so don't lose them to a stray click.
+  const requestClose = () => {
+    if (busy) return;
+    if (!done && (dirty || editingOpen) && !window.confirm('Close without adding? Your edits and removals in this review will be lost.')) return;
+    onClose();
+  };
 
   useEffect(() => {
     qgJson<{ rows: BankRow[] }>('/bank-format', {
@@ -157,7 +148,7 @@ const AddToBankModal: React.FC<{ result: RunResult; onClose: () => void; onAdded
   };
 
   return (
-    <Modal title="Add to question bank" onClose={busy ? () => undefined : onClose}>
+    <Modal title={rows && !done ? `Review & add to question bank · ${rows.length} question${rows.length === 1 ? '' : 's'}` : 'Add to question bank'} onClose={requestClose} wide={!!rows && !done}>
       {loadError && <Notice kind="error">{loadError}</Notice>}
       {!rows && !loadError && <p className="text-sm text-gray-400 animate-pulse">Preparing questions...</p>}
 
@@ -169,6 +160,10 @@ const AddToBankModal: React.FC<{ result: RunResult; onClose: () => void; onAdded
               {result.subject} · Grade {result.grade} · {result.topic}
             </b>
             , with a question code generated for each (same as MCQ Upload). Figures are uploaded with their questions.
+          </p>
+          <p className="text-sm text-gray-400">
+            Check each question below before adding. Use <b className="text-gray-200">Edit</b> to fix the text, options, answer or
+            explanation, and <b className="text-gray-200">Delete</b> to leave a question out. Nothing is saved until you click Add.
           </p>
           {withoutAnswer > 0 && (
             <Notice kind="warning">{withoutAnswer} question(s) have no answer — they will be added as flagged so they can't be used until fixed.</Notice>
@@ -185,15 +180,18 @@ const AddToBankModal: React.FC<{ result: RunResult; onClose: () => void; onAdded
               }
             />
           )}
+          <BankReviewList rows={rows} onChange={(next) => { setRows(next); setDirty(true); }} onEditingChange={setEditingOpen} disabled={busy} />
+          <div className="sticky -bottom-6 -mx-6 -mb-6 space-y-3 border-t border-gray-800 bg-gray-900/95 px-6 py-4 backdrop-blur">
           {status && <p className="text-sm text-gray-400 animate-pulse">{status}</p>}
           {error && <Notice kind="error">{error}</Notice>}
           <div className="flex flex-col sm:flex-row gap-3">
-            <PrimaryButton className="flex-1" disabled={busy || !rows.length} onClick={checkDuplicates}>
-              {busy ? 'Working…' : `Add ${rows.length} question(s)`}
+            <PrimaryButton className="flex-1" disabled={busy || !rows.length || editingOpen} onClick={checkDuplicates}>
+              {busy ? 'Working…' : editingOpen ? 'Save or cancel your edit first' : `Add ${rows.length} question(s)`}
             </PrimaryButton>
-            <SecondaryButton className="flex-1" disabled={busy} onClick={onClose}>
+            <SecondaryButton className="flex-1" disabled={busy} onClick={requestClose}>
               Cancel
             </SecondaryButton>
+          </div>
           </div>
         </div>
       )}

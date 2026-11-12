@@ -5,6 +5,8 @@ import { markersToHtml, RichMathText, stripMathMarkers } from '../../../../utils
 import { getCorrectOptionIndex, getCorrectAnswerText } from '../../../../utils/mcqAnswer';
 import { InformationCircleIcon, FunnelIcon, TrashIcon } from '../../../../components/icons';
 import ModalPortal from '../../../../components/ModalPortal';
+import PaperQuestionReview from './paperGenerator/PaperQuestionReview';
+import { useOngoingTask } from '../../../../contexts/BackgroundTasks';
 import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, BorderStyle } from 'docx';
 import { saveAs } from 'file-saver';
@@ -173,6 +175,22 @@ const QuestionPaperGenerator: React.FC = () => {
   const totalQuestionsNeeded = Object.values(subjectConfig).reduce((sum, c) => sum + (Number(c.track1) || 0) + (tracksEnabled ? (Number(c.track2) || 0) : 0), 0);
   const totalQuestionsFilled = Object.values(questionAllocations).reduce((sum, c) => sum + (c.track1?.length || 0) + (tracksEnabled ? (c.track2?.length || 0) : 0), 0);
   const isDraftComplete = totalQuestionsNeeded > 0 && totalQuestionsFilled === totalQuestionsNeeded;
+
+  // Background-task status: a paper being built (or an exam being set up) is work in progress.
+  const examLabel = `Question paper${examName.trim() ? ` · ${examName.trim()}` : ''}`;
+  useOngoingTask('paper', creationStep === 2 && draftPaperId
+    ? {
+        label: examLabel,
+        busy: generating || saving || downloadingPDF,
+        detail: generating ? 'Generating questions…'
+          : saving ? 'Saving to the draft…'
+          : downloadingPDF ? 'Preparing the download…'
+          : generatedPaper.length > 0 ? `${generatedPaper.length} generated question${generatedPaper.length === 1 ? '' : 's'} waiting for review`
+          : `${totalQuestionsFilled} of ${totalQuestionsNeeded} questions added`,
+      }
+    : creationStep === 1 && examName.trim()
+      ? { label: examLabel, detail: 'Setting up the exam details' }
+      : null);
 
   const distributionTotal = easyPercent + mediumPercent + hardPercent;
   const isDistributionValid = distributionTotal === 100;
@@ -461,6 +479,85 @@ const QuestionPaperGenerator: React.FC = () => {
       setMessage({ type: 'success', text: `Added ${newIds.length} questions to ${targetSubj} ${targetTrck.toUpperCase()}!` });
     } catch (err: any) { setMessage({ type: 'error', text: `Failed to add to draft: ${err.message}` }); }
     finally { setSaving(false); }
+  };
+
+  // --- REVIEW ACTIONS (pending list and final preview) ---
+  /** Every question id already in the paper or waiting to be added. */
+  const usedQuestionIds = () => new Set([
+    ...Object.values(questionAllocations).flatMap(t => [...(t.track1 || []), ...(t.track2 || [])]),
+    ...generatedPaper.map(q => q.id!),
+  ]);
+
+  /** A random unused question like `q`: same subject and difficulty, same topic when possible. */
+  const findReplacement = async (q: MCQ): Promise<MCQ | null> => {
+    const exclude = usedQuestionIds();
+    const pick = async (withTopic: boolean) => {
+      let query = supabase.from('mcqs').select('*').eq('isFlagged', false).eq('subject', q.subject).limit(300);
+      if (q.difficulty) query = query.eq('difficulty', q.difficulty);
+      if (withTopic && q.topic) query = query.eq('topic', q.topic);
+      const { data, error } = await query;
+      if (error) throw error;
+      const candidates = (data || []).filter(c => !exclude.has(c.id));
+      return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] as MCQ : null;
+    };
+    return (await pick(true)) || (q.topic ? await pick(false) : null);
+  };
+
+  const fetchQuestion = async (id: string): Promise<MCQ | null> => {
+    const { data } = await supabase.from('mcqs').select('*').eq('id', id).maybeSingle();
+    return (data as MCQ) || null;
+  };
+
+  const removePending = (index: number) => setGeneratedPaper(prev => prev.filter((_, i) => i !== index));
+
+  const replacePending = async (index: number) => {
+    try {
+      const next = await findReplacement(generatedPaper[index]);
+      if (!next) return setMessage({ type: 'error', text: 'No other unused question matches this one\'s subject and difficulty.' });
+      setGeneratedPaper(prev => prev.map((q, i) => (i === index ? next : q)));
+    } catch (err: any) { setMessage({ type: 'error', text: `Could not find a replacement: ${err.message}` }); }
+  };
+
+  const refreshPending = async (index: number) => {
+    const fresh = await fetchQuestion(generatedPaper[index].id!);
+    if (fresh) setGeneratedPaper(prev => prev.map((q, i) => (i === index ? fresh : q)));
+  };
+
+  /** Saves new allocations for the draft paper and keeps local state in step. */
+  const saveAllocations = async (next: AllocationsType) => {
+    await supabase.auth.refreshSession();
+    const { error } = await supabase.from('offline_papers').update({ question_allocations: next }).eq('id', draftPaperId);
+    if (error) throw error;
+    setQuestionAllocations(next);
+  };
+
+  const bucketOf = (q: MCQ & { _trackContext?: string }): 'track1' | 'track2' => (q._trackContext === 'T2' ? 'track2' : 'track1');
+
+  const removeFromDraft = async (q: MCQ & { _trackContext?: string }) => {
+    const track = bucketOf(q);
+    const next = { ...questionAllocations, [q.subject]: { ...questionAllocations[q.subject] } };
+    next[q.subject][track] = (next[q.subject][track] || []).filter(id => id !== q.id);
+    try {
+      await saveAllocations(next);
+      setFullDraftQuestions(prev => prev.filter(d => d !== q));
+    } catch (err: any) { setMessage({ type: 'error', text: `Could not remove the question: ${err.message}` }); }
+  };
+
+  const replaceInDraft = async (q: MCQ & { _trackContext?: string }) => {
+    try {
+      const fresh = await findReplacement(q);
+      if (!fresh) return setMessage({ type: 'error', text: 'No other unused question matches this one\'s subject and difficulty.' });
+      const track = bucketOf(q);
+      const next = { ...questionAllocations, [q.subject]: { ...questionAllocations[q.subject] } };
+      next[q.subject][track] = (next[q.subject][track] || []).map(id => (id === q.id ? fresh.id! : id));
+      await saveAllocations(next);
+      setFullDraftQuestions(prev => prev.map(d => (d === q ? { ...fresh, _trackContext: q._trackContext } : d)));
+    } catch (err: any) { setMessage({ type: 'error', text: `Could not replace the question: ${err.message}` }); }
+  };
+
+  const refreshInDraft = async (q: MCQ & { _trackContext?: string }) => {
+    const fresh = await fetchQuestion(q.id!);
+    if (fresh) setFullDraftQuestions(prev => prev.map(d => (d === q ? { ...fresh, _trackContext: q._trackContext } : d)));
   };
 
   const handleClearBucket = async (subj: string, track: 'track1' | 'track2') => {
@@ -1097,44 +1194,18 @@ const QuestionPaperGenerator: React.FC = () => {
                      <div className="p-6 bg-gray-800/40 border-b border-gray-800 flex justify-between items-center flex-wrap gap-4">
                         <div>
                           <h3 className="font-bold text-white text-lg tracking-wide">Pending Questions</h3>
-                          <p className="text-xs text-gray-400 mt-1">Review these {generatedPaper.length} questions before adding them to {targetSubj}.</p>
+                          <p className="text-xs text-gray-400 mt-1">Review these {generatedPaper.length} questions before adding them to {targetSubj}. Preview each one, edit it, swap it for a similar question or remove it.</p>
                         </div>
                         <button onClick={handleAddToDraft} disabled={saving} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-on-accent px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-900/20 transform active:scale-95">
                           {saving ? 'Adding...' : `Add ${generatedPaper.length} Questions to Draft`}
                         </button>
                      </div>
-                     <div className="overflow-x-auto">
-                      <table className="w-full text-left min-w-[600px]">
-                        <thead>
-                          <tr className="bg-gray-800/20 border-b border-gray-800">
-                            <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest w-16 text-center">No.</th>
-                            <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest w-2/3">Question</th>
-                            <th className="p-5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Metadata</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800/50 max-h-96 overflow-y-auto">
-                          {generatedPaper.map((q, index) => (
-                            <tr key={q.id} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="p-5 text-center text-gray-500 font-mono text-sm">{index + 1}</td>
-                              <td className="p-5">
-                                <div className="text-sm text-gray-200 font-medium leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: markersToHtml(q.question) }} />
-                                <p className="text-[10px] text-gray-500 mt-3 flex items-center gap-2">
-                                  {q.question_code && <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded font-mono">{q.question_code}</span>}
-                                  <span className="bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">{q.type}</span>
-                                  {q.sub_topic && <span className="bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">Sub: {q.sub_topic}</span>}
-                                </p>
-                              </td>
-                              <td className="p-5">
-                                <div className="flex flex-col gap-2 items-start">
-                                  <span className="px-2 py-1 bg-green-500/10 text-green-400 border border-green-500/20 text-[10px] font-bold rounded uppercase tracking-wider">{q.subject}</span>
-                                  <span className="text-[11px] text-gray-400 font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">G{q.grade || 'N/A'} • {q.difficulty}</span>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                     <PaperQuestionReview
+                       questions={generatedPaper}
+                       onRemove={removePending}
+                       onReplace={replacePending}
+                       onEdited={refreshPending}
+                     />
                   </div>
                 )}
               </div>
@@ -1280,20 +1351,13 @@ const QuestionPaperGenerator: React.FC = () => {
                      <h4 className="text-xl font-bold text-green-400 mb-6 flex items-center gap-3">
                        <div className="h-6 w-1.5 bg-green-500 rounded-full"></div> {subj} Section <span className="text-sm font-medium text-gray-500 bg-gray-800 px-3 py-1 rounded-lg border border-gray-700">{qs.length} Qs</span>
                      </h4>
-                     <div className="space-y-4">
-                       {qs.map((q, i) => (
-                         <div key={q.id} className="p-5 bg-gray-800/60 rounded-xl border border-gray-700/50 flex gap-4 hover:border-gray-600 transition-colors">
-                           <span className="text-gray-500 font-mono font-bold mt-0.5 w-6 text-right select-none">{i + 1}.</span>
-                           <div className="flex-1">
-                             <div className="text-[15px] text-gray-200 font-medium leading-relaxed prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: markersToHtml(q.question) }} />
-                             <div className="flex gap-2.5 mt-3">
-                               {(q as any)._trackContext && <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold uppercase tracking-wider">{(q as any)._trackContext}</span>}
-                               <span className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase tracking-wider ${q.difficulty === 'Easy' ? 'bg-green-500/10 text-green-400 border-green-500/20' : q.difficulty === 'Medium' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : q.difficulty === 'Hard' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-gray-700/30 text-gray-400 border-gray-600/50'}`}>{q.difficulty}</span>
-                               {q.topic && <span className="text-[10px] bg-gray-900 px-2 py-0.5 rounded border border-gray-700 text-gray-400 font-mono truncate max-w-[200px]">{q.topic}</span>}
-                             </div>
-                           </div>
-                         </div>
-                       ))}
+                     <div className="-mx-6 -mb-6">
+                       <PaperQuestionReview
+                         questions={qs}
+                         onRemove={i => removeFromDraft(qs[i])}
+                         onReplace={i => replaceInDraft(qs[i])}
+                         onEdited={i => refreshInDraft(qs[i])}
+                       />
                      </div>
                    </div>
                  );

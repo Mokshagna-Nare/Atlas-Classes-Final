@@ -5,6 +5,8 @@ import { supabase } from '../../../../services/supabase';
 import { Question } from '../../../../types';
 import { SparklesIcon, DocumentTextIcon, ArrowRightIcon, CodeBracketIcon } from '../../../../components/icons';
 
+import { useOngoingTask } from '../../../../contexts/BackgroundTasks';
+
 const AIPaperGenerator: React.FC = () => {
     // Upload State
     const [htmlFile, setHtmlFile] = useState<File | null>(null);
@@ -18,6 +20,16 @@ const AIPaperGenerator: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+    // Background-task status: an HTML paper chosen, being converted, or converted but not saved.
+    useOngoingTask('convert', htmlFile || isLoading || isSaving || (generatedQuestions && generatedQuestions.length > 0)
+        ? {
+            label: `Exam conversion${filePreviewName || htmlFile?.name ? ` · ${filePreviewName || htmlFile?.name}` : ''}`,
+            busy: isLoading || isSaving,
+            detail: isLoading ? 'Extracting questions…' : isSaving ? 'Saving as a test…'
+                : generatedQuestions?.length ? `${generatedQuestions.length} questions ready to review and save` : 'File chosen, not converted yet',
+        }
+        : null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {

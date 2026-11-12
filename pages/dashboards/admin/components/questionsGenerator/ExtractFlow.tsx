@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useOngoingTask } from '../../../../../contexts/BackgroundTasks';
 import { QGError, qgJson, sleep } from './api';
 import { plainMath } from './MathText';
 import ProviderPicker from './ProviderPicker';
@@ -76,6 +77,16 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
   const [dialogOpen, setDialogOpen] = useState(false);
   const [building, setBuilding] = useState(false);
   const [pendingBuild, setPendingBuild] = useState(false);
+
+  // Lets the admin panel keep an extraction going while another section is open.
+  useOngoingTask('extract', running || preparing || building || files.length > 0
+    ? {
+        label: `Questions extraction${sourceName ? ` · ${sourceName}` : files[0] ? ` · ${files[0].name}` : ''}`,
+        busy: running || preparing || building,
+        detail: running ? progress.text || 'Extracting questions…' : preparing ? 'Reading the files…' : building ? 'Building the paper…'
+          : extracted ? 'Extracted questions waiting for review' : 'Files chosen, not extracted yet',
+      }
+    : null);
   const abortRef = useRef<AbortController | null>(null);
 
   const prepare = async (targets: File[], signal?: AbortSignal) => {
@@ -370,12 +381,13 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
           <input
             type="file"
             multiple
-            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+            accept="application/pdf,.pdf,image/*,.heic,.heif,.webp,.avif,.bmp,.tif,.tiff,.gif,.jfif"
             disabled={running}
             onChange={(e) => setFiles(Array.from(e.target.files || []))}
             className="block w-full text-sm text-gray-300 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-green-600 file:text-on-accent hover:file:bg-green-500"
           />
           <p className="text-xs text-gray-500 mt-2">
+            Any image works: phone photos (including iPhone HEIC), screenshots and scans in JPG, PNG, WEBP, AVIF, BMP, TIFF or GIF.
             Every question is transcribed exactly as printed — nothing is invented. If a solution isn't visible, you'll be asked for it
             before the paper is created.
           </p>
