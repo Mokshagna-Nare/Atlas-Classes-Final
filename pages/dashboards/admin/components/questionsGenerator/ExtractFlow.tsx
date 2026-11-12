@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { QGError, qgJson, sleep } from './api';
 import { plainMath } from './MathText';
 import ProviderPicker from './ProviderPicker';
-import { PageResult, QGConfig, Question, RunResult, countQuestions } from './types';
+import { ExtractMethod, PageResult, QGConfig, Question, RunResult, countQuestions } from './types';
 import { Card, Checkbox, Label, Modal, Notice, PrimaryButton, ProgressBar, SecondaryButton, Select, TextArea, TextInput } from './ui';
 
 interface SourcePage {
@@ -23,6 +23,7 @@ interface ExtractResponse {
   text_read: string | null;
   error: string | null;
   fatal: boolean;
+  notes?: { kind: string; text: string }[];
 }
 
 interface ExtractedPage {
@@ -44,8 +45,14 @@ const MISSING_FLAG =
 const BLANK_FLAG = 'Answer intentionally left blank by the reviewer — verify before use.';
 
 const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => void }> = ({ config, onDone }) => {
-  const ocrMethod = config.extraction_methods.find((m) => m.value === 'ocr') || config.extraction_methods[0];
-  const [method, setMethod] = useState<'ocr' | 'ai'>(ocrMethod?.value || 'ocr');
+  // Default: OCR + AI clean-up when an AI key is configured, else plain OCR.
+  const defaultMethod =
+    config.extraction_methods.find((m) => m.value === 'ocr_ai') ||
+    config.extraction_methods.find((m) => m.value === 'ocr') ||
+    config.extraction_methods[0];
+  const [method, setMethod] = useState<ExtractMethod>(defaultMethod?.value || 'ocr');
+  const [sendImage, setSendImage] = useState(false);
+  const usesAI = method !== 'ocr';
   const firstProvider = config.providers.find((p) => p.configured);
   const [provider, setProvider] = useState(firstProvider?.name || config.providers[0]?.name || '');
   const [model, setModel] = useState(firstProvider?.default_model || '');
@@ -111,7 +118,7 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
   }, [running]);
 
   const providerReady =
-    method === 'ocr' || Boolean(config.providers.find((p) => p.name === provider)?.configured && model.trim());
+    !usesAI || Boolean(config.providers.find((p) => p.name === provider)?.configured && model.trim());
   const subtopicsReady = pages.length > 0 && pages.every((page) => page.subtopic.trim());
 
   const extract = async () => {
@@ -134,8 +141,9 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
           mode: page.mode,
           mime: page.mime,
           method,
-          provider: method === 'ai' ? provider : null,
-          model: method === 'ai' ? model.trim() : null,
+          provider: usesAI ? provider : null,
+          model: usesAI ? model.trim() : null,
+          send_image: method === 'ocr_ai' && sendImage,
           difficulty,
           bloom_level: bloom,
         },
@@ -149,6 +157,8 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
           text:
             method === 'ocr'
               ? `Reading ${page.label} (${index + 1} of ${current.length}) with built-in OCR...`
+              : method === 'ocr_ai'
+              ? `Reading ${page.label} (${index + 1} of ${current.length}) — OCR, then AI clean-up...`
               : `Extracting ${page.label} (${index + 1} of ${current.length}) — waiting for the AI's reply...`,
         });
 
@@ -169,6 +179,14 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
           }
         }
 
+        const notes = (response.notes || []).filter((note) => note.kind === 'warning' || note.kind === 'error');
+        if (notes.length) {
+          setMessages((previous) => [
+            ...previous,
+            ...notes.map((note) => ({ kind: (note.kind === 'error' ? 'error' : 'warning') as 'error' | 'warning', text: note.text })),
+          ]);
+        }
+
         if (response.error) {
           failed++;
           setMessages((previous) => [...previous, { kind: 'error', text: response.error! }]);
@@ -180,7 +198,7 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
           failed++;
           setMessages((previous) => [
             ...previous,
-            method === 'ocr'
+            method !== 'ai'
               ? {
                   kind: 'warning',
                   text: `No numbered questions were recognised on ${page.label}. If the text read (below) looks right, the layout is unusual (try the AI method); if it looks garbled, try a sharper image.`,
@@ -192,7 +210,7 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
         }
 
         collected.push({ label: page.label, subtopic: page.subtopic.trim(), questions: response.questions });
-        if (method === 'ai' && index < current.length - 1) await sleep(config.min_request_delay * 1000, controller.signal);
+        if (usesAI && index < current.length - 1) await sleep(config.min_request_delay * 1000, controller.signal);
       }
     } catch (error: any) {
       setMessages((previous) => [...previous, { kind: 'error', text: error?.name === 'AbortError' ? 'Extraction stopped.' : error.message }]);
@@ -289,11 +307,11 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
               <span>{option.label}</span>
             </label>
           ))}
-          {method === 'ocr' && !config.ocr_available && (
+          {method !== 'ai' && !config.ocr_available && (
             <Notice kind="error">The built-in OCR engine isn't installed on the server. Use the AI method or redeploy the service.</Notice>
           )}
         </div>
-        {method === 'ai' && (
+        {usesAI && (
           <div className="mt-4 space-y-3">
             <ProviderPicker
               providers={config.providers}
@@ -304,10 +322,24 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
                 setModel(nextModel);
               }}
             />
-            <p className="text-xs text-gray-500">
-              Pages with a real text layer are sent as plain text (any model works). Scanned pages and image uploads are sent as an
-              image, which needs a vision-capable model.
-            </p>
+            {method === 'ocr_ai' ? (
+              <>
+                <Checkbox
+                  label="Also send the page image to the AI (vision models only) — best for maths symbols and exponents"
+                  checked={sendImage}
+                  onChange={setSendImage}
+                />
+                <p className="text-xs text-gray-500">
+                  The page is read on the server first (PDF text, or OCR for images and scans); the AI then fixes the question / option /
+                  answer structure and OCR slips. Any text model works. If the AI is unavailable, the built-in reader's result is used.
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Pages with a real text layer are sent as plain text (any model works). Scanned pages and image uploads are sent as an
+                image, which needs a vision-capable model.
+              </p>
+            )}
           </div>
         )}
       </Card>
@@ -368,6 +400,8 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
                         ? 'extracted text'
                         : method === 'ocr'
                         ? 'image — read with built-in OCR'
+                        : method === 'ocr_ai'
+                        ? 'image — OCR, then AI clean-up'
                         : 'image — sent to the AI model'}
                     </p>
                     {page.mode === 'text' ? (

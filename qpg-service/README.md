@@ -62,6 +62,25 @@ That gives full OCR quality and speed, the same as the Streamlit app.
 Other hosts work too, since it's a plain Docker image listening on `$PORT`. On Google Cloud Run, set memory to 2 GiB and the request timeout to
 900 s. A page can take a few minutes when the AI provider is slow.
 
+## When the AI provider is busy
+
+If the chosen model fails because the provider is out of capacity (for example
+OmniRoute's `503 Maximum combo retry limit reached`, rate limits, overload),
+the service retries the same page with other models of that provider. These
+come from `OMNIROUTE_FALLBACK_MODELS` / `AGENTROUTER_FALLBACK_MODELS` /
+`CLAUDE_FALLBACK_MODELS` (comma separated), or else the provider's own model
+list. A busy model is skipped for 5 minutes, and the admin panel re-tries any
+failed page once more at the end of the run.
+
+## Extraction methods
+
+- **OCR + AI clean-up** (default when an AI key is set): the page is read on
+  the server (PDF text layer, or OCR), then the AI fixes the question /
+  option / answer structure and OCR slips. It can optionally see the page
+  image too. If the AI step fails, the built-in reader's result is used.
+- **Built-in OCR**: no AI, free.
+- **AI vision model**: the page image goes straight to a vision model.
+
 ## Keeping it in sync with the Streamlit app
 
 `core/qpg_core.py` is generated from the Streamlit app's `app.py`. Never edit
