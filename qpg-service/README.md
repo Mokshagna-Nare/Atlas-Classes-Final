@@ -81,6 +81,20 @@ failed page once more at the end of the run.
 - **Built-in OCR**: no AI, free.
 - **AI vision model**: the page image goes straight to a vision model.
 
+## Stability: locked versions + build-time self-test
+
+- The Docker build installs `requirements.lock`, the exact library versions
+  the service was tested with. A new library release (like pypdf 7.0, which
+  removed a setting and broke PDF reading) can't change the service by itself.
+- Every build runs `selftest.py`: it reads a PDF, finds figures, renders
+  previews, runs OCR, builds Word files and calls the endpoints. If anything
+  fails, the build fails, and Render keeps the previous working version live.
+- Unexpected server errors come back as a readable message, not a crash.
+
+To upgrade libraries: edit `requirements.txt`, install it in a fresh Python 3.11
+venv, run `python selftest.py`, then regenerate the lock with
+`pip freeze > requirements.lock` (keep the header comment).
+
 ## Keeping it in sync with the Streamlit app
 
 `core/qpg_core.py` is generated from the Streamlit app's `app.py`. Never edit
