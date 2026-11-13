@@ -99,9 +99,11 @@ except ImportError:
 # crash page with no traceback, much harder to diagnose than this.
 #
 # pypdf >=6.16 reads this from a Configuration object rather than the
-# plain module-level constants used before (those still exist for
-# backwards compatibility but are deprecated and slated for removal in
-# 7.0), so set both to stay correct across the versions in the wild.
+# plain module-level constants used before. pypdf 7.0 REMOVED those
+# constants: changing one now makes every PDF read raise DeprecationError
+# ("ZLIB_MAX_OUTPUT_LENGTH is deprecated and was removed in pypdf 7.0.0").
+# So the old constant is only touched on old pypdf versions that don't
+# have the Configuration API at all, and nothing here may ever raise.
 _PDF_STREAM_LIMIT_BYTES = 200_000_000
 try:
     pypdf.overwrite_configuration(
@@ -110,10 +112,15 @@ try:
         image_maximum_buffer_size=_PDF_STREAM_LIMIT_BYTES,
     )
 except AttributeError:
-    pass
-import pypdf.filters as _pypdf_filters  # noqa: E402
+    # pypdf < 6.16: only the module-level constant exists.
+    try:
+        import pypdf.filters as _pypdf_filters
 
-_pypdf_filters.ZLIB_MAX_OUTPUT_LENGTH = _PDF_STREAM_LIMIT_BYTES
+        _pypdf_filters.ZLIB_MAX_OUTPUT_LENGTH = _PDF_STREAM_LIMIT_BYTES
+    except Exception:
+        pass
+except Exception:
+    pass  # an unexpected pypdf API change must never stop the app loading
 
 
 # ---------------------------------------------------------------------------
@@ -1224,6 +1231,31 @@ def set_light_border(cell):
 # ---------------------------------------------------------------------------
 # PDF EXTRACTION
 # ---------------------------------------------------------------------------
+def _pymupdf_page_texts(pdf_bytes):
+    """Every page's text via PyMuPDF (the backup reader), or None."""
+
+    if fitz is None:
+        return None
+
+    try:
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception:
+        return None
+
+    texts = []
+
+    try:
+        for page in document:
+            try:
+                texts.append((page.get_text("text") or "").strip())
+            except Exception:
+                texts.append("")
+    finally:
+        document.close()
+
+    return texts
+
+
 @st.cache_data(show_spinner=False)
 def extract_pdf_pages(pdf_bytes):
     """
@@ -1241,12 +1273,28 @@ def extract_pdf_pages(pdf_bytes):
     cache hit.
     """
 
-    reader = PdfReader(io.BytesIO(pdf_bytes))
+    # pypdf is the primary reader; PyMuPDF is the backup, so a PDF that
+    # pypdf can't open (a damaged file, an unusual encoding, or a pypdf
+    # release that changes behaviour) is still read instead of failing.
+    try:
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        page_count = len(reader.pages)
+    except Exception:
+        reader = None
+        backup_texts = _pymupdf_page_texts(pdf_bytes)
+
+        if backup_texts is None:
+            raise
+
+        page_count = len(backup_texts)
+    else:
+        backup_texts = None
+
     pages = []
 
-    for index, page in enumerate(reader.pages):
+    for index in range(page_count):
         try:
-            text = (page.extract_text() or "").strip()
+            text = (reader.pages[index].extract_text() or "").strip() if reader else ""
         except Exception:
             # A single malformed/oversized stream on this page
             # shouldn't take down extraction for the whole PDF —
@@ -1254,6 +1302,13 @@ def extract_pdf_pages(pdf_bytes):
             # existing has_text=False path already handles that,
             # e.g. via source-page image analysis).
             text = ""
+
+        if not text:
+            if backup_texts is None:
+                backup_texts = _pymupdf_page_texts(pdf_bytes) or []
+
+            if index < len(backup_texts):
+                text = backup_texts[index]
 
         pages.append(
             {

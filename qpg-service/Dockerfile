@@ -2,15 +2,18 @@ FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements.lock ./
+# Exact tested versions (requirements.lock), never "whatever is newest today".
+RUN pip install --no-cache-dir -r requirements.lock
 
 COPY core ./core
-COPY main.py boot.py ocr_layout.py image_input.py ./
+COPY main.py boot.py ocr_layout.py image_input.py selftest.py ./
 
-# Load the OCR models once at build time so the first request is fast.
-RUN python -c "import sys; sys.path.insert(0, 'core'); import qpg_core; assert qpg_core.get_ocr_engine() is not None" \
-    && python -m compileall -q main.py boot.py ocr_layout.py image_input.py core
+# Load the OCR models once at build time so the first request is fast, then
+# run the self-test: if reading PDFs, finding figures, OCR or the Word export
+# is broken, the build FAILS and the host keeps the previous working version.
+RUN python -m compileall -q main.py boot.py ocr_layout.py image_input.py core \
+    && python selftest.py
 
 ENV PORT=8000 \
     MALLOC_ARENA_MAX=2

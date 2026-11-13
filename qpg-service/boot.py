@@ -48,9 +48,46 @@ async def _lifespan(receive, send):
             return
 
 
+async def _safe_call(scope, receive, send):
+    """
+    Last line of defence: if anything in the app raises unexpectedly, the
+    admin panel still gets a readable JSON message (with CORS headers, so
+    the browser lets it read it) instead of a bare crash.
+    """
+
+    started = False
+
+    async def tracking_send(message):
+        nonlocal started
+
+        if message["type"] == "http.response.start":
+            started = True
+
+        await send(message)
+
+    try:
+        await _app(scope, receive, tracking_send)
+    except Exception as error:  # noqa: BLE001
+        traceback.print_exc()
+
+        if scope["type"] != "http" or started:
+            return
+
+        body = json.dumps({
+            "detail": (
+                "Something unexpected went wrong on the Questions generator server "
+                f"({type(error).__name__}: {str(error)[:200]}). Please try again; "
+                "if it keeps happening, send this message to the developer."
+            )
+        }).encode()
+        headers = [(b"content-type", b"application/json")] + _CORS_HEADERS
+        await send({"type": "http.response.start", "status": 500, "headers": headers})
+        await send({"type": "http.response.body", "body": body})
+
+
 async def app(scope, receive, send):
     if _app is not None and scope["type"] != "lifespan":
-        await _app(scope, receive, send)
+        await _safe_call(scope, receive, send)
         return
 
     if scope["type"] == "lifespan":

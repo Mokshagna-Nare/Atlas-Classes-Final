@@ -39,7 +39,7 @@ from collections import OrderedDict
 import httpx
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent / "core"))
@@ -350,6 +350,33 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
 )
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(request, error):
+    """
+    Any unexpected server error becomes a readable message for the admin
+    panel. Errors are answered outside the CORS layer, so the CORS header
+    is added here; otherwise the browser would hide the message.
+    """
+
+    import traceback
+
+    traceback.print_exception(type(error), error, error.__traceback__)
+    origin = request.headers.get("origin", "")
+    allow_origin = "*" if "*" in ALLOWED_ORIGINS else (origin if origin in ALLOWED_ORIGINS else "")
+    headers = {"Access-Control-Allow-Origin": allow_origin, "Vary": "Origin"} if allow_origin else {}
+    return JSONResponse(
+        status_code=500,
+        headers=headers,
+        content={
+            "detail": (
+                "Something unexpected went wrong on the Questions generator server "
+                f"({type(error).__name__}: {str(error)[:200]}). Please try again; if it keeps "
+                "happening, send this message to the developer."
+            )
+        },
+    )
 
 
 @app.middleware("http")
