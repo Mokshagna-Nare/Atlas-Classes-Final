@@ -81,6 +81,21 @@ failed page once more at the end of the run.
 - **Built-in OCR**: no AI, free.
 - **AI vision model**: the page image goes straight to a vision model.
 
+## Never reaching the memory limit (no 502 restarts)
+
+Render restarts the whole service when anything in it runs out of memory, and
+every request during the restart gets 502. So on small servers the service:
+
+- reads PDFs in batches of 4 pages (then page by page, then skips only that
+  page's figures) in short-lived helpers, each with a hard memory budget;
+- watches real container memory and stops a helper itself ~45 MB before the
+  limit (`QPG_MEMORY_MARGIN_MB`), returning a normal error instead;
+- keeps OCR lean (800 px working size): measured peak ~445 MB of 512 for the
+  whole service across a 20-page image-heavy PDF, extreme photos and OCR.
+
+Slow steps also run as background jobs (see `boot.py`), so no request is held
+open long enough for a gateway to answer 502/504.
+
 ## Stability: locked versions + build-time self-test
 
 - The Docker build installs `requirements.lock`, the exact library versions

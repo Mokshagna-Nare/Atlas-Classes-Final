@@ -29,6 +29,7 @@ import importlib.util
 import io
 import json
 import multiprocessing
+import resource
 import os
 import pathlib
 import sys
@@ -129,9 +130,12 @@ if LOW_MEMORY:
                 params={
                     "Global.log_level": "error",
                     "Global.use_cls": False,
-                    "Global.max_side_len": 1200,
+                    # Measured under a 512 MB limit: 800 px keeps OCR's own peak
+                    # around 165 MB (1200 px: ~280 MB, which brought the whole
+                    # service to ~485 MB) with the same reading quality.
+                    "Global.max_side_len": 800,
                     "Det.limit_side_len": 400,
-                    "Rec.rec_batch_num": 3,
+                    "Rec.rec_batch_num": 1,
                     "EngineConfig.onnxruntime.intra_op_num_threads": 1,
                     "EngineConfig.onnxruntime.inter_op_num_threads": 1,
                 }
@@ -177,10 +181,30 @@ class IsolatedJobFailed(RuntimeError):
     """A child job was stopped (out of memory or too slow)."""
 
 
-def _child_entry(connection, function, args):
+def _process_status_mb(field, pid="self"):
+    try:
+        for line in pathlib.Path(f"/proc/{pid}/status").read_text().splitlines():
+            if line.startswith(field + ":"):
+                return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return 0
+
+
+def _child_entry(connection, function, args, budget_mb=None):
     # Fresh locks: another thread may have held these at fork time.
     st_shim._cache_lock = threading.Lock()
     gc.disable()  # short-lived; GC passes would copy the parent's pages
+
+    if budget_mb:
+        # Hard cap on NEW memory this child may take: going over raises a
+        # normal MemoryError here instead of the kernel's out-of-memory kill
+        # (which makes hosts like Render restart the whole service -> 502).
+        try:
+            limit = (_process_status_mb("VmSize") + budget_mb) * 1024 * 1024
+            resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+        except (ValueError, OSError):
+            pass
 
     try:
         connection.send(("ok", function(*args)))
@@ -192,7 +216,88 @@ def _child_entry(connection, function, args):
         connection.close()
 
 
-def isolated(function, *args):
+# ---------------------------------------------------------------------------
+# MEMORY GUARD — never let the container reach its memory limit. Hosts like
+# Render restart the WHOLE service when anything in it is killed for lack of
+# memory (every request then gets 502), so the service stops an over-hungry
+# helper itself, a little before the limit, and reports a normal error.
+# ---------------------------------------------------------------------------
+def _container_limit_mb():
+    limit = _memory_limit_bytes()
+
+    if limit and limit < 64 * 1024 ** 3:
+        return limit // (1024 * 1024)
+
+    configured = os.environ.get("QPG_MEMORY_LIMIT_MB")
+
+    if configured:
+        return int(configured)
+
+    return 512 if LOW_MEMORY else None
+
+
+CONTAINER_LIMIT_MB = _container_limit_mb()
+MEMORY_GUARD_MARGIN_MB = int(os.environ.get("QPG_MEMORY_MARGIN_MB", "45"))
+
+
+def _container_used_mb():
+    """Memory that counts toward the limit (not reclaimable file cache)."""
+
+    for path, keys in (
+        ("/sys/fs/cgroup/memory.stat", ("anon",)),
+        ("/sys/fs/cgroup/memory/memory.stat", ("total_rss", "rss")),
+    ):
+        try:
+            values = dict(line.split()[:2] for line in pathlib.Path(path).read_text().splitlines() if line.strip())
+        except (OSError, ValueError):
+            continue
+
+        for key in keys:
+            if key in values:
+                return int(values[key]) // (1024 * 1024)
+
+    return None
+
+
+def _proportional_mb(pids):
+    """Fallback: proportional memory (PSS) of our processes."""
+
+    total = 0
+
+    for pid in pids:
+        try:
+            for line in pathlib.Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+                if line.startswith("Pss:"):
+                    total += int(line.split()[1]) // 1024
+                    break
+        except OSError:
+            pass
+
+    return total
+
+
+def _over_memory(child_pid):
+    if not CONTAINER_LIMIT_MB:
+        return False
+
+    used = _container_used_mb()
+
+    if used is None:
+        used = _proportional_mb([os.getpid(), child_pid])
+
+    return used >= CONTAINER_LIMIT_MB - MEMORY_GUARD_MARGIN_MB
+
+
+def _budget_mb():
+    """New memory a helper may take, given what the main process already uses."""
+
+    if not CONTAINER_LIMIT_MB:
+        return None
+
+    return max(160, CONTAINER_LIMIT_MB - _process_status_mb("VmRSS") - 60)
+
+
+def isolated(function, *args, budget=False):
     """
     Runs function(*args). On small servers it runs in a short-lived child
     process: the PDF engine and OCR give all their memory back when the
@@ -209,17 +314,30 @@ def isolated(function, *args):
     if _libc is not None:
         _libc.malloc_trim(0)
 
+    budget_mb = _budget_mb() if budget else None
     gc.freeze()
     context = multiprocessing.get_context("fork")
     receiver, sender = context.Pipe(duplex=False)
-    process = context.Process(target=_child_entry, args=(sender, function, args), daemon=True)
+    process = context.Process(target=_child_entry, args=(sender, function, args, budget_mb), daemon=True)
     process.start()
     sender.close()
     result = None
+    deadline = time.time() + CHILD_TIMEOUT_SECONDS
 
     try:
-        if receiver.poll(CHILD_TIMEOUT_SECONDS):
-            result = receiver.recv()
+        while time.time() < deadline:
+            if receiver.poll(0.1):
+                result = receiver.recv()
+                break
+
+            if not process.is_alive() and not receiver.poll(0):
+                break
+
+            if _over_memory(process.pid):
+                # Stop it ourselves, before the host's out-of-memory kill.
+                process.kill()
+                print(f"memory guard: stopped a {getattr(function, '__name__', 'helper')} job near the limit", flush=True)
+                break
     except (EOFError, OSError):
         result = None
     finally:
@@ -839,7 +957,10 @@ _analysis_lock = threading.Lock()
 ANALYSIS_CACHE_ENTRIES = 2 if LOW_MEMORY else 8
 
 
-def _analyse_pdf(pdf_bytes, label_mode, size_preset):
+FIGURE_BATCH_PAGES = 4 if LOW_MEMORY else 1000
+
+
+def _read_pdf_text(pdf_bytes):
     try:
         pages = core.extract_pdf_pages(pdf_bytes)
     except Exception as error:
@@ -852,12 +973,85 @@ def _analyse_pdf(pdf_bytes, label_mode, size_preset):
             f"This PDF has {len(pages)} pages.",
         )
 
-    figures = core.extract_all_page_source_images(pdf_bytes, label_mode, size_preset)
-    return {"pages": pages, "figures": figures}
+    return pages
+
+
+def _pages_only(pdf_bytes, numbers):
+    """A smaller PDF holding just these pages (1-based), in order."""
+
+    document = core.fitz.open(stream=pdf_bytes, filetype="pdf")
+
+    try:
+        if len(numbers) == document.page_count:
+            return pdf_bytes
+
+        document.select([number - 1 for number in numbers])
+        return document.tobytes(garbage=3, deflate=True)
+    finally:
+        document.close()
+
+
+def _figures_for_pages(pdf_bytes, numbers, label_mode, size_preset):
+    """Figures of these pages, keyed by their real page numbers."""
+
+    subset = _pages_only(pdf_bytes, numbers)
+    found = core.extract_all_page_source_images(subset, label_mode, size_preset)
+    return {number: found.get(index, []) for index, number in enumerate(numbers, start=1)}
+
+
+def _previews_for_pages(pdf_bytes, numbers):
+    previews = {}
+
+    for number in numbers:
+        png = render_page_png(pdf_bytes, number, 1.0)
+        previews[number] = small_preview(png) if png else None
+
+    return previews
+
+
+def _batches(numbers, size):
+    return [numbers[index:index + size] for index in range(0, len(numbers), size)]
+
+
+def _run_in_batches(function, pdf_bytes, numbers, *args):
+    """
+    Runs function(pdf_bytes, batch, *args) over small batches of pages, each
+    in its own helper with a memory budget. A batch that is too big is
+    retried page by page; a single page that still can't be processed is
+    left out (reported in `failed`) instead of failing the whole upload.
+    """
+
+    results, failed = {}, []
+
+    for batch in _batches(numbers, FIGURE_BATCH_PAGES):
+        try:
+            with heavy_job():
+                results.update(isolated(function, pdf_bytes, batch, *args, budget=True))
+            continue
+        except HTTPException:
+            raise
+        except (IsolatedJobFailed, RuntimeError, MemoryError):
+            if len(batch) == 1:
+                failed.extend(batch)
+                continue
+
+        for number in batch:
+            try:
+                with heavy_job():
+                    results.update(isolated(function, pdf_bytes, [number], *args, budget=True))
+            except HTTPException:
+                raise
+            except (IsolatedJobFailed, RuntimeError, MemoryError):
+                failed.append(number)
+
+    return results, failed
 
 
 def pdf_analysis(doc_id, pdf_bytes, label_mode, size_preset):
-    """{"pages": [...], "figures": {page_number: [figure, ...]}} for a PDF."""
+    """
+    {"pages": [...], "figures": {page_number: [figure, ...]},
+     "figures_skipped": [page_number, ...]} for a PDF.
+    """
 
     key = (doc_id, label_mode_code(label_mode), size_preset_name(size_preset))
 
@@ -866,11 +1060,19 @@ def pdf_analysis(doc_id, pdf_bytes, label_mode, size_preset):
             _analysis_cache.move_to_end(key)
             return _analysis_cache[key]
 
-    with heavy_job():
-        try:
-            analysis = isolated(_analyse_pdf, pdf_bytes, key[1], key[2])
-        except IsolatedJobFailed as error:
-            raise HTTPException(503, str(error))
+    try:
+        with heavy_job():
+            pages = isolated(_read_pdf_text, pdf_bytes, budget=True)
+    except (IsolatedJobFailed, RuntimeError, MemoryError) as error:
+        raise HTTPException(503, f"Couldn't read this PDF on the server: {error}")
+
+    numbers = [page["page_number"] for page in pages]
+    figures, skipped = _run_in_batches(_figures_for_pages, pdf_bytes, numbers, key[1], key[2])
+
+    for number in numbers:
+        figures.setdefault(number, [])
+
+    analysis = {"pages": pages, "figures": figures, "figures_skipped": sorted(skipped)}
 
     with _analysis_lock:
         _analysis_cache[key] = analysis
@@ -881,9 +1083,9 @@ def pdf_analysis(doc_id, pdf_bytes, label_mode, size_preset):
     return analysis
 
 
-def _preview_urls(pdf_bytes):
-    previews = core.render_all_pdf_page_previews(pdf_bytes, zoom=1.0)
-    return {number: small_preview(png) for number, png in previews.items()}
+def _preview_urls(pdf_bytes, numbers):
+    previews, _ = _run_in_batches(_previews_for_pages, pdf_bytes, numbers)
+    return previews
 
 
 # ---------------------------------------------------------------------------
@@ -994,9 +1196,8 @@ async def generate_prepare(
 
         if previews:
             try:
-                with heavy_job():
-                    page_previews = isolated(_preview_urls, data)
-            except IsolatedJobFailed:
+                page_previews = _preview_urls(data, [page["page_number"] for page in analysis["pages"]])
+            except Exception:
                 page_previews = {}  # previews are only a visual aid
 
         return {
@@ -1009,6 +1210,7 @@ async def generate_prepare(
                     "has_text": page["has_text"],
                     "chars": len(page["text"]),
                     "preview": page_previews.get(page["page_number"]),
+                    "figures_skipped": page["page_number"] in analysis.get("figures_skipped", []),
                     "figures": [
                         {
                             "index": index,
@@ -1260,7 +1462,7 @@ async def extract_prepare(files: list[UploadFile] = File(...)):
             try:
                 with heavy_job():
                     if is_pdf(upload, data):
-                        pages.extend(isolated(_pdf_overview, data, name, doc_id))
+                        pages.extend(isolated(_pdf_overview, data, name, doc_id, budget=True))
                     else:
                         # Any image format; a multi-page TIFF becomes several pages.
                         try:
@@ -1272,7 +1474,7 @@ async def extract_prepare(files: list[UploadFile] = File(...)):
                             label = name if len(frames) == 1 else f"{name} (page {number})"
                             frame_id = doc_id if number == 1 else store_doc(frame)
                             source = data if number == 1 else frame
-                            pages.append(isolated(_image_overview, source, label, frame_id, mime))
+                            pages.append(isolated(_image_overview, source, label, frame_id, mime, budget=True))
             except IsolatedJobFailed as error:
                 raise HTTPException(503, f"{name}: {error}")
 
@@ -1345,7 +1547,7 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
     if request.send_image and from_ocr:
         try:
             with heavy_job():
-                page = isolated(_page_for_ai, *page_args)
+                page = isolated(_page_for_ai, *page_args, budget=True)
             image_bytes, image_mime = page.get("image_bytes"), page.get("image_mime", "image/png")
         except Exception:
             image_bytes = None
@@ -1438,7 +1640,7 @@ def extract_page(request: ExtractPageRequest):
     else:
         try:
             with heavy_job():
-                page = isolated(_page_for_ai, *page_args)
+                page = isolated(_page_for_ai, *page_args, budget=True)
         except IsolatedJobFailed as error:
             result["error"] = f"Couldn't prepare {request.label}: {error}"
             return result
@@ -1538,6 +1740,7 @@ def docx(request: DocxRequest):
                 request.subject,
                 request.topic.strip(),
                 request.source_name,
+                budget=True,
             )
     except IsolatedJobFailed as error:
         raise HTTPException(503, str(error))
