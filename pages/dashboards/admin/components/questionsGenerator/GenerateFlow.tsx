@@ -18,6 +18,7 @@ interface PreparedPage {
   chars: number;
   preview: string | null;
   figures: PreparedFigure[];
+  figures_skipped?: boolean;
 }
 
 interface Prepared {
@@ -635,7 +636,11 @@ const PageCard: React.FC<{
             )}
           </div>
         ) : (
-          <p className="text-xs text-gray-500">🖼️ No figures found on this page.</p>
+          <p className="text-xs text-gray-500">
+            {page.figures_skipped
+              ? "🖼️ This page's figures were too large for the server to process, so they were skipped — the page's text can still be used."
+              : '🖼️ No figures found on this page.'}
+          </p>
         )}
 
         {effective > setting.count && (
