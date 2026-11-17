@@ -12,6 +12,7 @@ import {
   ShieldCheckIcon,
   ChartBarIcon,
   DocumentDuplicateIcon,
+  CheckCircleIcon,
 } from "../../../components/icons";
 import DashboardShell, { ShellNavGroup } from "../../../components/shell/DashboardShell";
 import BackgroundTaskBar, { BackgroundTaskEntry } from "../../../components/shell/BackgroundTaskBar";
@@ -28,6 +29,10 @@ import QuestionPaperGenerator from "./components/QuestionPaperGenerator";
 import StudentAnalyticsDashboard from "./components/Analytics/StudentAnalyticsDashboard";
 import FlaggedAttempts from "./components/FlaggedAttempts";
 import QuestionsGenerator from "./components/questionsGenerator/QuestionsGenerator";
+import { TasksProvider, useTasks } from "./components/tasks/TasksContext";
+import TasksPage from "./components/tasks/TasksPage";
+import QuickAdd from "./components/tasks/QuickAdd";
+import TaskDrawer from "./components/tasks/TaskDrawer";
 
 import { MCQ } from "../../../types";
 
@@ -41,9 +46,14 @@ type DashboardView =
   | "paper-generator"
   | "analytics"
   | "flagged-attempts"
-  | "questions-generator";
+  | "questions-generator"
+  | "tasks";
 
 const NAV: ShellNavGroup<DashboardView>[] = [
+  {
+    heading: "Workspace",
+    items: [{ view: "tasks", label: "Tasks", subtitle: "Bugs, changes and to-dos for Atlas", icon: CheckCircleIcon, hasOwnHeading: true }],
+  },
   {
     heading: "Content",
     items: [
@@ -81,7 +91,13 @@ type Prompt =
   | { kind: "logout" }
   | { kind: "edit-over"; mcq: MCQ };
 
-const AdminDashboard: React.FC = () => {
+const AdminDashboard: React.FC = () => (
+  <TasksProvider>
+    <AdminConsole />
+  </TasksProvider>
+);
+
+const AdminConsole: React.FC = () => {
   const [activeView, setActiveView] = useState<DashboardView>("ai-generator");
   const [editingMcq, setEditingMcq] = useState<MCQ | null>(null);
   /** Ongoing work declared by sections, keyed "view::taskId". */
@@ -92,6 +108,18 @@ const AdminDashboard: React.FC = () => {
 
   const { user, logout } = useAuth()!;
   const navigate = useNavigate();
+  const { counts: taskCounts } = useTasks();
+
+  // Sidebar with the open-task count on "Tasks" (red when something is overdue).
+  const navGroups = useMemo(
+    () => NAV.map(group => ({
+      ...group,
+      items: group.items.map(item => item.view === "tasks"
+        ? { ...item, badge: taskCounts.active || null, badgeTone: taskCounts.overdue ? ("alert" as const) : ("default" as const) }
+        : item),
+    })),
+    [taskCounts.active, taskCounts.overdue]
+  );
 
   const report = useCallback<TaskReporter>((view, id, info) => {
     const key = `${view}::${id}`;
@@ -213,6 +241,8 @@ const AdminDashboard: React.FC = () => {
         return <QuestionsGenerator />;
       case "analytics":
         return <StudentAnalyticsDashboard />;
+      case "tasks":
+        return <TasksPage />;
       default:
         return <AIPaperGenerator />;
     }
@@ -240,13 +270,14 @@ const AdminDashboard: React.FC = () => {
     <DashboardShell<DashboardView>
       portalLabel="Admin Console"
       brand={<img src="https://i.postimg.cc/xdCpx0Kj/Logo-new-1.png" alt="Atlas Classes" className="h-14 w-auto object-contain" />}
-      groups={NAV}
+      groups={navGroups}
       activeView={activeView}
       onNavigate={view => go(view)}
       user={{ name: user?.name || "Administrator", caption: "Administrator" }}
       welcome={{ name: user?.name?.trim().split(/\s+/)[0] || "Admin", tagline: "everything across the network is ready for you." }}
       onLogout={handleLogout}
       keepMounted
+      floating={<QuickAdd currentArea={activeView === "tasks" ? null : activeView} onOpenBoard={() => go("tasks")} />}
       statusBar={
         <BackgroundTaskBar
           tasks={backgroundEntries}
@@ -262,6 +293,8 @@ const AdminDashboard: React.FC = () => {
           </TaskScope>
         </div>
       ))}
+
+      <TaskDrawer />
 
       {prompt?.kind === "leave" && leavingTask && (
         <AdminModal
