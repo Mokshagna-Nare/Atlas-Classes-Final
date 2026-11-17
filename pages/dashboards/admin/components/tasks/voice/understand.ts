@@ -63,12 +63,12 @@ const ACRONYMS = ['mcq', 'mcqs', 'otp', 'api', 'pdf', 'ui', 'ux', 'neet', 'jee',
 
 /** Hindi / Telugu / Hinglish words → the English the rest of the parser understands. */
 const TRANSLATIONS: [RegExp, string][] = [
-  [/(?:bahut|bohot|bahot|chala|చాలా)\s+(?:zaroori|zaruri|jaruri|jaroori|important|urgent|ज़रूरी|जरूरी|ముఖ్యం|ముఖ్యమైన)/g, ' urgent '],
+  [/(?:bahut|bohot|bahot|bhot|bohat|bhut|bahuth|chala|chaala|బాగా|చాలా|बहुत)\s+(?:zaroori|zaruri|jaruri|jaroori|zarori|zharori|jarori|zururi|zaruuri|important|urgent|mukhyam\w*|ज़रूरी|जरूरी|जरोरी|जरुरी|ముఖ్యం|ముఖ్యమైన)/g, ' urgent '],
   [/\b(?:turant|fauran|abhi ke abhi|ventane)\b|तुरंत|फ़ौरन|అత్యవసరం|అత్యవసర|వెంటనే|अत्यावश्यक/g, ' urgent '],
-  [/\b(?:zaroori|zaruri|jaruri|jaroori|mukhyam|mukhyamaina)\b|ज़रूरी|जरूरी|ముఖ్యమైన|ముఖ్యం/g, ' important '],
+  [/\b(?:zaroori|zaruri|jaruri|jaroori|zarori|zharori|jarori|zururi|mukhyama(?:i|yi|y)? ?nadi|mukhyam(?:aina|ainadi|ayina|ayinadi|ayi|ai|amaina|am)?)\b|ज़रूरी|जरूरी|जरोरी|जरुरी|ముఖ్యమైనది|ముఖ్యమైన|ముఖ్యం/g, ' important '],
   [/\b(?:parso|parson|ellundi)\b|परसों|ఎల్లుండి/g, ' day after tomorrow '],
-  [/\b(?:kal|repu)\b|कल|రేపు/g, ' tomorrow '],
-  [/\b(?:aaj|eroju|eeroju|ivvala|ivala)\b|आज|ఈరోజు|ఈ రోజు/g, ' today '],
+  [/\b(?:kal|repu|repati(?:loga|lopu|ki)?|rai pati(?:loga|lopu)?|repatiki)\b|कल|రేపటిలోగా|రేపటికి|రేపు/g, ' tomorrow '],
+  [/\b(?:aaj|eroju|eeroju|ivvala|ivala|ee roju)\b|आज|ఈరోజు|ఈ రోజు/g, ' today '],
   [/\b(?:agle hafte|agle week|vachhe vaaram|vache varam)\b|अगले हफ्ते|अगले सप्ताह|వచ్చే వారం/g, ' next week '],
   [/\b(?:baad mein|baad me|bad me|bad mein|taal do|tal do|vayida|vaayida)\b|बाद में|टाल दो|వాయిదా/g, ' postpone '],
   [/\b(?:shuru karo|shuru kar do|shuru)\b|शुरू|మొదలు పెట్టు|మొదలు/g, ' start '],
@@ -592,6 +592,14 @@ function draftFrom(segment: string, ctx: UnderstandContext, transcript: string):
 
   let body = tidyTitle(removeSpans(segment, spans));
   if (!body) body = tidyTitle(segment);
+
+  // "the student portal, login fails after OTP" → the area is already a tag; keep the actual problem.
+  for (const area of areaFound) {
+    const alias = segment.slice(area.start, area.end).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const lead = new RegExp(`^(?:in |on |for |at )?(?:the )?${alias}s?(?: (?:section|page|tab|screen|module|portal))?\\s*[,:;\\-–]\\s*(.{6,})$`, 'i');
+    const match = lead.exec(body);
+    if (match) { body = tidyTitle(match[1]) || match[1]; break; }
+  }
 
   // First sentence is the title; the rest are details.
   let title = body;

@@ -4,7 +4,8 @@ import { messageOf, useTasks } from '../TasksContext';
 import { DueLabel, MIC, StatusPill, TaskForm } from '../TaskParts';
 import { TaskDraft, adminName, istDay } from '../taskModel';
 import { DraftNote, Understanding, UnderstandContext, confirmWord, refineDrafts, understand } from './understand';
-import { SPEECH_LANGS, SpeechLang, speak, stopSpeaking, useSpeech } from './useSpeech';
+import { EnginePreference, SPEECH_LANGS, SpeechEngine, SpeechLang, resolveEngine, speak, stopSpeaking, useSpeech } from './useSpeech';
+import { LOCAL_MODELS, LocalModel, modelFor } from './localSpeech';
 
 // "Speak a task": listen → understand → show it for confirmation → save. Hands-free follow-ups
 // ("save", "cancel", "make it urgent") work while a draft is on screen. A command box below
@@ -63,6 +64,8 @@ const VoiceAssistant: React.FC<{ currentArea?: string | null; onOpenTask?: (id: 
   const [lang, setLang] = useState<SpeechLang>(() => readSetting('atlas-tasks-lang', 'en-IN'));
   const [speakReplies, setSpeakReplies] = useState<boolean>(() => readSetting('atlas-tasks-speak', true));
   const [handsFree, setHandsFree] = useState<boolean>(() => readSetting('atlas-tasks-handsfree', true));
+  const [enginePref, setEnginePref] = useState<EnginePreference>(() => readSetting('atlas-tasks-engine', 'auto'));
+  const [localModel, setLocalModel] = useState<LocalModel>(() => readSetting('atlas-tasks-model', 'standard'));
   const [phase, setPhase] = useState<Phase>({ name: 'idle' });
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -76,6 +79,11 @@ const VoiceAssistant: React.FC<{ currentArea?: string | null; onOpenTask?: (id: 
   useEffect(() => writeSetting('atlas-tasks-lang', lang), [lang]);
   useEffect(() => writeSetting('atlas-tasks-speak', speakReplies), [speakReplies]);
   useEffect(() => writeSetting('atlas-tasks-handsfree', handsFree), [handsFree]);
+  useEffect(() => writeSetting('atlas-tasks-engine', enginePref), [enginePref]);
+  // Which engine this browser will use, known before the first tap (e.g. Brave → on-device).
+  const [predicted, setPredicted] = useState<SpeechEngine | null>(null);
+  useEffect(() => { resolveEngine(enginePref).then(setPredicted).catch(() => setPredicted(null)); }, [enginePref]);
+  useEffect(() => writeSetting('atlas-tasks-model', localModel), [localModel]);
 
   const ctx: UnderstandContext = useMemo(() => ({
     tasks, admins, me, areas, today: istDay(),
@@ -95,7 +103,7 @@ const VoiceAssistant: React.FC<{ currentArea?: string | null; onOpenTask?: (id: 
 
   // ---- follow-up listener (yes / no / corrections) -------------------------------------------
   const followUpRef = useRef<(text: string) => void>(() => undefined);
-  const confirm = useSpeech({ lang, short: true, vocabulary, onFinal: text => followUpRef.current(text) });
+  const confirm = useSpeech({ lang, short: true, vocabulary, engine: enginePref, localModel, onFinal: text => followUpRef.current(text) });
 
   const listenForFollowUp = useCallback(async (reply: string) => {
     await say(reply);
@@ -127,7 +135,7 @@ const VoiceAssistant: React.FC<{ currentArea?: string | null; onOpenTask?: (id: 
     }
   }, [listenForFollowUp, say]);
 
-  const main = useSpeech({ lang, vocabulary, onFinal: handleCommand });
+  const main = useSpeech({ lang, vocabulary, engine: enginePref, localModel, onFinal: handleCommand });
 
   const reset = useCallback(() => {
     confirm.cancel();
@@ -215,6 +223,9 @@ const VoiceAssistant: React.FC<{ currentArea?: string | null; onOpenTask?: (id: 
   }, [phase]);
 
   const listening = main.status !== 'idle';
+  const transcribing = main.status === 'transcribing';
+  const activeEngine = main.engine ?? predicted;
+  const onDevice = activeEngine === 'local';
   const result = phase.name === 'result' ? phase.result : null;
   const speechError = main.error || confirm.error;
 
@@ -224,28 +235,48 @@ const VoiceAssistant: React.FC<{ currentArea?: string | null; onOpenTask?: (id: 
       {(phase.name === 'idle' || listening) && (
         <div className="rounded-2xl bg-black/20 p-5 text-center ring-1 ring-inset ring-white/[0.06] light:bg-gray-950 light:ring-gray-700">
           <div className="relative mx-auto h-20 w-20">
-            {listening && <span className="absolute inset-0 rounded-full bg-emerald-400/25 transition-transform duration-100" style={{ transform: `scale(${1.15 + main.level * 0.6})` }} aria-hidden="true" />}
-            <button type="button" onClick={listening ? main.stop : startListening} disabled={main.status === 'finishing'}
+            {listening && !transcribing && <span className="absolute inset-0 rounded-full bg-emerald-400/25 transition-transform duration-100" style={{ transform: `scale(${1.15 + main.level * 0.6})` }} aria-hidden="true" />}
+            <button type="button" onClick={listening ? main.stop : startListening} disabled={main.status === 'finishing' || transcribing}
               aria-label={listening ? 'Stop and use what I said' : 'Start speaking'}
               className={`relative flex h-20 w-20 items-center justify-center rounded-full text-gray-950 shadow-[0_16px_40px_-12px_rgba(16,185,129,0.9)] transition active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400/40 ${listening ? 'bg-rose-400' : 'bg-gradient-to-b from-emerald-300 to-emerald-500 light:from-atlas-primary light:to-atlas-primary light:text-on-accent'}`}>
-              {listening ? <span className="h-6 w-6 rounded-md bg-gray-950" /> : <Svg d={MIC} className="h-9 w-9" />}
+              {transcribing ? <span className="h-7 w-7 animate-spin rounded-full border-[3px] border-gray-950/30 border-t-gray-950" />
+                : listening ? <span className="h-6 w-6 rounded-md bg-gray-950" /> : <Svg d={MIC} className="h-9 w-9" />}
             </button>
           </div>
-          <Waveform level={main.level} active={listening} />
+          <Waveform level={main.level} active={listening && !transcribing} />
           <p className="min-h-[2.75rem] text-sm leading-relaxed" aria-live="polite">
-            {listening ? (
+            {transcribing ? (
+              <span className="text-gray-300">
+                {main.download !== null ? 'Downloading the speech model (first time only)…' : 'Understanding what you said, on this device…'}
+              </span>
+            ) : listening ? (
               main.finalText || main.interim
                 ? <><span className="text-white">{main.finalText} </span><span className="text-gray-500">{main.interim}</span></>
-                : <span className="text-gray-400">{main.status === 'finishing' ? 'Finishing…' : 'Listening… say the task, then pause.'}</span>
+                : <span className="text-gray-400">{main.status === 'finishing' ? 'Finishing…' : onDevice ? 'Listening… say the task, then pause. (Text appears when you stop.)' : 'Listening… say the task, then pause.'}</span>
             ) : (
               <span className="text-gray-400">Tap the mic and speak. I'll show you what I understood before anything is saved.</span>
             )}
           </p>
+          {main.download !== null && (
+            <div className="mx-auto mt-1 max-w-xs" role="progressbar" aria-valuenow={Math.round(main.download * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Speech model download">
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/10 light:bg-gray-800">
+                <div className="h-full rounded-full bg-emerald-400 transition-[width] duration-300 light:bg-atlas-primary" style={{ width: `${Math.max(3, main.download * 100)}%` }} />
+              </div>
+              <p className="mt-1 text-[11px] text-gray-500">{Math.round(main.download * 100)}% of {LOCAL_MODELS[modelFor(lang, localModel)].size} · saved in this browser after the first time</p>
+            </div>
+          )}
           {listening && (
             <div className="mt-2 flex justify-center gap-2">
-              <button type="button" onClick={main.stop} className={`${primaryBtn} h-9 px-4 text-xs`}>Done</button>
+              <button type="button" onClick={main.stop} disabled={transcribing} className={`${primaryBtn} h-9 px-4 text-xs`}>Done</button>
               <button type="button" onClick={main.cancel} className={`${secondaryBtn} h-9 px-4 text-xs`}>Cancel</button>
             </div>
+          )}
+          {activeEngine && (
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400 ring-1 ring-inset ring-white/10 light:ring-gray-700"
+              title={onDevice ? 'Speech is turned into text on this computer (Whisper). Audio never leaves the device.' : "Using the browser's own speech service."}>
+              <span className={`h-1.5 w-1.5 rounded-full ${onDevice ? 'bg-violet-400' : 'bg-emerald-400'}`} />
+              {onDevice ? 'On-device recognition' : 'Browser recognition'}
+            </p>
           )}
           {!listening && (
             <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5" role="radiogroup" aria-label="Language">
@@ -260,7 +291,14 @@ const VoiceAssistant: React.FC<{ currentArea?: string | null; onOpenTask?: (id: 
         </div>
       )}
 
-      {speechError && <p role="alert" className="rounded-xl bg-amber-400/[0.08] px-3 py-2 text-sm text-amber-200 ring-1 ring-inset ring-amber-400/25">{speechError}</p>}
+      {onDevice && lang !== 'en-IN' && !listening && (
+        <p className="rounded-xl bg-white/[0.03] px-3 py-2 text-[11px] leading-relaxed text-gray-400 ring-1 ring-inset ring-white/[0.06] light:ring-gray-700">
+          On this device, {lang === 'te-IN' ? 'Telugu' : 'Hindi'} uses the high-accuracy model ({LOCAL_MODELS.high.size}, one-time download) and is written in English letters.
+          Recognition here is weaker than in English — for the best {lang === 'te-IN' ? 'Telugu' : 'Hindi'}, use Chrome or Edge.
+        </p>
+      )}
+      {main.notice && !speechError && <p className="rounded-xl bg-violet-400/[0.08] px-3 py-2 text-xs text-violet-200 ring-1 ring-inset ring-violet-400/25 light:text-violet-800">{main.notice}</p>}
+      {speechError && <p role="alert" className="rounded-xl bg-amber-400/[0.08] px-3 py-2 text-sm text-amber-200 ring-1 ring-inset ring-amber-400/25 light:text-amber-800">{speechError}</p>}
 
       {/* Result */}
       {result && (
@@ -414,6 +452,23 @@ const VoiceAssistant: React.FC<{ currentArea?: string | null; onOpenTask?: (id: 
           <input type="checkbox" checked={handsFree} onChange={e => setHandsFree(e.target.checked)} className="h-3.5 w-3.5 accent-emerald-500" /> Hands-free confirm
         </label>
         <span>Today: {TODAY_LABEL.format(new Date())}</span>
+        <label className="inline-flex items-center gap-2">
+          Voice engine
+          <select value={enginePref} onChange={e => setEnginePref(e.target.value as EnginePreference)} disabled={listening}
+            className="rounded-md bg-black/30 px-1.5 py-0.5 text-[11px] text-gray-200 ring-1 ring-inset ring-white/10 light:bg-paper light:text-gray-200 light:ring-gray-700">
+            <option value="auto">Automatic</option>
+            <option value="local">On this device (private)</option>
+          </select>
+        </label>
+        {(enginePref === 'local' || onDevice) && lang === 'en-IN' && (
+          <label className="inline-flex items-center gap-2" title="Higher accuracy is better for Hindi and Telugu, but a bigger one-time download.">
+            Accuracy
+            <select value={localModel} onChange={e => setLocalModel(e.target.value as LocalModel)} disabled={listening}
+              className="rounded-md bg-black/30 px-1.5 py-0.5 text-[11px] text-gray-200 ring-1 ring-inset ring-white/10 light:bg-paper light:text-gray-200 light:ring-gray-700">
+              {(Object.keys(LOCAL_MODELS) as LocalModel[]).map(key => <option key={key} value={key}>{LOCAL_MODELS[key].label} ({LOCAL_MODELS[key].size})</option>)}
+            </select>
+          </label>
+        )}
       </div>
     </div>
   );
