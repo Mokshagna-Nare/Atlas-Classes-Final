@@ -62,6 +62,54 @@ That gives full OCR quality and speed, the same as the Streamlit app.
 Other hosts work too, since it's a plain Docker image listening on `$PORT`. On Google Cloud Run, set memory to 2 GiB and the request timeout to
 900 s. A page can take a few minutes when the AI provider is slow.
 
+## When the AI provider is busy
+
+If the chosen model fails because the provider is out of capacity (for example
+OmniRoute's `503 Maximum combo retry limit reached`, rate limits, overload),
+the service retries the same page with other models of that provider. These
+come from `OMNIROUTE_FALLBACK_MODELS` / `AGENTROUTER_FALLBACK_MODELS` /
+`CLAUDE_FALLBACK_MODELS` (comma separated), or else the provider's own model
+list. A busy model is skipped for 5 minutes, and the admin panel re-tries any
+failed page once more at the end of the run.
+
+## Extraction methods
+
+- **OCR + AI clean-up** (default when an AI key is set): the page is read on
+  the server (PDF text layer, or OCR), then the AI fixes the question /
+  option / answer structure and OCR slips. It can optionally see the page
+  image too. If the AI step fails, the built-in reader's result is used.
+- **Built-in OCR**: no AI, free.
+- **AI vision model**: the page image goes straight to a vision model.
+
+## Never reaching the memory limit (no 502 restarts)
+
+Render restarts the whole service when anything in it runs out of memory, and
+every request during the restart gets 502. So on small servers the service:
+
+- reads PDFs in batches of 4 pages (then page by page, then skips only that
+  page's figures) in short-lived helpers, each with a hard memory budget;
+- watches real container memory and stops a helper itself ~45 MB before the
+  limit (`QPG_MEMORY_MARGIN_MB`), returning a normal error instead;
+- keeps OCR lean (800 px working size): measured peak ~445 MB of 512 for the
+  whole service across a 20-page image-heavy PDF, extreme photos and OCR.
+
+Slow steps also run as background jobs (see `boot.py`), so no request is held
+open long enough for a gateway to answer 502/504.
+
+## Stability: locked versions + build-time self-test
+
+- The Docker build installs `requirements.lock`, the exact library versions
+  the service was tested with. A new library release (like pypdf 7.0, which
+  removed a setting and broke PDF reading) can't change the service by itself.
+- Every build runs `selftest.py`: it reads a PDF, finds figures, renders
+  previews, runs OCR, builds Word files and calls the endpoints. If anything
+  fails, the build fails, and Render keeps the previous working version live.
+- Unexpected server errors come back as a readable message, not a crash.
+
+To upgrade libraries: edit `requirements.txt`, install it in a fresh Python 3.11
+venv, run `python selftest.py`, then regenerate the lock with
+`pip freeze > requirements.lock` (keep the header comment).
+
 ## Keeping it in sync with the Streamlit app
 
 `core/qpg_core.py` is generated from the Streamlit app's `app.py`. Never edit

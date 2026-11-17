@@ -29,6 +29,7 @@ import importlib.util
 import io
 import json
 import multiprocessing
+import resource
 import os
 import pathlib
 import sys
@@ -39,7 +40,7 @@ from collections import OrderedDict
 import httpx
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent / "core"))
@@ -129,9 +130,12 @@ if LOW_MEMORY:
                 params={
                     "Global.log_level": "error",
                     "Global.use_cls": False,
-                    "Global.max_side_len": 1200,
+                    # Measured under a 512 MB limit: 800 px keeps OCR's own peak
+                    # around 165 MB (1200 px: ~280 MB, which brought the whole
+                    # service to ~485 MB) with the same reading quality.
+                    "Global.max_side_len": 800,
                     "Det.limit_side_len": 400,
-                    "Rec.rec_batch_num": 3,
+                    "Rec.rec_batch_num": 1,
                     "EngineConfig.onnxruntime.intra_op_num_threads": 1,
                     "EngineConfig.onnxruntime.inter_op_num_threads": 1,
                 }
@@ -177,10 +181,30 @@ class IsolatedJobFailed(RuntimeError):
     """A child job was stopped (out of memory or too slow)."""
 
 
-def _child_entry(connection, function, args):
+def _process_status_mb(field, pid="self"):
+    try:
+        for line in pathlib.Path(f"/proc/{pid}/status").read_text().splitlines():
+            if line.startswith(field + ":"):
+                return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return 0
+
+
+def _child_entry(connection, function, args, budget_mb=None):
     # Fresh locks: another thread may have held these at fork time.
     st_shim._cache_lock = threading.Lock()
     gc.disable()  # short-lived; GC passes would copy the parent's pages
+
+    if budget_mb:
+        # Hard cap on NEW memory this child may take: going over raises a
+        # normal MemoryError here instead of the kernel's out-of-memory kill
+        # (which makes hosts like Render restart the whole service -> 502).
+        try:
+            limit = (_process_status_mb("VmSize") + budget_mb) * 1024 * 1024
+            resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+        except (ValueError, OSError):
+            pass
 
     try:
         connection.send(("ok", function(*args)))
@@ -192,7 +216,88 @@ def _child_entry(connection, function, args):
         connection.close()
 
 
-def isolated(function, *args):
+# ---------------------------------------------------------------------------
+# MEMORY GUARD — never let the container reach its memory limit. Hosts like
+# Render restart the WHOLE service when anything in it is killed for lack of
+# memory (every request then gets 502), so the service stops an over-hungry
+# helper itself, a little before the limit, and reports a normal error.
+# ---------------------------------------------------------------------------
+def _container_limit_mb():
+    limit = _memory_limit_bytes()
+
+    if limit and limit < 64 * 1024 ** 3:
+        return limit // (1024 * 1024)
+
+    configured = os.environ.get("QPG_MEMORY_LIMIT_MB")
+
+    if configured:
+        return int(configured)
+
+    return 512 if LOW_MEMORY else None
+
+
+CONTAINER_LIMIT_MB = _container_limit_mb()
+MEMORY_GUARD_MARGIN_MB = int(os.environ.get("QPG_MEMORY_MARGIN_MB", "45"))
+
+
+def _container_used_mb():
+    """Memory that counts toward the limit (not reclaimable file cache)."""
+
+    for path, keys in (
+        ("/sys/fs/cgroup/memory.stat", ("anon",)),
+        ("/sys/fs/cgroup/memory/memory.stat", ("total_rss", "rss")),
+    ):
+        try:
+            values = dict(line.split()[:2] for line in pathlib.Path(path).read_text().splitlines() if line.strip())
+        except (OSError, ValueError):
+            continue
+
+        for key in keys:
+            if key in values:
+                return int(values[key]) // (1024 * 1024)
+
+    return None
+
+
+def _proportional_mb(pids):
+    """Fallback: proportional memory (PSS) of our processes."""
+
+    total = 0
+
+    for pid in pids:
+        try:
+            for line in pathlib.Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+                if line.startswith("Pss:"):
+                    total += int(line.split()[1]) // 1024
+                    break
+        except OSError:
+            pass
+
+    return total
+
+
+def _over_memory(child_pid):
+    if not CONTAINER_LIMIT_MB:
+        return False
+
+    used = _container_used_mb()
+
+    if used is None:
+        used = _proportional_mb([os.getpid(), child_pid])
+
+    return used >= CONTAINER_LIMIT_MB - MEMORY_GUARD_MARGIN_MB
+
+
+def _budget_mb():
+    """New memory a helper may take, given what the main process already uses."""
+
+    if not CONTAINER_LIMIT_MB:
+        return None
+
+    return max(160, CONTAINER_LIMIT_MB - _process_status_mb("VmRSS") - 60)
+
+
+def isolated(function, *args, budget=False):
     """
     Runs function(*args). On small servers it runs in a short-lived child
     process: the PDF engine and OCR give all their memory back when the
@@ -209,17 +314,30 @@ def isolated(function, *args):
     if _libc is not None:
         _libc.malloc_trim(0)
 
+    budget_mb = _budget_mb() if budget else None
     gc.freeze()
     context = multiprocessing.get_context("fork")
     receiver, sender = context.Pipe(duplex=False)
-    process = context.Process(target=_child_entry, args=(sender, function, args), daemon=True)
+    process = context.Process(target=_child_entry, args=(sender, function, args, budget_mb), daemon=True)
     process.start()
     sender.close()
     result = None
+    deadline = time.time() + CHILD_TIMEOUT_SECONDS
 
     try:
-        if receiver.poll(CHILD_TIMEOUT_SECONDS):
-            result = receiver.recv()
+        while time.time() < deadline:
+            if receiver.poll(0.1):
+                result = receiver.recv()
+                break
+
+            if not process.is_alive() and not receiver.poll(0):
+                break
+
+            if _over_memory(process.pid):
+                # Stop it ourselves, before the host's out-of-memory kill.
+                process.kill()
+                print(f"memory guard: stopped a {getattr(function, '__name__', 'helper')} job near the limit", flush=True)
+                break
     except (EOFError, OSError):
         result = None
     finally:
@@ -352,6 +470,33 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(Exception)
+async def unexpected_error(request, error):
+    """
+    Any unexpected server error becomes a readable message for the admin
+    panel. Errors are answered outside the CORS layer, so the CORS header
+    is added here; otherwise the browser would hide the message.
+    """
+
+    import traceback
+
+    traceback.print_exception(type(error), error, error.__traceback__)
+    origin = request.headers.get("origin", "")
+    allow_origin = "*" if "*" in ALLOWED_ORIGINS else (origin if origin in ALLOWED_ORIGINS else "")
+    headers = {"Access-Control-Allow-Origin": allow_origin, "Vary": "Origin"} if allow_origin else {}
+    return JSONResponse(
+        status_code=500,
+        headers=headers,
+        content={
+            "detail": (
+                "Something unexpected went wrong on the Questions generator server "
+                f"({type(error).__name__}: {str(error)[:200]}). Please try again; if it keeps "
+                "happening, send this message to the developer."
+            )
+        },
+    )
+
+
 @app.middleware("http")
 async def release_memory(request, call_next):
     """Hands freed memory back to the system after every request."""
@@ -478,6 +623,173 @@ def provider_client(provider, timeout_seconds):
     key = provider_key(provider)
     base_url = core.OMNIROUTE_BASE_URL if provider == "OmniRoute" else None
     return core.build_client(provider, key, base_url, timeout_seconds=timeout_seconds)
+
+
+# ---------------------------------------------------------------------------
+# MODEL FALLBACK — when the chosen model's provider is out of capacity
+# (e.g. OmniRoute "auto": "503 Maximum combo retry limit reached", rate
+# limits, overload), try other models of the same provider before failing.
+# ---------------------------------------------------------------------------
+FALLBACK_ENV = {
+    "OmniRoute": "OMNIROUTE_FALLBACK_MODELS",
+    "Agent Router": "AGENTROUTER_FALLBACK_MODELS",
+    "Claude API": "CLAUDE_FALLBACK_MODELS",
+}
+MAX_FALLBACK_MODELS = int(os.environ.get("QPG_MAX_FALLBACK_MODELS", "2"))
+MODEL_LIST_CACHE_SECONDS = 600
+# Models that can't write questions (embeddings, speech, image generation...).
+_NON_CHAT_MODEL_WORDS = ("embed", "tts", "whisper", "audio", "speech", "dall", "image", "moderation", "rerank", "transcribe")
+_CAPACITY_ERROR_HINTS = (
+    "combo", "retry limit", "429", "500", "502", "503", "504", "529", "rate limit", "ratelimit",
+    "overloaded", "unavailable", "exhausted", "no available", "capacity", "quota",
+    "timed out", "timeout", "didn't reply", "connection error",
+)
+_model_cache = {}
+_model_cache_lock = threading.Lock()
+
+
+def list_provider_models(provider):
+    """The provider's model ids (cached for a few minutes)."""
+
+    with _model_cache_lock:
+        cached = _model_cache.get(provider)
+
+    if cached and cached[0] > time.time():
+        return cached[1]
+
+    key = provider_key(provider)
+
+    if provider == "Claude API":
+        listed = core.fetch_claude_models(key)
+    elif provider == "Agent Router":
+        listed = core.fetch_agentrouter_models(key)
+    else:
+        client = core.OpenAI(api_key=key, base_url=core.OMNIROUTE_BASE_URL, timeout=15, max_retries=0)
+        listed = sorted({model.id for model in client.models.list().data if model.id})
+
+    with _model_cache_lock:
+        _model_cache[provider] = (time.time() + MODEL_LIST_CACHE_SECONDS, listed)
+
+    return listed
+
+
+def fallback_models(provider, model):
+    """Other models to try, in order: the configured list, else the provider's own list."""
+
+    configured = [m.strip() for m in os.environ.get(FALLBACK_ENV.get(provider, ""), "").split(",") if m.strip()]
+
+    if configured:
+        candidates = configured
+    else:
+        try:
+            candidates = list_provider_models(provider)
+        except Exception:
+            candidates = []
+
+        candidates = [m for m in candidates if not any(word in m.lower() for word in _NON_CHAT_MODEL_WORDS)]
+
+    seen = {model.strip().lower(), "auto"}
+    result = []
+
+    for candidate in candidates:
+        if candidate.lower() not in seen:
+            seen.add(candidate.lower())
+            result.append(candidate)
+
+    return result[:MAX_FALLBACK_MODELS]
+
+
+def is_capacity_error(error):
+    if isinstance(error, (HTTPException, core.HTMLResponseError)):
+        return False
+
+    text = f"{type(error).__name__} {error}".lower()
+    return any(hint in text for hint in _CAPACITY_ERROR_HINTS)
+
+
+BUSY_MODEL_SECONDS = int(os.environ.get("QPG_BUSY_MODEL_SECONDS", "300"))
+_busy_models = {}  # (provider, model) -> time until which it counts as busy
+_busy_lock = threading.Lock()
+
+
+def _is_busy(provider, model):
+    with _busy_lock:
+        return _busy_models.get((provider, model.lower()), 0) > time.time()
+
+
+def _mark_busy(provider, model, busy):
+    with _busy_lock:
+        if busy:
+            _busy_models[(provider, model.lower())] = time.time() + BUSY_MODEL_SECONDS
+        else:
+            _busy_models.pop((provider, model.lower()), None)
+
+
+def run_with_model_fallback(provider, model, run, notes):
+    """
+    run(model) with the chosen model; if the provider is out of capacity,
+    the same request is tried with other models of that provider. A model
+    that just failed this way is remembered as busy for a few minutes, so
+    the next pages go straight to a working model instead of waiting
+    through its retries again.
+    """
+
+    models = [model]
+    fallbacks_added = False
+
+    if _is_busy(provider, model):
+        backups = fallback_models(provider, model)
+
+        if backups:
+            models = backups + [model]
+            fallbacks_added = True
+            notes.append({
+                "kind": "info",
+                "text": f"'{model}' was busy at the provider a moment ago — using {', '.join(backups)} first.",
+            })
+
+    first_error = None
+    index = 0
+
+    while index < len(models):
+        current = models[index]
+
+        try:
+            result = run(current)
+        except Exception as error:
+            if not is_capacity_error(error):
+                raise
+
+            _mark_busy(provider, current, True)
+
+            if first_error is None:
+                first_error = error
+
+            if not fallbacks_added:
+                fallbacks_added = True
+                backups = [m for m in fallback_models(provider, model) if m not in models]
+                models.extend(backups)
+
+                if backups:
+                    notes.append({
+                        "kind": "info",
+                        "text": (
+                            f"'{current}' is busy at the provider ({str(error)[:120]}) — "
+                            f"trying other {provider} models: {', '.join(backups)}."
+                        ),
+                    })
+
+            index += 1
+            continue
+
+        _mark_busy(provider, current, False)
+
+        if current != model:
+            notes.append({"kind": "info", "text": f"This page was done with '{current}' because '{model}' was busy."})
+
+        return result
+
+    raise first_error
 
 
 def data_url(data, mime):
@@ -645,7 +957,10 @@ _analysis_lock = threading.Lock()
 ANALYSIS_CACHE_ENTRIES = 2 if LOW_MEMORY else 8
 
 
-def _analyse_pdf(pdf_bytes, label_mode, size_preset):
+FIGURE_BATCH_PAGES = 4 if LOW_MEMORY else 1000
+
+
+def _read_pdf_text(pdf_bytes):
     try:
         pages = core.extract_pdf_pages(pdf_bytes)
     except Exception as error:
@@ -658,12 +973,85 @@ def _analyse_pdf(pdf_bytes, label_mode, size_preset):
             f"This PDF has {len(pages)} pages.",
         )
 
-    figures = core.extract_all_page_source_images(pdf_bytes, label_mode, size_preset)
-    return {"pages": pages, "figures": figures}
+    return pages
+
+
+def _pages_only(pdf_bytes, numbers):
+    """A smaller PDF holding just these pages (1-based), in order."""
+
+    document = core.fitz.open(stream=pdf_bytes, filetype="pdf")
+
+    try:
+        if len(numbers) == document.page_count:
+            return pdf_bytes
+
+        document.select([number - 1 for number in numbers])
+        return document.tobytes(garbage=3, deflate=True)
+    finally:
+        document.close()
+
+
+def _figures_for_pages(pdf_bytes, numbers, label_mode, size_preset):
+    """Figures of these pages, keyed by their real page numbers."""
+
+    subset = _pages_only(pdf_bytes, numbers)
+    found = core.extract_all_page_source_images(subset, label_mode, size_preset)
+    return {number: found.get(index, []) for index, number in enumerate(numbers, start=1)}
+
+
+def _previews_for_pages(pdf_bytes, numbers):
+    previews = {}
+
+    for number in numbers:
+        png = render_page_png(pdf_bytes, number, 1.0)
+        previews[number] = small_preview(png) if png else None
+
+    return previews
+
+
+def _batches(numbers, size):
+    return [numbers[index:index + size] for index in range(0, len(numbers), size)]
+
+
+def _run_in_batches(function, pdf_bytes, numbers, *args):
+    """
+    Runs function(pdf_bytes, batch, *args) over small batches of pages, each
+    in its own helper with a memory budget. A batch that is too big is
+    retried page by page; a single page that still can't be processed is
+    left out (reported in `failed`) instead of failing the whole upload.
+    """
+
+    results, failed = {}, []
+
+    for batch in _batches(numbers, FIGURE_BATCH_PAGES):
+        try:
+            with heavy_job():
+                results.update(isolated(function, pdf_bytes, batch, *args, budget=True))
+            continue
+        except HTTPException:
+            raise
+        except (IsolatedJobFailed, RuntimeError, MemoryError):
+            if len(batch) == 1:
+                failed.extend(batch)
+                continue
+
+        for number in batch:
+            try:
+                with heavy_job():
+                    results.update(isolated(function, pdf_bytes, [number], *args, budget=True))
+            except HTTPException:
+                raise
+            except (IsolatedJobFailed, RuntimeError, MemoryError):
+                failed.append(number)
+
+    return results, failed
 
 
 def pdf_analysis(doc_id, pdf_bytes, label_mode, size_preset):
-    """{"pages": [...], "figures": {page_number: [figure, ...]}} for a PDF."""
+    """
+    {"pages": [...], "figures": {page_number: [figure, ...]},
+     "figures_skipped": [page_number, ...]} for a PDF.
+    """
 
     key = (doc_id, label_mode_code(label_mode), size_preset_name(size_preset))
 
@@ -672,11 +1060,19 @@ def pdf_analysis(doc_id, pdf_bytes, label_mode, size_preset):
             _analysis_cache.move_to_end(key)
             return _analysis_cache[key]
 
-    with heavy_job():
-        try:
-            analysis = isolated(_analyse_pdf, pdf_bytes, key[1], key[2])
-        except IsolatedJobFailed as error:
-            raise HTTPException(503, str(error))
+    try:
+        with heavy_job():
+            pages = isolated(_read_pdf_text, pdf_bytes, budget=True)
+    except (IsolatedJobFailed, RuntimeError, MemoryError) as error:
+        raise HTTPException(503, f"Couldn't read this PDF on the server: {error}")
+
+    numbers = [page["page_number"] for page in pages]
+    figures, skipped = _run_in_batches(_figures_for_pages, pdf_bytes, numbers, key[1], key[2])
+
+    for number in numbers:
+        figures.setdefault(number, [])
+
+    analysis = {"pages": pages, "figures": figures, "figures_skipped": sorted(skipped)}
 
     with _analysis_lock:
         _analysis_cache[key] = analysis
@@ -687,9 +1083,9 @@ def pdf_analysis(doc_id, pdf_bytes, label_mode, size_preset):
     return analysis
 
 
-def _preview_urls(pdf_bytes):
-    previews = core.render_all_pdf_page_previews(pdf_bytes, zoom=1.0)
-    return {number: small_preview(png) for number, png in previews.items()}
+def _preview_urls(pdf_bytes, numbers):
+    previews, _ = _run_in_batches(_previews_for_pages, pdf_bytes, numbers)
+    return previews
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +1097,22 @@ def ocr_available():
         return importlib.util.find_spec("rapidocr") is not None
 
     return core.get_ocr_engine() is not None
+
+
+OCR_AI_METHOD_LABEL = "OCR + AI clean-up — most accurate (reads the page locally, then your AI fixes the structure)"
+
+
+def any_provider_configured():
+    return any(os.environ.get(key_var, "").strip() for key_var, _, _ in PROVIDER_ENV.values())
+
+
+def extraction_methods():
+    methods = [{"label": label, "value": value} for label, value in core.EXTRACTION_METHODS.items()]
+
+    if any_provider_configured():
+        methods.insert(0, {"label": OCR_AI_METHOD_LABEL, "value": "ocr_ai"})
+
+    return methods
 
 
 @app.get("/health")
@@ -737,9 +1149,7 @@ def config():
         "default_figure_size_preset": core.DEFAULT_FIGURE_SIZE_PRESET,
         "figure_label_modes": list(core.FIGURE_LABEL_MODES),
         "default_figure_label_mode": core.DEFAULT_FIGURE_LABEL_MODE,
-        "extraction_methods": [
-            {"label": label, "value": value} for label, value in core.EXTRACTION_METHODS.items()
-        ],
+        "extraction_methods": extraction_methods(),
         "max_pdf_pages": core.MAX_PDF_PAGES,
         "max_total_questions": core.MAX_TOTAL_QUESTIONS,
         "min_request_delay": core.MIN_REQUEST_DELAY,
@@ -751,17 +1161,11 @@ def config():
 
 @app.get("/models", dependencies=[Depends(require_admin)])
 def models(provider: str):
-    key = provider_key(provider)
+    provider_key(provider)  # 400 if no key is configured
     default = os.environ.get(PROVIDER_ENV[provider][1], PROVIDER_ENV[provider][2])
 
     try:
-        if provider == "Claude API":
-            listed = core.fetch_claude_models(key)
-        elif provider == "Agent Router":
-            listed = core.fetch_agentrouter_models(key)
-        else:
-            client = core.OpenAI(api_key=key, base_url=core.OMNIROUTE_BASE_URL, timeout=15, max_retries=0)
-            listed = sorted({model.id for model in client.models.list().data if model.id})
+        listed = list(list_provider_models(provider))
     except Exception as error:
         return {"models": [default] if default else [], "default": default, "error": str(error)[:300]}
 
@@ -792,9 +1196,8 @@ async def generate_prepare(
 
         if previews:
             try:
-                with heavy_job():
-                    page_previews = isolated(_preview_urls, data)
-            except IsolatedJobFailed:
+                page_previews = _preview_urls(data, [page["page_number"] for page in analysis["pages"]])
+            except Exception:
                 page_previews = {}  # previews are only a visual aid
 
         return {
@@ -807,6 +1210,7 @@ async def generate_prepare(
                     "has_text": page["has_text"],
                     "chars": len(page["text"]),
                     "preview": page_previews.get(page["page_number"]),
+                    "figures_skipped": page["page_number"] in analysis.get("figures_skipped", []),
                     "figures": [
                         {
                             "index": index,
@@ -872,6 +1276,7 @@ def generate_page(request: GeneratePageRequest):
 
     previous_questions = list(request.previous_questions)
     previous_concepts = list(request.previous_concepts)
+    extra_notes = []
     result = {
         "page_number": request.page_number,
         "questions": [],
@@ -887,22 +1292,32 @@ def generate_page(request: GeneratePageRequest):
     else:
         try:
             client = provider_client(request.provider, core.GENERATION_TIMEOUT_SECONDS)
-            questions, rejected, missing = core.generate_questions_for_page(
-                provider=request.provider,
-                client=client,
-                model=request.model.strip(),
-                exam_mode=request.exam_mode,
-                subject=request.subject,
-                topic=request.topic.strip(),
-                subtopic=request.subtopic.strip(),
-                page_text=page["text"],
-                number_of_questions=count,
-                difficulty=core.DIFFICULTY_MIXES[request.difficulty_mix],
-                question_type=request.question_type,
-                figures=chosen,
-                send_figure_images=request.send_figure_images,
-                previous_questions=previous_questions,
-                previous_concepts=previous_concepts,
+
+            def generate_with(model):
+                # Fresh copies per attempt, so a failed model leaves no trace.
+                attempt_questions = list(request.previous_questions)
+                attempt_concepts = list(request.previous_concepts)
+                output = core.generate_questions_for_page(
+                    provider=request.provider,
+                    client=client,
+                    model=model,
+                    exam_mode=request.exam_mode,
+                    subject=request.subject,
+                    topic=request.topic.strip(),
+                    subtopic=request.subtopic.strip(),
+                    page_text=page["text"],
+                    number_of_questions=count,
+                    difficulty=core.DIFFICULTY_MIXES[request.difficulty_mix],
+                    question_type=request.question_type,
+                    figures=chosen,
+                    send_figure_images=request.send_figure_images,
+                    previous_questions=attempt_questions,
+                    previous_concepts=attempt_concepts,
+                )
+                return output, attempt_questions, attempt_concepts
+
+            (questions, rejected, missing), previous_questions, previous_concepts = run_with_model_fallback(
+                request.provider, request.model.strip(), generate_with, extra_notes
             )
             result["questions"] = [question_to_json(question) for question in questions]
             result["rejected"] = [str(reason) for reason in rejected]
@@ -922,7 +1337,7 @@ def generate_page(request: GeneratePageRequest):
 
     result["previous_questions"] = previous_questions
     result["previous_concepts"] = previous_concepts
-    result["notes"] = st_shim.notices()
+    result["notes"] = st_shim.notices() + extra_notes
     return result
 
 
@@ -1047,7 +1462,7 @@ async def extract_prepare(files: list[UploadFile] = File(...)):
             try:
                 with heavy_job():
                     if is_pdf(upload, data):
-                        pages.extend(isolated(_pdf_overview, data, name, doc_id))
+                        pages.extend(isolated(_pdf_overview, data, name, doc_id, budget=True))
                     else:
                         # Any image format; a multi-page TIFF becomes several pages.
                         try:
@@ -1059,7 +1474,7 @@ async def extract_prepare(files: list[UploadFile] = File(...)):
                             label = name if len(frames) == 1 else f"{name} (page {number})"
                             frame_id = doc_id if number == 1 else store_doc(frame)
                             source = data if number == 1 else frame
-                            pages.append(isolated(_image_overview, source, label, frame_id, mime))
+                            pages.append(isolated(_image_overview, source, label, frame_id, mime, budget=True))
             except IsolatedJobFailed as error:
                 raise HTTPException(503, f"{name}: {error}")
 
@@ -1091,11 +1506,105 @@ class ExtractPageRequest(BaseModel):
     label: str
     mode: str
     mime: str | None = None
-    method: str = "ocr"
+    method: str = "ocr"  # "ocr" | "ocr_ai" | "ai"
     provider: str | None = None
     model: str | None = None
+    send_image: bool = False  # ocr_ai: also show the AI the page image (vision models)
     difficulty: str = "Medium"
     bloom_level: str = "Understand"
+
+
+OCR_AI_TIMEOUT_SECONDS = 180
+
+_OCR_TEXT_NOTE = (
+    "NOTE: the source text below was read from an image of the page by OCR, "
+    "so it can contain OCR slips: words split or run together, lines out of "
+    "order, option labels like (1)/(a) merged into the text, and exponents "
+    "written flat (for example M1L-1T-2 or M^{1}L^{-1}T^{-2}, meaning "
+    "M to the power 1, L to the power -1, T to the power -2). Repair ONLY such "
+    "reading slips so every question and option reads as printed, and write "
+    "exponents as ^{...}. Never change, add or drop actual content, and never "
+    "add an answer that is not shown."
+)
+_PDF_TEXT_NOTE = (
+    "NOTE: the source text below is the page's PDF text layer; exponents and "
+    "subscripts are already marked as ^{...} and _{...}. Keep them."
+)
+_IMAGE_NOTE = " An image of the same page is attached: where the text is unclear, trust the image."
+
+
+def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
+    """
+    "OCR + AI clean-up": the AI receives the locally read text (and, if
+    asked, the page image) and returns the questions with their real
+    structure. Never worse than OCR alone: if the AI step fails or finds
+    nothing, the built-in reader's questions are kept.
+    """
+
+    from_ocr = request.mode == "image" or request.kind == "image"
+    image_bytes = image_mime = None
+
+    if request.send_image and from_ocr:
+        try:
+            with heavy_job():
+                page = isolated(_page_for_ai, *page_args, budget=True)
+            image_bytes, image_mime = page.get("image_bytes"), page.get("image_mime", "image/png")
+        except Exception:
+            image_bytes = None
+
+    def ask(model, with_image):
+        note = (_OCR_TEXT_NOTE if from_ocr else _PDF_TEXT_NOTE) + (_IMAGE_NOTE if with_image else "")
+        return core.extract_questions_from_page(
+            request.provider,
+            client,
+            model,
+            request.label,
+            image_png_bytes=image_bytes if with_image else None,
+            image_mime=image_mime or "image/png",
+            page_text=f"{note}\n\n{text_read}",
+        )
+
+    try:
+        client = provider_client(request.provider or "", OCR_AI_TIMEOUT_SECONDS)
+        model = (request.model or "").strip()
+
+        try:
+            questions = run_with_model_fallback(
+                request.provider, model, lambda m: ask(m, image_bytes is not None), notes
+            )
+        except Exception as error:
+            if image_bytes is None or not core.explain_provider_error(error, sent_images=True).startswith(
+                "The selected model can't read images"
+            ):
+                raise
+
+            notes.append({"kind": "info", "text": "The model can't read images — used the page text only."})
+            questions = run_with_model_fallback(request.provider, model, lambda m: ask(m, False), notes)
+    except HTTPException:
+        raise
+    except core.HTMLResponseError as error:
+        result["error"] = f"Extraction stopped: {error}"
+        result["fatal"] = True
+        return []
+    except Exception as error:
+        explanation = core.explain_provider_error(error)
+        notes.append({
+            "kind": "warning",
+            "text": (
+                f"{request.label}: the AI clean-up step failed ({explanation[:200]}), so the built-in "
+                "reader's result is shown — check it in the review step."
+            ),
+        })
+        return ocr_questions
+
+    if not questions and ocr_questions:
+        notes.append({
+            "kind": "warning",
+            "text": f"{request.label}: the AI found no questions, so the built-in reader's result is shown.",
+        })
+        return ocr_questions
+
+    return questions
 
 
 @app.post("/extract/page", dependencies=[Depends(require_admin)])
@@ -1104,8 +1613,11 @@ def extract_page(request: ExtractPageRequest):
     data = load_doc(request.doc_id)
     page_args = (data, request.kind, request.mode, request.page_number, request.label, request.mime)
     result = {"label": request.label, "questions": [], "text_read": None, "error": None, "fatal": False}
+    notes = []
 
-    if request.method == "ocr":
+    if request.method in ("ocr", "ocr_ai"):
+        # Step 1 (both methods): read the page locally — the PDF's own text
+        # layer, or the built-in OCR for images/scans — and parse it.
         try:
             with heavy_job():
                 raw_questions, text_read, read_error = isolated(_ocr_page, *page_args)
@@ -1118,10 +1630,17 @@ def extract_page(request: ExtractPageRequest):
             result["error"] = f"Couldn't read {request.label}: {read_error}"
             result["fatal"] = "isn't installed" in read_error
             return result
+
+        if request.method == "ocr_ai" and (text_read or "").strip():
+            # Step 2: the AI turns that text into clean questions.
+            raw_questions = _ai_clean_up(request, page_args, text_read, raw_questions, notes, result)
+
+            if result["error"]:
+                return result
     else:
         try:
             with heavy_job():
-                page = isolated(_page_for_ai, *page_args)
+                page = isolated(_page_for_ai, *page_args, budget=True)
         except IsolatedJobFailed as error:
             result["error"] = f"Couldn't prepare {request.label}: {error}"
             return result
@@ -1130,14 +1649,19 @@ def extract_page(request: ExtractPageRequest):
 
         try:
             client = provider_client(request.provider or "", core.EXTRACTION_TIMEOUT_SECONDS)
-            raw_questions = core.extract_questions_from_page(
+            raw_questions = run_with_model_fallback(
                 request.provider,
-                client,
                 (request.model or "").strip(),
-                request.label,
-                image_png_bytes=page.get("image_bytes"),
-                image_mime=page.get("image_mime", "image/png"),
-                page_text=page.get("page_text"),
+                lambda model: core.extract_questions_from_page(
+                    request.provider,
+                    client,
+                    model,
+                    request.label,
+                    image_png_bytes=page.get("image_bytes"),
+                    image_mime=page.get("image_mime", "image/png"),
+                    page_text=page.get("page_text"),
+                ),
+                notes,
             )
         except HTTPException:
             raise
@@ -1148,9 +1672,7 @@ def extract_page(request: ExtractPageRequest):
         except Exception as error:
             explanation = core.explain_provider_error(error, sent_images=sent_image)
             result["error"] = f"Extraction failed on {request.label}: {explanation}"
-            result["fatal"] = isinstance(error, core.ProviderTimeoutError) or explanation.startswith(
-                "The selected model can't read images"
-            )
+            result["fatal"] = explanation.startswith("The selected model can't read images")
             return result
 
     for raw_question in raw_questions:
@@ -1159,7 +1681,7 @@ def extract_page(request: ExtractPageRequest):
         if cleaned is not None:
             result["questions"].append(cleaned)
 
-    result["notes"] = st_shim.notices()
+    result["notes"] = st_shim.notices() + notes
     return result
 
 
@@ -1218,6 +1740,7 @@ def docx(request: DocxRequest):
                 request.subject,
                 request.topic.strip(),
                 request.source_name,
+                budget=True,
             )
     except IsolatedJobFailed as error:
         raise HTTPException(503, str(error))

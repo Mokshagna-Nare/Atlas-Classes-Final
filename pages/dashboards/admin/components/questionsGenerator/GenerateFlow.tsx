@@ -18,6 +18,7 @@ interface PreparedPage {
   chars: number;
   preview: string | null;
   figures: PreparedFigure[];
+  figures_skipped?: boolean;
 }
 
 interface Prepared {
@@ -195,85 +196,127 @@ const GenerateFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => 
     const total = selectedRows.length;
     let stopped = false;
 
+    // One page, start to finish. Returns false if the run must stop.
+    const runPage = async (row: (typeof selectedRows)[number], index: number, retry: boolean) => {
+      const pageStart = performance.now();
+      const log: PageLog = { page_number: row.page.page_number, messages: [], rejected: [] };
+      setProgress({
+        value: index / total,
+        text: retry
+          ? `Re-trying page ${row.page.page_number} (it failed earlier)...`
+          : `Generating questions for page ${row.page.page_number}...`,
+      });
+      setStatus(
+        `Page ${index + 1} of ${total} • ${row.count} question(s) requested • ${completed}/${requestedTotal} questions completed`,
+      );
+
+      const body = {
+        page_number: row.page.page_number,
+        count: row.count,
+        subtopic: row.subtopic,
+        figure_indexes: row.figures,
+        provider,
+        model: model.trim(),
+        exam_mode: examMode,
+        subject,
+        topic: topic.trim(),
+        question_type: questionType,
+        difficulty_mix: difficulty,
+        send_figure_images: sendFigures,
+        label_mode: labelMode,
+        size_preset: sizePreset,
+        previous_questions: previousQuestions,
+        previous_concepts: previousConcepts,
+      };
+
+      let response: PageResponse;
+      try {
+        response = await qgJson<PageResponse>('/generate/page', { json: { ...body, doc_id: docId }, signal: controller.signal });
+      } catch (error: any) {
+        // The server forgot the upload (restart / idle cleanup): send it again once.
+        if (error instanceof QGError && error.status === 409) {
+          docId = (await prepare(file, controller.signal)).doc_id;
+          response = await qgJson<PageResponse>('/generate/page', { json: { ...body, doc_id: docId }, signal: controller.signal });
+        } else {
+          throw error;
+        }
+      }
+
+      previousQuestions = response.previous_questions;
+      previousConcepts = response.previous_concepts;
+      completed += response.questions.length;
+      const failed = !response.fatal && !response.questions.length && Boolean(response.error);
+
+      for (const note of response.notes || []) {
+        log.messages.push({ kind: note.kind === 'error' ? 'error' : note.kind === 'warning' ? 'warning' : 'info', text: note.text });
+      }
+      if (response.error) {
+        log.messages.push({
+          kind: response.fatal ? 'error' : 'warning',
+          text: failed && !retry ? `${response.error} — it will be re-tried automatically at the end of the run.` : response.error,
+        });
+      }
+      if (response.missing_figures.length) {
+        log.messages.push({
+          kind: 'warning',
+          text: `Page ${row.page.page_number}: the AI did not frame a question for selected figure(s) ${response.missing_figures.join(', ')} even after a dedicated retry — those figures are not in the document. Try again, or use a different model.`,
+        });
+      }
+      if (!response.questions.length && !response.fatal && !failed) {
+        log.messages.push({ kind: 'warning', text: `Page ${row.page.page_number}: the model didn't produce any usable questions for this page.` });
+      }
+      if (retry && response.questions.length) {
+        log.messages.push({ kind: 'info', text: `Page ${row.page.page_number}: succeeded on the re-try.` });
+      }
+      log.rejected = response.rejected;
+      setLogs((previous) => [...previous, log]);
+
+      if (response.fatal) {
+        setRunError(response.error);
+        return { stop: true, failed: false };
+      }
+
+      if (!failed || retry) {
+        resultsByPage.set(row.page.page_number, { page_number: row.page.page_number, subtopic: row.subtopic, questions: response.questions });
+      }
+
+      const elapsed = (performance.now() - pageStart) / 1000;
+      durations.push(elapsed);
+      const average = durations.reduce((a, b) => a + b, 0) / durations.length;
+      setEta(
+        `⏱️ Estimated time remaining: ${formatEta(average * Math.max(0, total - index - 1))}. Page ${index + 1}/${total} completed in ${elapsed.toFixed(1)} seconds.`,
+      );
+      setConceptsText(`🧠 ${previousConcepts.length} distinct concept(s) tested so far — later pages are steered away from repeating these.`);
+      return { stop: false, failed };
+    };
+
+    const resultsByPage = new Map<number, PageResult>();
+    const failedRows: { row: (typeof selectedRows)[number]; index: number }[] = [];
+
     try {
       for (let index = 0; index < total; index++) {
-        const row = selectedRows[index];
-        const pageStart = performance.now();
-        const log: PageLog = { page_number: row.page.page_number, messages: [], rejected: [] };
-        setProgress({ value: index / total, text: `Generating questions for page ${row.page.page_number}...` });
-        setStatus(
-          `Page ${index + 1} of ${total} • ${row.count} question(s) requested • ${completed}/${requestedTotal} questions completed`,
-        );
-
-        const body = {
-          page_number: row.page.page_number,
-          count: row.count,
-          subtopic: row.subtopic,
-          figure_indexes: row.figures,
-          provider,
-          model: model.trim(),
-          exam_mode: examMode,
-          subject,
-          topic: topic.trim(),
-          question_type: questionType,
-          difficulty_mix: difficulty,
-          send_figure_images: sendFigures,
-          label_mode: labelMode,
-          size_preset: sizePreset,
-          previous_questions: previousQuestions,
-          previous_concepts: previousConcepts,
-        };
-
-        let response: PageResponse;
-        try {
-          response = await qgJson<PageResponse>('/generate/page', { json: { ...body, doc_id: docId }, signal: controller.signal });
-        } catch (error: any) {
-          // The server forgot the upload (restart / idle cleanup): send it again once.
-          if (error instanceof QGError && error.status === 409) {
-            docId = (await prepare(file, controller.signal)).doc_id;
-            response = await qgJson<PageResponse>('/generate/page', { json: { ...body, doc_id: docId }, signal: controller.signal });
-          } else {
-            throw error;
-          }
-        }
-
-        previousQuestions = response.previous_questions;
-        previousConcepts = response.previous_concepts;
-        completed += response.questions.length;
-
-        for (const note of response.notes || []) {
-          log.messages.push({ kind: note.kind === 'error' ? 'error' : note.kind === 'warning' ? 'warning' : 'info', text: note.text });
-        }
-        if (response.error) log.messages.push({ kind: response.fatal ? 'error' : 'warning', text: response.error });
-        if (response.missing_figures.length) {
-          log.messages.push({
-            kind: 'warning',
-            text: `Page ${row.page.page_number}: the AI did not frame a question for selected figure(s) ${response.missing_figures.join(', ')} even after a dedicated retry — those figures are not in the document. Try again, or use a different model.`,
-          });
-        }
-        if (!response.questions.length && !response.fatal) {
-          log.messages.push({ kind: 'warning', text: `Page ${row.page.page_number}: the model didn't produce any usable questions for this page.` });
-        }
-        log.rejected = response.rejected;
-        setLogs((previous) => [...previous, log]);
-
-        if (response.fatal) {
-          setRunError(response.error);
+        const outcome = await runPage(selectedRows[index], index, false);
+        if (outcome.stop) {
           stopped = true;
           break;
         }
-
-        results.push({ page_number: row.page.page_number, subtopic: row.subtopic, questions: response.questions });
-
-        const elapsed = (performance.now() - pageStart) / 1000;
-        durations.push(elapsed);
-        const average = durations.reduce((a, b) => a + b, 0) / durations.length;
-        setEta(
-          `⏱️ Estimated time remaining: ${formatEta(average * (total - index - 1))}. Page ${index + 1}/${total} completed in ${elapsed.toFixed(1)} seconds.`,
-        );
-        setConceptsText(`🧠 ${previousConcepts.length} distinct concept(s) tested so far — later pages are steered away from repeating these.`);
-
+        if (outcome.failed) failedRows.push({ row: selectedRows[index], index });
         if (index < total - 1) await sleep(config.min_request_delay * 1000, controller.signal);
+      }
+
+      // Provider outages are usually short: give failed pages one more go.
+      if (!stopped && failedRows.length) {
+        setProgress({ value: 1, text: `Waiting 30 seconds, then re-trying ${failedRows.length} failed page(s)...` });
+        await sleep(30000, controller.signal);
+
+        for (const { row, index } of failedRows) {
+          const outcome = await runPage(row, index, true);
+          if (outcome.stop) {
+            stopped = true;
+            break;
+          }
+          await sleep(config.min_request_delay * 1000, controller.signal);
+        }
       }
     } catch (error: any) {
       if (error?.name === 'AbortError') {
@@ -283,6 +326,12 @@ const GenerateFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => 
         setRunError(error.message);
         stopped = true;
       }
+    }
+
+    // Keep the original page order.
+    for (const row of selectedRows) {
+      const result = resultsByPage.get(row.page.page_number);
+      if (result) results.push(result);
     }
 
     if (stopped && countQuestions(results) === 0) {
@@ -587,7 +636,11 @@ const PageCard: React.FC<{
             )}
           </div>
         ) : (
-          <p className="text-xs text-gray-500">🖼️ No figures found on this page.</p>
+          <p className="text-xs text-gray-500">
+            {page.figures_skipped
+              ? "🖼️ This page's figures were too large for the server to process, so they were skipped — the page's text can still be used."
+              : '🖼️ No figures found on this page.'}
+          </p>
         )}
 
         {effective > setting.count && (

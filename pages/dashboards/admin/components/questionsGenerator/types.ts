@@ -1,5 +1,7 @@
 // Shapes exchanged with the Questions generator service (qpg-service).
 
+export type ExtractMethod = 'ocr' | 'ocr_ai' | 'ai';
+
 export interface ProviderInfo {
   name: string;
   configured: boolean;
@@ -21,7 +23,7 @@ export interface QGConfig {
   default_figure_size_preset: string;
   figure_label_modes: string[];
   default_figure_label_mode: string;
-  extraction_methods: { label: string; value: 'ocr' | 'ai' }[];
+  extraction_methods: { label: string; value: ExtractMethod }[];
   max_pdf_pages: number;
   max_total_questions: number;
   min_request_delay: number;
