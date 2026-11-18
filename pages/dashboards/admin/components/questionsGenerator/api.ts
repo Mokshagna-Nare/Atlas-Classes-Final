@@ -2,8 +2,12 @@
 // set with VITE_QUESTIONS_GENERATOR_API; AI keys stay on that server.
 import { supabase } from '../../../../../services/supabase';
 
-// Default = the address Render gives the service from render.yaml.
-const DEFAULT_SERVICE_URL = 'https://atlas-questions-generator.onrender.com';
+// Default = Google Cloud Run (2 GiB; see qpg-service/deploy-cloud-run.sh).
+// Backup: Render, still deployed from render.yaml. To roll back, set this to
+// RENDER_SERVICE_URL (or set VITE_QUESTIONS_GENERATOR_API on the hosting).
+const CLOUD_RUN_SERVICE_URL = 'https://atlas-questions-generator-1056168822660.us-central1.run.app';
+export const RENDER_SERVICE_URL = 'https://atlas-questions-generator.onrender.com';
+const DEFAULT_SERVICE_URL = CLOUD_RUN_SERVICE_URL;
 
 export const QG_API_URL = (
   (import.meta as any).env?.VITE_QUESTIONS_GENERATOR_API || DEFAULT_SERVICE_URL
