@@ -544,6 +544,15 @@ const ReviewSection: React.FC<{
                 <div key={q} className="space-y-3 border-t border-gray-700 pt-4">
                   <p className="font-bold text-gray-200">Question {q + 1}</p>
                   <TextArea label="Question" value={question.question} onChange={(value) => onEdit(p, q, { question: value })} />
+                  {question.figure?.image && (
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                      <div>
+                        <Label>Figure (cropped from the page)</Label>
+                        <img src={question.figure.image} alt="Question figure" className="max-h-64 max-w-full rounded-lg bg-[#ffffff] p-1" />
+                      </div>
+                      <SecondaryButton onClick={() => onEdit(p, q, { figure: null })}>Remove figure</SecondaryButton>
+                    </div>
+                  )}
                   {question.question_type === 'MCQ' ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
