@@ -10,6 +10,10 @@ export interface ShellNavItem<V extends string> {
   icon: React.FC<{ className?: string }>;
   /** The page renders its own headline, so the top bar shows only the breadcrumb. */
   hasOwnHeading?: boolean;
+  /** Small count shown on the right of the item (e.g. open tasks). */
+  badge?: number | null;
+  /** Accent for the badge: 'alert' for things needing attention. */
+  badgeTone?: 'default' | 'alert';
 }
 
 export interface ShellNavGroup<V extends string> {
@@ -34,6 +38,8 @@ interface DashboardShellProps<V extends string> {
   keepMounted?: boolean;
   /** Docked under the scrolling content (e.g. background tasks); never covers the page. */
   statusBar?: React.ReactNode;
+  /** Floats over the content area (e.g. a quick-add button), above the status bar. */
+  floating?: React.ReactNode;
 }
 
 const IST_DATE = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -65,7 +71,7 @@ const LiveClock: React.FC = () => {
 };
 
 function DashboardShell<V extends string>({
-  portalLabel, brand, groups, activeView, onNavigate, user, welcome, onLogout, children, keepMounted, statusBar,
+  portalLabel, brand, groups, activeView, onNavigate, user, welcome, onLogout, children, keepMounted, statusBar, floating,
 }: DashboardShellProps<V>) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showWelcome, setShowWelcome] = useState(shouldShowWelcome);
@@ -105,7 +111,7 @@ function DashboardShell<V extends string>({
             <div key={group.heading}>
               <p className="px-3 mb-2.5 text-[10px] font-black uppercase tracking-[0.25em] text-gray-600">{group.heading}</p>
               <div className="space-y-1">
-                {group.items.map(({ view, label, icon: Icon }) => {
+                {group.items.map(({ view, label, icon: Icon, badge, badgeTone }) => {
                   const isActive = activeView === view;
                   return (
                     <button
@@ -121,6 +127,12 @@ function DashboardShell<V extends string>({
                         <Icon className="h-5 w-5" />
                       </span>
                       <span className="truncate">{label}</span>
+                      {!!badge && (
+                        <span className={`ml-auto min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-[11px] font-black tabular-nums ${badgeTone === 'alert' ? 'bg-rose-500/20 text-rose-200 light:bg-rose-100 light:text-rose-700' : 'bg-emerald-400/15 text-emerald-200 light:bg-brand-pale light:text-brand-deep'}`}
+                          aria-label={`${badge} open`}>
+                          {badge > 99 ? '99+' : badge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -152,7 +164,8 @@ function DashboardShell<V extends string>({
       </aside>
 
       <main className="relative flex-1 min-w-0 h-screen flex flex-col">
-        <div ref={mainRef} className="relative flex-1 min-h-0 overflow-y-auto">
+        <div className="relative flex-1 min-h-0">
+        <div ref={mainRef} className="absolute inset-0 overflow-y-auto">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.08),transparent_70%)]" />
 
         <header className="sticky top-0 z-10 bg-atlas-black/80 backdrop-blur-xl border-b border-white/5 light:bg-paper/85 light:border-gray-700 px-4 sm:px-8 py-4 flex items-center gap-4">
@@ -171,7 +184,7 @@ function DashboardShell<V extends string>({
           <ThemeToggle />
         </header>
 
-        <div className="relative px-4 sm:px-8 py-6 sm:py-8">
+        <div className={`relative px-4 sm:px-8 py-6 sm:py-8 ${floating ? 'pb-24' : ''}`}>
           {/* No per-section scroll animations here: animating sections gives each its own
               stacking context, which traps dropdowns (z-50) beneath the next section. */}
           {keepMounted ? children : (
@@ -180,6 +193,8 @@ function DashboardShell<V extends string>({
             </div>
           )}
         </div>
+        </div>
+        {floating && <div className="pointer-events-none absolute inset-0 z-[15]">{floating}</div>}
         </div>
         {statusBar}
       </main>

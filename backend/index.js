@@ -5,6 +5,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const aiRoutes = require('./routes/ai');
 const testRoutes = require('./routes/tests');
+const taskRoutes = require('./routes/tasks');
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/tests', testRoutes);
+app.use('/api/tasks', taskRoutes);
 
 // Health Check
 app.get('/', (req, res) => {
