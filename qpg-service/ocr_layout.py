@@ -875,6 +875,27 @@ class single_pass:
 # ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
+class collect_figures:
+    """
+    with collect_figures() as found: ...read one page with the OCR...
+    Afterwards found["geometry"] holds the chosen reading's figures and
+    text boxes (or None).
+    """
+
+    def __enter__(self):
+        self.found = {"geometry": None}
+        _state.find_figures = True
+        _state.chosen_geometry = None
+        return self.found
+
+    def __exit__(self, *exc):
+        self.found["geometry"] = getattr(_state, "chosen_geometry", None)
+        _state.find_figures = False
+        _state.chosen_geometry = None
+        _state.last_geometry = None
+        return False
+
+
 def install(core):
     import image_input
 
@@ -898,6 +919,20 @@ def install(core):
         return original_parse(_add_unnumbered_questions(core, _normalise_text(text)))
 
     def items_to_lines(items, page_width):
+        image = getattr(_state, "image", None)
+
+        if getattr(_state, "find_figures", False) and image is not None:
+            # Figures first, so their part labels ("A", "B", ...) don't end
+            # up in the question text.
+            try:
+                import ocr_figures
+
+                figures, kept, boxes = ocr_figures.find(image, items, page_width)
+                _state.geometry = {"image": image, "figures": figures, "boxes": boxes}
+                items = kept
+            except Exception:
+                _state.geometry = None
+
         merged = _merge_option_labels(items, page_width)
         keys = lambda read: sum(1 for question in read if question.get("key"))
 
@@ -920,12 +955,16 @@ def install(core):
 
     def read(image, has_colour):
         _state.colour = _colour_of(image, has_colour)
+        _state.image = image
+        _state.geometry = None
 
         try:
             text, error = original_ocr(_png(image))
         finally:
             _state.colour = None
+            _state.image = None
 
+        _state.last_geometry = _state.geometry
         read_back = parse_questions_from_text(text) if not error else []
         return text, error, _score(read_back) + min(len(text.split()), 60) / 60, read_back
 
@@ -945,11 +984,12 @@ def install(core):
             return original_ocr(image_bytes)
 
         text, error, score, questions = read(image, has_colour)
+        _state.chosen_geometry = _state.last_geometry
 
         if error or complete(questions) or getattr(_state, "single_pass", False):
             return text, error
 
-        best = (score, text)
+        best = (score, text, _state.last_geometry)
         attempts = []
 
         if sideways >= 0.5:
@@ -965,11 +1005,12 @@ def install(core):
                 continue
 
             if not other_error and other_score > best[0]:
-                best = (other_score, other_text)
+                best = (other_score, other_text, _state.last_geometry)
 
             if not other_error and complete(other_questions):
                 break
 
+        _state.chosen_geometry = best[2]
         return best[1], None
 
     core.prepare_image_for_vision = prepare_image_for_vision

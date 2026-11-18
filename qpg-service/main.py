@@ -75,6 +75,7 @@ import st_shim  # noqa: E402
 import qpg_core as core  # noqa: E402
 import image_input  # noqa: E402
 import ocr_layout  # noqa: E402
+import ocr_figures  # noqa: E402
 
 # Screenshot/photo layouts, unnumbered questions, option grids (see ocr_layout.py).
 ocr_layout.install(core)
@@ -1472,13 +1473,66 @@ def _page_for_ai(*args):
     return page
 
 
+def _pdf_page_geometry(pdf_bytes, page_number):
+    """A text-layer PDF page as (image, text lines) for finding its figures."""
+
+    import fitz
+    from PIL import Image
+
+    zoom = 2.0
+    document = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+    try:
+        page = document[page_number - 1]
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+        items = []
+
+        for block in page.get_text("dict").get("blocks", []):
+            for line in block.get("lines", []):
+                text = "".join(span.get("text", "") for span in line.get("spans", [])).strip()
+
+                if text:
+                    x0, y0, x1, y1 = line["bbox"]
+                    items.append((x0, y0, x1, y1, text, 1.0))
+
+        return image, items, page.rect.width
+    finally:
+        document.close()
+
+
+def _attach_page_figures(questions, page, found):
+    """Crop the page's figures and give each to its question (best-effort)."""
+
+    try:
+        if page["mode"] == "image":
+            geometry = found.get("geometry") if found else None
+
+            if not geometry or not geometry.get("figures"):
+                return
+
+            ocr_figures.attach(questions, geometry["image"], geometry["figures"], geometry["boxes"])
+        elif page.get("pdf_bytes") is not None:
+            image, items, page_width = _pdf_page_geometry(page["pdf_bytes"], page["page_number"])
+            figures, _, boxes = ocr_figures.find(image, items, page_width)
+            ocr_figures.attach(questions, image, figures, boxes)
+    except Exception as error:  # noqa: BLE001 — a figure is a bonus, never a failed page
+        print(f"figure detection skipped: {error}", flush=True)
+
+
 def _ocr_page(*args):
     page = _build_page(*args)
 
     if LOW_MEMORY and page["mode"] == "image":
         return _read_image_page_in_strips(page)
 
-    return core.read_questions_without_ai(page)
+    with ocr_layout.collect_figures() as found:
+        questions, text, error = core.read_questions_without_ai(page)
+
+    if not error and questions:
+        _attach_page_figures(questions, page, found)
+
+    return questions, text, error
 
 
 @app.post("/extract/prepare", dependencies=[Depends(require_admin)])
@@ -1674,6 +1728,11 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
         })
         return ocr_questions
 
+    try:
+        carry_figures(ocr_questions, questions)
+    except Exception:  # noqa: BLE001 — figures are a bonus
+        pass
+
     return questions
 
 
@@ -1684,6 +1743,61 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
 #   "D (Permanent Tissues)".
 _FIGURE_LABELS_AT_END = re.compile(r"(?<=[?.:])(?:\s*[-\u2013\u2014,]?\s*\(?[A-H]\)?(?=[\s,\u2013\u2014-]|$)){2,}\s*$")
 _HEADING_AT_END = re.compile(r"\s*\((?:[A-Z][a-z]+)(?:\s+(?:(?:and|of|in|&)\s+)?[A-Z][a-z]+)+\)\s*$")
+
+
+# "Statement I: ... Statement II: ... In the light of the above ..." each on
+# its own line, as printed, instead of one run-on paragraph.
+_OWN_LINE_RE = re.compile(
+    r"(?<=\S)\s*(?="
+    r"Statement\s*[-\u2013]?\s*\(?(?:I{1,3}|IV|V|[1-4])\)?\s*[:.\-\u2013]"
+    r"|Assertion\s*(?:\(\s*A\s*\))?\s*[:.\-\u2013]"
+    r"|Reason\s*(?:\(\s*R\s*\))?\s*[:.\-\u2013]"
+    r"|In (?:the )?light of the above"
+    r"|Choose the (?:correct|most appropriate) answer"
+    r"|Select the correct answer"
+    r")"
+)
+
+
+def format_statement_lines(text):
+    if not isinstance(text, str) or not text:
+        return text
+
+    return _OWN_LINE_RE.sub("\n", text).strip()
+
+
+def carry_figures(source_questions, target_questions):
+    """Give the AI's questions the figures the built-in reader found."""
+
+    import difflib
+
+    taken = set()
+
+    for source in source_questions or []:
+        figure = source.get("figure") if isinstance(source, dict) else None
+
+        if not figure:
+            continue
+
+        wanted = re.sub(r"\W+", " ", str(source.get("question") or "")).lower()[:160]
+        best, best_score = None, 0.5
+
+        for index, target in enumerate(target_questions or []):
+            if index in taken or not isinstance(target, dict) or target.get("figure"):
+                continue
+
+            text = re.sub(r"\W+", " ", str(target.get("question") or "")).lower()[:160]
+            score = difflib.SequenceMatcher(None, wanted, text).ratio()
+
+            if score > best_score:
+                best, best_score = index, score
+
+        if best is None and len(source_questions) == 1 and len(target_questions or []) == 1:
+            best = 0
+
+        if best is not None:
+            taken.add(best)
+            target_questions[best]["figure"] = figure
 
 
 def _standalone_lines(text_read):
@@ -1801,6 +1915,11 @@ def extract_page(request: ExtractPageRequest):
                 pass
 
         if cleaned is not None:
+            cleaned["question"] = format_statement_lines(cleaned.get("question"))
+
+            if isinstance(raw_question, dict) and raw_question.get("figure"):
+                cleaned["figure"] = figure_to_json(raw_question["figure"])
+
             result["questions"].append(cleaned)
 
     result["notes"] = st_shim.notices() + notes
@@ -1839,6 +1958,16 @@ def _docx_bytes(mode, pages, grade, subject, topic, source_name):
 
         buffer = core.build_docx(results=results, grade=grade, subject=subject, topic=topic, source_name=source_name)
     else:
+        pages = [
+            dict(
+                page,
+                questions=[
+                    dict(question, figure=figure_from_json(question.get("figure")))
+                    for question in page.get("questions", [])
+                ],
+            )
+            for page in pages
+        ]
         buffer = core.build_docx_from_extracted(
             pages=pages, grade=grade, subject=subject, topic=topic, source_name=source_name
         )
