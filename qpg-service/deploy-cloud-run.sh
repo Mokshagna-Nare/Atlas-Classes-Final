@@ -42,7 +42,7 @@ if gcloud run services describe "$SERVICE" --region "$REGION" >/dev/null 2>&1; t
 fi
 
 # Settings that are not secret.
-ENV_VARS="QPG_LOW_MEMORY=0|QPG_ASYNC_JOBS=0|QPG_REQUIRE_MFA=1|QPG_ALLOWED_ROLES=admin|QPG_ALLOWED_ORIGINS=$ORIGINS"
+ENV_VARS="QPG_LOW_MEMORY=0|QPG_ASYNC_JOBS=0|QPG_FAST_START=0|QPG_REQUIRE_MFA=1|QPG_ALLOWED_ROLES=admin|QPG_ALLOWED_ORIGINS=$ORIGINS"
 
 ask() {  # ask NAME "question" [secret]
   local value=""

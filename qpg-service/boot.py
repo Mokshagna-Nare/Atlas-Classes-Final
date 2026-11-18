@@ -33,7 +33,21 @@ def _load():
         print(_error, flush=True)
 
 
-threading.Thread(target=_load, name="load-main", daemon=True).start()
+def _setting(name, default):
+    return os.environ.get(name, default).strip().lower() not in ("0", "false", "no", "off")
+
+
+# Google Cloud Run (it sets K_SERVICE) gives CPU only while a request is open,
+# so background loading would crawl and /health would say "starting" for
+# ages. There, load before the port opens instead: Cloud Run waits for the
+# port (with start-up CPU boost) and holds the first request until then.
+ON_CLOUD_RUN = bool(os.environ.get("K_SERVICE"))
+FAST_START = _setting("QPG_FAST_START", "0" if ON_CLOUD_RUN else "1")
+
+if FAST_START:
+    threading.Thread(target=_load, name="load-main", daemon=True).start()
+else:
+    _load()
 
 _CORS_HEADERS = [
     (b"access-control-allow-origin", b"*"),
@@ -115,7 +129,7 @@ JOB_KEEP_SECONDS = 15 * 60  # finished results are kept this long
 # Set QPG_ASYNC_JOBS=0 on hosts that only give CPU while a request is open
 # (Google Cloud Run's default billing) and allow long requests anyway: slow
 # requests are then simply processed while the request waits, as before.
-ASYNC_JOBS = os.environ.get("QPG_ASYNC_JOBS", "1").strip().lower() not in ("0", "false", "no", "off")
+ASYNC_JOBS = _setting("QPG_ASYNC_JOBS", "0" if ON_CLOUD_RUN else "1")
 _jobs = {}
 _ALLOWED_ORIGINS = [
     origin.strip() for origin in os.environ.get("QPG_ALLOWED_ORIGINS", "*").split(",") if origin.strip()
