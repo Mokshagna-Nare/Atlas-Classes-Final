@@ -25,6 +25,17 @@ echo "Project: $PROJECT   Region: $REGION   Service: $SERVICE"
 echo "Enabling Cloud Run, Cloud Build and Artifact Registry (first time only)..."
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
 
+# New projects build with the default compute service account, which may lack
+# the rights to build from source ("PERMISSION_DENIED" during the build).
+# Grant it the Cloud Run Builder role; harmless if it already has it.
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format 'value(projectNumber)' 2>/dev/null || true)"
+if [ -n "$PROJECT_NUMBER" ]; then
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role roles/run.builder --condition None >/dev/null 2>&1 \
+    || echo "(Could not grant the build role automatically; continuing.)"
+fi
+
 EXISTS=0
 if gcloud run services describe "$SERVICE" --region "$REGION" >/dev/null 2>&1; then
   EXISTS=1
