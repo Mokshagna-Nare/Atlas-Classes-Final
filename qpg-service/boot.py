@@ -112,6 +112,10 @@ ASYNC_PATHS = {
     "/bank-format",
 }
 JOB_KEEP_SECONDS = 15 * 60  # finished results are kept this long
+# Set QPG_ASYNC_JOBS=0 on hosts that only give CPU while a request is open
+# (Google Cloud Run's default billing) and allow long requests anyway: slow
+# requests are then simply processed while the request waits, as before.
+ASYNC_JOBS = os.environ.get("QPG_ASYNC_JOBS", "1").strip().lower() not in ("0", "false", "no", "off")
 _jobs = {}
 _ALLOWED_ORIGINS = [
     origin.strip() for origin in os.environ.get("QPG_ALLOWED_ORIGINS", "*").split(",") if origin.strip()
@@ -272,7 +276,7 @@ async def app(scope, receive, send):
             await _poll_job(scope, send, path[len("/jobs/"):])
             return
 
-        if method == "POST" and path in ASYNC_PATHS and _header(scope, "x-qg-async") == "1":
+        if ASYNC_JOBS and method == "POST" and path in ASYNC_PATHS and _header(scope, "x-qg-async") == "1":
             await _start_job(scope, receive, send)
             return
 
