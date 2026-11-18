@@ -59,8 +59,45 @@ the host never shows 502 while the libraries load.
 For everyday use, switch to **Standard (2 GB)** and remove `QPG_LOW_MEMORY`.
 That gives full OCR quality and speed, the same as the Streamlit app.
 
-Other hosts work too, since it's a plain Docker image listening on `$PORT`. On Google Cloud Run, set memory to 2 GiB and the request timeout to
-900 s. A page can take a few minutes when the AI provider is slow.
+Other hosts work too, since it's a plain Docker image listening on `$PORT`.
+
+## Deploy (Google Cloud Run): 2 GiB inside the free monthly allowance
+
+In Google Cloud Shell (console.cloud.google.com, then the `>_` icon):
+
+```bash
+git clone -b feature/mathtype-support https://github.com/Mokshagna-Nare/Atlas-Classes-Final.git
+cd Atlas-Classes-Final/qpg-service
+bash deploy-cloud-run.sh
+```
+
+The script enables the needed APIs, asks for the same keys as Render (typed
+in, never stored in the repo), builds the image (the self-test runs) and
+deploys it with these settings:
+- 2 GiB of memory and 1 CPU, with full OCR quality (`QPG_LOW_MEMORY=0`).
+- A 60-minute request timeout.
+- It scales to zero when idle and runs at most 1 instance, so it can't scale
+  into a bill.
+- Region `us-central1`.
+
+Cloud Run's default billing gives CPU only while a request is open. So the
+background-jobs layer is switched off there (`QPG_ASYNC_JOBS=0`) and slow
+requests are simply processed while the request waits, up to the 60-minute
+timeout.
+
+Then point the site at the printed `https://...run.app` address:
+`VITE_QUESTIONS_GENERATOR_API` on the hosting, or `DEFAULT_SERVICE_URL` in
+`api.ts`. To deploy an update, run the script again; press Enter to keep the
+current keys.
+
+**Rollback:** the Render service is untouched. Point
+`VITE_QUESTIONS_GENERATOR_API` (or `DEFAULT_SERVICE_URL`) back to
+`https://atlas-questions-generator.onrender.com`.
+
+**Usage and cost checks:**
+- Cloud Run → service → *Metrics* shows usage.
+- *Billing → Reports* (filter: Cloud Run) shows what you are charged.
+- *Billing → Budgets & alerts* emails you, for example at ₹100.
 
 ## When the AI provider is busy
 
