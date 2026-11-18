@@ -29,6 +29,7 @@ import importlib.util
 import io
 import json
 import multiprocessing
+import re
 import resource
 import os
 import pathlib
@@ -635,7 +636,7 @@ FALLBACK_ENV = {
     "Agent Router": "AGENTROUTER_FALLBACK_MODELS",
     "Claude API": "CLAUDE_FALLBACK_MODELS",
 }
-MAX_FALLBACK_MODELS = int(os.environ.get("QPG_MAX_FALLBACK_MODELS", "2"))
+MAX_FALLBACK_MODELS = int(os.environ.get("QPG_MAX_FALLBACK_MODELS", "3"))
 MODEL_LIST_CACHE_SECONDS = 600
 # Models that can't write questions (embeddings, speech, image generation...).
 _NON_CHAT_MODEL_WORDS = ("embed", "tts", "whisper", "audio", "speech", "dall", "image", "moderation", "rerank", "transcribe")
@@ -692,11 +693,43 @@ def fallback_models(provider, model):
     result = []
 
     for candidate in candidates:
-        if candidate.lower() not in seen:
+        if candidate.lower() not in seen and not _is_busy(provider, candidate):
             seen.add(candidate.lower())
             result.append(candidate)
 
     return result[:MAX_FALLBACK_MODELS]
+
+
+# The provider can't serve this model at all (a router like OmniRoute sent
+# it to a backend that isn't installed or logged in, e.g. "Auggie CLI not
+# found"). Retrying the same model can't help — move on to another model at
+# once, and skip this one for an hour.
+_SETUP_ERROR_HINTS = (
+    "cli not found", "not installed", "login", "not logged in", "model not found", "model_not_found",
+    "no such model", "unknown model", "does not exist", "unsupported model", "invalid model",
+    "not configured", "no provider", "provider not found", "no route", "not available for",
+)
+BROKEN_MODEL_SECONDS = int(os.environ.get("QPG_BROKEN_MODEL_SECONDS", "3600"))
+
+
+def is_setup_error(error):
+    if isinstance(error, (HTTPException, core.HTMLResponseError)):
+        return False
+
+    text = f"{type(error).__name__} {error}".lower()
+    return any(hint in text for hint in _SETUP_ERROR_HINTS)
+
+
+_core_is_retryable_error = core.is_retryable_error
+
+
+def _is_retryable_error(error):
+    # The shared retry loop would otherwise retry a 502 "CLI not found" 4
+    # times with back-off per model, which made a page take many minutes.
+    return False if is_setup_error(error) else _core_is_retryable_error(error)
+
+
+core.is_retryable_error = _is_retryable_error
 
 
 def is_capacity_error(error):
@@ -704,7 +737,7 @@ def is_capacity_error(error):
         return False
 
     text = f"{type(error).__name__} {error}".lower()
-    return any(hint in text for hint in _CAPACITY_ERROR_HINTS)
+    return is_setup_error(error) or any(hint in text for hint in _CAPACITY_ERROR_HINTS)
 
 
 BUSY_MODEL_SECONDS = int(os.environ.get("QPG_BUSY_MODEL_SECONDS", "300"))
@@ -717,10 +750,10 @@ def _is_busy(provider, model):
         return _busy_models.get((provider, model.lower()), 0) > time.time()
 
 
-def _mark_busy(provider, model, busy):
+def _mark_busy(provider, model, busy, seconds=None):
     with _busy_lock:
         if busy:
-            _busy_models[(provider, model.lower())] = time.time() + BUSY_MODEL_SECONDS
+            _busy_models[(provider, model.lower())] = time.time() + (seconds or BUSY_MODEL_SECONDS)
         else:
             _busy_models.pop((provider, model.lower()), None)
 
@@ -760,7 +793,7 @@ def run_with_model_fallback(provider, model, run, notes):
             if not is_capacity_error(error):
                 raise
 
-            _mark_busy(provider, current, True)
+            _mark_busy(provider, current, True, BROKEN_MODEL_SECONDS if is_setup_error(error) else None)
 
             if first_error is None:
                 first_error = error
@@ -1514,7 +1547,8 @@ class ExtractPageRequest(BaseModel):
     bloom_level: str = "Understand"
 
 
-OCR_AI_TIMEOUT_SECONDS = 180
+OCR_AI_TIMEOUT_SECONDS = 120  # one AI call
+AI_CLEAN_UP_BUDGET_SECONDS = int(os.environ.get("QPG_AI_CLEAN_UP_SECONDS", "180"))  # whole step, all models
 
 _OCR_TEXT_NOTE = (
     "NOTE: the source text below was read from an image of the page by OCR, "
@@ -1552,7 +1586,7 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
         except Exception:
             image_bytes = None
 
-    def ask(model, with_image):
+    def ask(client, model, with_image):
         note = (_OCR_TEXT_NOTE if from_ocr else _PDF_TEXT_NOTE) + (_IMAGE_NOTE if with_image else "")
         return core.extract_questions_from_page(
             request.provider,
@@ -1564,13 +1598,13 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
             page_text=f"{note}\n\n{text_read}",
         )
 
-    try:
+    def work(work_notes):
         client = provider_client(request.provider or "", OCR_AI_TIMEOUT_SECONDS)
         model = (request.model or "").strip()
 
         try:
-            questions = run_with_model_fallback(
-                request.provider, model, lambda m: ask(m, image_bytes is not None), notes
+            return run_with_model_fallback(
+                request.provider, model, lambda m: ask(client, m, image_bytes is not None), work_notes
             )
         except Exception as error:
             if image_bytes is None or not core.explain_provider_error(error, sent_images=True).startswith(
@@ -1578,8 +1612,44 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
             ):
                 raise
 
-            notes.append({"kind": "info", "text": "The model can't read images — used the page text only."})
-            questions = run_with_model_fallback(request.provider, model, lambda m: ask(m, False), notes)
+            work_notes.append({"kind": "info", "text": "The model can't read images — used the page text only."})
+            return run_with_model_fallback(request.provider, model, lambda m: ask(client, m, False), work_notes)
+
+    # The built-in reader's result is already in hand, so never let a slow or
+    # struggling AI provider hold the page for long: after the time budget the
+    # page is shown with the built-in result (the AI call is left to finish
+    # on its own in the background and its answer is dropped).
+    outcome = {}
+    work_notes = []
+
+    def runner():
+        try:
+            outcome["questions"] = work(work_notes)
+        except BaseException as error:  # noqa: BLE001 — handed back below
+            outcome["error"] = error
+
+    worker = threading.Thread(target=runner, name="ai-clean-up", daemon=True)
+    worker.start()
+    worker.join(AI_CLEAN_UP_BUDGET_SECONDS)
+
+    if worker.is_alive():
+        notes.extend(list(work_notes))
+        notes.append({
+            "kind": "warning",
+            "text": (
+                f"{request.label}: the AI provider didn't finish within {AI_CLEAN_UP_BUDGET_SECONDS} s, so the "
+                "built-in reader's result is shown — check it in the review step (or try again later / pick "
+                "another model)."
+            ),
+        })
+        return ocr_questions
+
+    notes.extend(work_notes)
+
+    try:
+        if "error" in outcome:
+            raise outcome["error"]
+        questions = outcome.get("questions") or []
     except HTTPException:
         raise
     except core.HTMLResponseError as error:
@@ -1607,6 +1677,46 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
     return questions
 
 
+# Two common slips of the built-in reader (no AI) on printed papers:
+# - a figure's part labels ("A", "-B", "C", "D") read after the question,
+#   e.g. "...inner walls? A -B C D";
+# - the page's section heading printed under the options, e.g. option D
+#   "D (Permanent Tissues)".
+_FIGURE_LABELS_AT_END = re.compile(r"(?<=[?.:])(?:\s*[-\u2013\u2014,]?\s*\(?[A-H]\)?(?=[\s,\u2013\u2014-]|$)){2,}\s*$")
+_HEADING_AT_END = re.compile(r"\s*\((?:[A-Z][a-z]+)(?:\s+(?:(?:and|of|in|&)\s+)?[A-Z][a-z]+)+\)\s*$")
+
+
+def _standalone_lines(text_read):
+    return {line.strip() for line in (text_read or "").splitlines() if line.strip()}
+
+
+def tidy_builtin_question(question, standalone_lines=frozenset()):
+    text = question.get("question")
+
+    if isinstance(text, str):
+        tidied = _FIGURE_LABELS_AT_END.sub("", text).rstrip()
+
+        if tidied:
+            question["question"] = tidied
+
+    options = question.get("options")
+
+    if isinstance(options, list) and options:
+        last = max((i for i, option in enumerate(options) if isinstance(option, str) and option.strip()), default=None)
+
+        heading = _HEADING_AT_END.search(options[last]) if last is not None else None
+
+        # Only a heading the page prints on a line of its own, never a real
+        # option such as "Mitochondria (Cell Organelles)".
+        if heading and heading.group(0).strip() in standalone_lines:
+            tidied = options[last][: heading.start()].rstrip()
+
+            if tidied:
+                options[last] = tidied
+
+    return question
+
+
 @app.post("/extract/page", dependencies=[Depends(require_admin)])
 def extract_page(request: ExtractPageRequest):
     st_shim.reset_notices()
@@ -1614,6 +1724,8 @@ def extract_page(request: ExtractPageRequest):
     page_args = (data, request.kind, request.mode, request.page_number, request.label, request.mime)
     result = {"label": request.label, "questions": [], "text_read": None, "error": None, "fatal": False}
     notes = []
+
+    from_builtin = request.method in ("ocr", "ocr_ai")
 
     if request.method in ("ocr", "ocr_ai"):
         # Step 1 (both methods): read the page locally — the PDF's own text
@@ -1633,7 +1745,9 @@ def extract_page(request: ExtractPageRequest):
 
         if request.method == "ocr_ai" and (text_read or "").strip():
             # Step 2: the AI turns that text into clean questions.
+            builtin_questions = raw_questions
             raw_questions = _ai_clean_up(request, page_args, text_read, raw_questions, notes, result)
+            from_builtin = raw_questions is builtin_questions
 
             if result["error"]:
                 return result
@@ -1675,8 +1789,16 @@ def extract_page(request: ExtractPageRequest):
             result["fatal"] = explanation.startswith("The selected model can't read images")
             return result
 
+    standalone_lines = _standalone_lines(result.get("text_read")) if from_builtin else frozenset()
+
     for raw_question in raw_questions:
         cleaned, _ = core.normalize_extracted_question(raw_question, request.difficulty, request.bloom_level)
+
+        if cleaned is not None and from_builtin:
+            try:
+                cleaned = tidy_builtin_question(cleaned, standalone_lines)
+            except Exception:  # noqa: BLE001 — tidying is optional, never block the page
+                pass
 
         if cleaned is not None:
             result["questions"].append(cleaned)
