@@ -480,7 +480,10 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
           <div className="space-y-3">
             {!topic.trim() && <Notice kind="info">Enter a global topic in the document settings.</Notice>}
             {extracted.some((page) => !page.subtopic.trim()) && <Notice kind="warning">Enter a sub-topic for every page.</Notice>}
-            <div className="flex flex-col sm:flex-row gap-3">
+            {/* Stays in view while the review is scrolled, and keeps clear of the floating
+                Task button (bottom-right): space is reserved on its right (below it on phones). */}
+            <div className="sticky bottom-0 z-10 -mx-2 flex flex-col gap-3 rounded-2xl border border-gray-800 bg-gray-900/95 px-2 pt-3 pb-20 backdrop-blur sm:flex-row sm:pb-3 sm:pr-48">
+              <SecondaryButton onClick={() => setExtracted(null)}>← Back to pages</SecondaryButton>
               <PrimaryButton
                 className="flex-1"
                 disabled={building || !topic.trim() || extracted.some((page) => !page.subtopic.trim())}
@@ -488,7 +491,6 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
               >
                 🚀 Create question paper from extracted questions
               </PrimaryButton>
-              <SecondaryButton onClick={() => setExtracted(null)}>Back to pages</SecondaryButton>
             </div>
           </div>
         )}
