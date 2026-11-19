@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LocalModel, LOCAL_MODELS, isBrave, isModelReady, loadModel, looksStuck, modelFor, onLoadProgress, toWhisperAudio, transcribe } from './localSpeech';
+import { LocalModel, cleanAudio, isBrave, isModelReady, loadModel, looksStuck, modelFor, modelIds, onLoadProgress, snapToVocabulary, toWhisperAudio, transcribe } from './localSpeech';
 
 // Speech-to-text with two engines:
 //   browser — the browser's own recognition (Chrome / Edge use Google's speech service, Safari
@@ -133,10 +133,10 @@ export function useSpeech({
 
   // Download progress of the on-device model.
   useEffect(() => onLoadProgress(progress => {
-    if (progress.model !== LOCAL_MODELS[localModel].id || !progress.total) return;
+    if (!modelIds(lang, localModel).includes(progress.model) || !progress.total) return;
     const value = progress.loaded >= progress.total ? null : Math.floor((progress.loaded / progress.total) * 100) / 100;
     setDownload(previous => (previous === value ? previous : value));
-  }), [localModel]);
+  }), [localModel, lang]);
 
   const clearTimers = () => {
     if (silenceTimer.current) window.clearTimeout(silenceTimer.current);
@@ -291,11 +291,11 @@ export function useSpeech({
   const transcribeRecording = async (blob: Blob) => {
     setStatus('transcribing');
     try {
-      if (!isModelReady(localModel)) await loadModel(localModel);
+      if (!isModelReady(localModel, lang)) await loadModel(localModel, lang);
       setDownload(null);
-      const samples = await toWhisperAudio(blob);
+      const samples = cleanAudio(await toWhisperAudio(blob));
       if (samples.length < 16000 * 0.3) { finish(); return; }
-      let text = await transcribe(samples, lang, localModel);
+      let text = snapToVocabulary(await transcribe(samples, lang, localModel), vocabRef.current);
       if (looksStuck(text)) {
         text = '';
         setError(lang === 'en-IN'
@@ -312,7 +312,7 @@ export function useSpeech({
       }
     } catch (err: any) {
       const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-      setError(offline && !isModelReady(localModel)
+      setError(offline && !isModelReady(localModel, lang)
         ? 'The on-device speech model needs an internet connection the first time, to download. Connect and try again.'
         : `On-device recognition failed${err?.message ? ` (${String(err.message).slice(0, 120)})` : ''}. Please try again or type the task.`);
     }
@@ -321,7 +321,7 @@ export function useSpeech({
 
   const beginLocal = (stream: MediaStream) => {
     // Get the model ready while the admin is still talking.
-    if (!isModelReady(localModel)) loadModel(localModel).catch(() => undefined);
+    if (!isModelReady(localModel, lang)) loadModel(localModel, lang).catch(() => undefined);
 
     const type = recorderType();
     let rec: MediaRecorder;
