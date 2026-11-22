@@ -42,6 +42,8 @@ _LABEL_ONLY_RE = re.compile(r"^\s*[\(\[]?\s*([A-Da-d])\s*[\)\].:]?\s*$")
 _CELL_LABEL_RE = re.compile(r"^\s*(?:[\(\[]\s*([A-Da-d])\s*[\)\]]|([A-Da-d])\s*[.)])\s*(.*)$")
 # Line starting with a letter-labelled option, for the question reader.
 _LETTER_OPTION_RE = re.compile(r"^\s*(?:\(\s*([A-Da-d])\s*\)|([A-Da-d])\s*[.)])\s*\S")
+# Line starting with a bracketed number option, NEET style: "(1) Lysosomes are ...".
+_NUMBER_OPTION_RE = re.compile(r"^\s*\(\s*([1-4])\s*\)\s*\S")
 
 _CELL_GAP = "   "  # separates far-apart boxes on one line
 
@@ -456,11 +458,45 @@ def _add_unnumbered_questions(core, text):
     def is_question_start(line):
         return bool(core._PREFIXED_QUESTION_RE.match(line) or core._NUMBERED_LINE_RE.match(line))
 
+    # Options numbered "(1) ... (4)" (NEET style) under a question with no number: without
+    # this, every "(n)" was read as a new question and the question itself was lost. Only
+    # on pages with no lettered options, and only when "(1)" follows some question text and
+    # "(2)" comes after it — so pages numbering their questions "(1)", "(2)" are unaffected.
+    cleaned = [re.sub(r"\s+", " ", line).strip() for line in lines]
+    lettered = any(_LETTER_OPTION_RE.match(line) for line in cleaned)
+    numbered_options = False
+
+    if not lettered:
+        seen_text = False
+
+        for position, line in enumerate(cleaned):
+            if not line or _PROGRESS_RE.match(line):
+                continue
+
+            match = _NUMBER_OPTION_RE.match(line)
+
+            if match and match.group(1) == "1":
+                numbered_options = seen_text and any(
+                    (m := _NUMBER_OPTION_RE.match(later)) and m.group(1) == "2" for later in cleaned[position + 1:]
+                )
+                break
+
+            if is_question_start(line):
+                break
+
+            seen_text = True
+
     def option_index(line):
         match = _LETTER_OPTION_RE.match(line)
 
         if match:
             return _letter_index(match.group(1) or match.group(2))
+
+        if numbered_options:
+            number = _NUMBER_OPTION_RE.match(line)
+
+            if number:
+                return int(number.group(1))
 
         inline = core._split_inline_options(line)
 
@@ -481,7 +517,7 @@ def _add_unnumbered_questions(core, text):
         if is_question_start(clean):
             return text
     else:
-        return text  # no lettered options at all
+        return text  # no options at all
 
     out, pending = [], []
     question_open = False
