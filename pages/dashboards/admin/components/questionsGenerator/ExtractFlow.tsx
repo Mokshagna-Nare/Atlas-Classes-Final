@@ -557,13 +557,19 @@ const ReviewSection: React.FC<{
                   )}
                   {question.question_type === 'MCQ' ? (
                     <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                      {/* One below the other, each growing to fit its text, so every option can be
+                          read in full and checked against the page. */}
+                      <div className="space-y-3">
                         {[0, 1, 2, 3].map((o) => (
-                          <TextInput
+                          <TextArea
                             key={o}
-                            label={`Option ${o + 1}`}
+                            rows={1}
+                            label={`Option ${o + 1}${!keyMissing && String(question.key) === String(o + 1) ? ' — ✓ correct' : ''}`}
+                            className={!keyMissing && String(question.key) === String(o + 1) ? 'border-green-500/70' : ''}
                             value={question.options[o] || ''}
-                            onChange={(value) => onEdit(p, q, { options: question.options.map((old, i) => (i === o ? value : old)) })}
+                            onChange={(value) =>
+                              onEdit(p, q, { options: [0, 1, 2, 3].map((i) => (i === o ? value : question.options[i] || '')) })
+                            }
                           />
                         ))}
                       </div>

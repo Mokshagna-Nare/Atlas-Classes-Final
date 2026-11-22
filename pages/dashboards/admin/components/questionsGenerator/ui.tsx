@@ -65,12 +65,55 @@ export const TextInput: React.FC<{
   </div>
 );
 
-export const TextArea: React.FC<{ label: string; value: string; onChange: (value: string) => void; rows?: number }> = ({ label, value, onChange, rows = 3 }) => (
-  <div>
-    <Label>{label}</Label>
-    <textarea value={value} rows={rows} onChange={(e) => onChange(e.target.value)} className={`${fieldClass} resize-y`} />
-  </div>
-);
+// Grows with its text (never smaller than `rows`), so long questions and options are read in
+// full without scrolling inside the box.
+export const TextArea: React.FC<{
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  rows?: number;
+  className?: string;
+}> = ({ label, value, onChange, rows = 3, className }) => {
+  const ref = React.useRef<HTMLTextAreaElement>(null);
+
+  const fit = React.useCallback(() => {
+    const box = ref.current;
+    // Hidden (e.g. inside a collapsed section): nothing to measure yet.
+    if (!box || !box.offsetWidth) return;
+    box.style.height = 'auto';
+    box.style.height = `${box.scrollHeight + 2}px`;
+  }, []);
+
+  React.useLayoutEffect(fit, [value, fit]);
+
+  // Re-fit when it becomes visible or its width changes (section opened, window resized).
+  React.useEffect(() => {
+    const box = ref.current;
+    if (!box || typeof ResizeObserver === 'undefined') return;
+    let width = box.offsetWidth;
+    const observer = new ResizeObserver(() => {
+      if (box.offsetWidth !== width) {
+        width = box.offsetWidth;
+        fit();
+      }
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [fit]);
+
+  return (
+    <div>
+      <Label>{label}</Label>
+      <textarea
+        ref={ref}
+        value={value}
+        rows={rows}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${fieldClass} resize-y overflow-hidden ${className || ''}`}
+      />
+    </div>
+  );
+};
 
 export const Checkbox: React.FC<{ label: React.ReactNode; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }> = ({ label, checked, onChange, disabled }) => (
   <label className={`flex items-start gap-2.5 text-sm text-gray-300 select-none ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
