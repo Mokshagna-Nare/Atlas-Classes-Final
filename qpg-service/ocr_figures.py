@@ -283,3 +283,74 @@ def attach(questions, image, figures, boxes):
         questions[index]["figure"] = _crop(image, box)
 
     return len(chosen)
+
+
+def _jpeg_data_url(image):
+    import base64
+
+    from PIL import Image
+
+    image = image.convert("RGB")
+
+    if image.width > 900:
+        image = image.resize((900, max(1, round(image.height * 900 / image.width))), Image.LANCZOS)
+
+    buffer = io.BytesIO()
+    image.save(buffer, "JPEG", quality=72, optimize=True)
+    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def attach_source_crops(questions, image, boxes):
+    """
+    Gives each question the part of the page it was read from ("source_crop", a small JPEG data
+    URL), so the reviewer can compare the text with the original side by side. A question
+    runs from its first line down to the next question in the same column (two-column pages
+    are handled). Questions whose start can't be placed get no crop.
+    """
+
+    if not questions or not boxes:
+        return 0
+
+    width, height = image.size
+    starts = _question_starts(questions, boxes)
+    placed = [start for start in starts if start is not None]
+
+    if not placed:
+        return 0
+
+    # Two columns when questions start in both halves of the page.
+    two_columns = any(x < 0.3 * width for x, _ in placed) and any(x > 0.45 * width for x, _ in placed)
+    middle = width / 2.0
+
+    def column(x):
+        return 0 if not two_columns or x < 0.45 * width else 1
+
+    count = 0
+
+    for index, start in enumerate(starts):
+        if start is None:
+            continue
+
+        sx, sy = start
+        col = column(sx)
+        later = [y for (x, y) in placed if column(x) == col and y > sy + 2]
+        bottom = min(later) if later else None
+
+        if bottom is None:
+            below = [b[3] for b in boxes if b[1] >= sy - 2 and column(b[0]) == col]
+            bottom = (max(below) if below else height) + 8
+
+        left, right = (0, width) if not two_columns else ((0, middle + 8) if col == 0 else (middle - 8, width))
+        top = max(0, sy - 8)
+        bottom = min(height, bottom)
+
+        if bottom - top < 12:
+            continue
+
+        try:
+            questions[index]["source_crop"] = _jpeg_data_url(image.crop((int(left), int(top), int(right), int(bottom))))
+            count += 1
+        except Exception:
+            continue
+
+    return count

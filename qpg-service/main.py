@@ -76,6 +76,7 @@ import qpg_core as core  # noqa: E402
 import image_input  # noqa: E402
 import ocr_layout  # noqa: E402
 import ocr_figures  # noqa: E402
+import text_checks  # noqa: E402
 
 # Screenshot/photo layouts, unnumbered questions, option grids (see ocr_layout.py).
 ocr_layout.install(core)
@@ -1502,22 +1503,36 @@ def _pdf_page_geometry(pdf_bytes, page_number):
 
 
 def _attach_page_figures(questions, page, found):
-    """Crop the page's figures and give each to its question (best-effort)."""
+    """
+    Crop the page's figures and give each to its question, and give every question the part of
+    the page it was read from (for checking it side by side). Best-effort.
+    """
 
     try:
         if page["mode"] == "image":
             geometry = found.get("geometry") if found else None
 
-            if not geometry or not geometry.get("figures"):
+            if not geometry:
                 return
 
-            ocr_figures.attach(questions, geometry["image"], geometry["figures"], geometry["boxes"])
+            image, figures, boxes = geometry["image"], geometry.get("figures") or [], geometry["boxes"]
         elif page.get("pdf_bytes") is not None:
             image, items, page_width = _pdf_page_geometry(page["pdf_bytes"], page["page_number"])
             figures, _, boxes = ocr_figures.find(image, items, page_width)
-            ocr_figures.attach(questions, image, figures, boxes)
-    except Exception as error:  # noqa: BLE001 — a figure is a bonus, never a failed page
-        print(f"figure detection skipped: {error}", flush=True)
+        else:
+            return
+    except Exception as error:  # noqa: BLE001 — a bonus, never a failed page
+        print(f"page geometry skipped: {error}", flush=True)
+        return
+
+    for step in (
+        lambda: ocr_figures.attach(questions, image, figures, boxes) if figures else 0,
+        lambda: ocr_figures.attach_source_crops(questions, image, boxes),
+    ):
+        try:
+            step()
+        except Exception as error:  # noqa: BLE001
+            print(f"figure / crop step skipped: {error}", flush=True)
 
 
 def _ocr_page(*args):
@@ -1767,16 +1782,14 @@ def format_statement_lines(text):
 
 
 def carry_figures(source_questions, target_questions):
-    """Give the AI's questions the figures the built-in reader found."""
+    """Give the AI's questions the figures (and page crops) the built-in reader found."""
 
     import difflib
 
     taken = set()
 
     for source in source_questions or []:
-        figure = source.get("figure") if isinstance(source, dict) else None
-
-        if not figure:
+        if not isinstance(source, dict) or not (source.get("figure") or source.get("source_crop")):
             continue
 
         wanted = re.sub(r"\W+", " ", str(source.get("question") or "")).lower()[:160]
@@ -1797,7 +1810,10 @@ def carry_figures(source_questions, target_questions):
 
         if best is not None:
             taken.add(best)
-            target_questions[best]["figure"] = figure
+
+            for key in ("figure", "source_crop"):
+                if source.get(key) and not target_questions[best].get(key):
+                    target_questions[best][key] = source[key]
 
 
 def _standalone_lines(text_read):
@@ -1920,7 +1936,23 @@ def extract_page(request: ExtractPageRequest):
             if isinstance(raw_question, dict) and raw_question.get("figure"):
                 cleaned["figure"] = figure_to_json(raw_question["figure"])
 
+            if isinstance(raw_question, dict) and isinstance(raw_question.get("source_crop"), str):
+                cleaned["source_crop"] = raw_question["source_crop"]
+
+            # Automatic fixes (run-together words) and the reasons to check this question.
+            try:
+                cleaned["fixes"] = text_checks.fix_question(cleaned)
+                cleaned["checks"] = text_checks.question_checks(cleaned)
+            except Exception as error:  # noqa: BLE001 — checks are a bonus
+                print(f"question checks skipped: {error}", flush=True)
+
             result["questions"].append(cleaned)
+
+    try:
+        result["page_checks"] = text_checks.page_checks(result["questions"], result.get("text_read"))
+    except Exception as error:  # noqa: BLE001
+        print(f"page checks skipped: {error}", flush=True)
+        result["page_checks"] = []
 
     result["notes"] = st_shim.notices() + notes
     return result
