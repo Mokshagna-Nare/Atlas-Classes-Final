@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AddToBankModal from './AddToBankModal';
-import { QGError, QG_API_URL, qgJson } from './api';
+import { QGError, QG_API_URL, loadQGConfig } from './api';
 import ExtractFlow from './ExtractFlow';
 import GenerateFlow from './GenerateFlow';
 import PaperViewer from './PaperViewer';
@@ -36,7 +36,7 @@ const QuestionsGenerator: React.FC = () => {
     const ATTEMPTS = 14; // ~3.5 minutes
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       try {
-        setConfig(await qgJson<QGConfig>('/config'));
+        setConfig(await loadQGConfig()); // usually ready already (warmed up when the admin panel opened)
         setWaking(false);
         return;
       } catch (error: any) {
