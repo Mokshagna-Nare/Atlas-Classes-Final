@@ -25,13 +25,21 @@ interface ExtractResponse {
   error: string | null;
   fatal: boolean;
   notes?: { kind: string; text: string }[];
+  page_checks?: string[];
 }
 
 interface ExtractedPage {
   label: string;
   subtopic: string;
   questions: Question[];
+  /** Page-wide things to check: missing question numbers, text that's in no question. */
+  checks?: string[];
 }
+
+// A question still to be compared with the page: the service found something that may be wrong
+// (see qpg-service/text_checks.py) and nobody has confirmed it yet.
+const needsCheck = (question: Question) => Array.isArray(question.checks) && question.checks.length > 0 && !question.reviewed;
+const questionAnchor = (p: number, q: number) => `qg-review-${p}-${q}`;
 
 interface MissingItem {
   id: string;
@@ -220,7 +228,7 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
           continue;
         }
 
-        collected.push({ label: page.label, subtopic: page.subtopic.trim(), questions: response.questions });
+        collected.push({ label: page.label, subtopic: page.subtopic.trim(), questions: response.questions, checks: response.page_checks || [] });
         if (usesAI && index < current.length - 1) await sleep(config.min_request_delay * 1000, controller.signal);
       }
     } catch (error: any) {
@@ -277,7 +285,11 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
         const id = `${p}_${q}`;
         const flags = (question.review_flags || []).filter((flag) => !flag.includes('MISSING ANSWER KEY'));
         if (!String(question.key || '').trim()) flags.push(ackBlank[id] ? BLANK_FLAG : MISSING_FLAG);
-        return { ...question, key: String(question.key || '').trim(), difficulty, bloom_level: bloom, review_flags: flags };
+        // Checks nobody confirmed travel with the question (Word file review notes, bank flag).
+        if (needsCheck(question)) flags.push(...(question.checks as string[]).map((check) => `CHECK AGAINST SOURCE: ${check}`));
+        // The page crop and check details are only for this review; keep the result light.
+        const { source_crop, checks, fixes, reviewed, ...rest } = question;
+        return { ...rest, key: String(question.key || '').trim(), difficulty, bloom_level: bloom, review_flags: flags };
       }),
     }));
 
@@ -479,6 +491,15 @@ const ExtractFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => v
         {extracted && (
           <div className="space-y-3">
             {!topic.trim() && <Notice kind="info">Enter a global topic in the document settings.</Notice>}
+            {(() => {
+              const open = extracted.reduce((total, page) => total + page.questions.filter(needsCheck).length, 0);
+              return open > 0 ? (
+                <Notice kind="warning">
+                  {open} question(s) are still marked "to check". You can still create the paper — they'll be flagged in the Word file's
+                  review notes and in the question bank until someone confirms them.
+                </Notice>
+              ) : null;
+            })()}
             {extracted.some((page) => !page.subtopic.trim()) && <Notice kind="warning">Enter a sub-topic for every page.</Notice>}
             {/* Stays in view while the review is scrolled, and keeps clear of the floating
                 Task button (bottom-right): space is reserved on its right (below it on phones). */}
@@ -524,81 +545,188 @@ const ReviewSection: React.FC<{
   ackBlank: Record<string, boolean>;
   onEdit: (pageIndex: number, questionIndex: number, patch: Partial<Question>) => void;
   onEditSubtopic: (pageIndex: number, value: string) => void;
-}> = ({ extracted, ackBlank, onEdit, onEditSubtopic }) => (
-  <div>
-    <h3 className="text-lg font-bold text-white mb-1">✏️ Review & edit extracted questions</h3>
-    <p className="text-sm text-gray-400 mb-4">
-      Everything below is editable — fix any transcription mistakes before creating the paper. A question flagged "missing answer key"
-      needs an answer (or an explicit "leave blank") first.
-    </p>
-    <div className="space-y-3">
-      {extracted.map((page, p) => (
-        <details key={p} className="bg-gray-800/40 border border-gray-700/80 rounded-2xl px-5 py-3" open={p === 0}>
-          <summary className="cursor-pointer font-bold text-gray-200">
-            {page.label} — {page.questions.length} question(s)
-          </summary>
-          <div className="mt-4 space-y-6">
-            <TextInput label="Sub-topic" value={page.subtopic} onChange={(value) => onEditSubtopic(p, value)} />
-            {page.questions.map((question, q) => {
-              const id = `${p}_${q}`;
-              const keyMissing = !String(question.key || '').trim();
-              return (
-                <div key={q} className="space-y-3 border-t border-gray-700 pt-4">
-                  <p className="font-bold text-gray-200">Question {q + 1}</p>
-                  <TextArea label="Question" value={question.question} onChange={(value) => onEdit(p, q, { question: value })} />
-                  {question.figure?.image && (
-                    <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                      <div>
-                        <Label>Figure (cropped from the page)</Label>
-                        <img src={question.figure.image} alt="Question figure" className="max-h-64 max-w-full rounded-lg bg-[#ffffff] p-1" />
+}> = ({ extracted, ackBlank, onEdit, onEditSubtopic }) => {
+  const [onlyToCheck, setOnlyToCheck] = useState(false);
+  const total = extracted.reduce((sum, page) => sum + page.questions.length, 0);
+  const toCheck = extracted.reduce((sum, page) => sum + page.questions.filter(needsCheck).length, 0);
+  const pageNotes = extracted.reduce((sum, page) => sum + (page.checks?.length || 0), 0);
+  const noAnswer = extracted.reduce((sum, page) => sum + page.questions.filter((question) => !String(question.key || '').trim()).length, 0);
+
+  // Scrolls to the next question still to check (below the current view, else the first one).
+  const nextToCheck = () => {
+    const anchors: HTMLElement[] = [];
+    extracted.forEach((page, p) =>
+      page.questions.forEach((question, q) => {
+        const element = needsCheck(question) ? document.getElementById(questionAnchor(p, q)) : null;
+        if (element) anchors.push(element);
+      }),
+    );
+    const target = anchors.find((element) => element.getBoundingClientRect().top > 140) || anchors[0];
+    if (!target) return;
+    const section = target.closest('details');
+    if (section && !section.open) section.open = true;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div>
+      <h3 className="text-lg font-bold text-white mb-1">✏️ Review & edit extracted questions</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        Each question is shown next to the part of the page it was read from. Questions the checker isn't sure about are marked{' '}
+        <b className="text-amber-300">to check</b> with the reason — compare those with the page, fix anything wrong, then click{' '}
+        <b className="text-gray-200">Looks right</b>. Run-together words are split automatically.
+      </p>
+
+      {/* Summary: what needs attention across every page. */}
+      <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-gray-700/80 bg-gray-800/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-gray-300">
+          <b className="text-white">{total}</b> question(s) ·{' '}
+          <b className="text-green-400">{total - toCheck}</b> look fine ·{' '}
+          <b className={toCheck ? 'text-amber-300' : 'text-green-400'}>{toCheck}</b> to check
+          {pageNotes > 0 && (
+            <>
+              {' '}· <b className="text-amber-300">{pageNotes}</b> page note(s)
+            </>
+          )}
+          {noAnswer > 0 && (
+            <>
+              {' '}· <b className="text-gray-200">{noAnswer}</b> without an answer
+            </>
+          )}
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Checkbox checked={onlyToCheck} onChange={setOnlyToCheck} label="Show only questions to check" />
+          {toCheck > 0 && <SecondaryButton onClick={nextToCheck}>Next to check ↓</SecondaryButton>}
+        </div>
+      </div>
+      {onlyToCheck && toCheck === 0 && <Notice kind="success">✅ Nothing left to check. Untick the filter to see every question.</Notice>}
+
+      <div className="space-y-3">
+        {extracted.map((page, p) => {
+          const flaggedHere = page.questions.filter(needsCheck).length;
+          return (
+            <details
+              key={p}
+              className="bg-gray-800/40 border border-gray-700/80 rounded-2xl px-5 py-3"
+              open={p === 0 || flaggedHere > 0 || (page.checks?.length || 0) > 0}
+            >
+              <summary className="cursor-pointer font-bold text-gray-200">
+                {page.label} — {page.questions.length} question(s)
+                {flaggedHere > 0 && <span className="ml-2 text-xs font-bold text-amber-300">· {flaggedHere} to check</span>}
+              </summary>
+              <div className="mt-4 space-y-6">
+                <TextInput label="Sub-topic" value={page.subtopic} onChange={(value) => onEditSubtopic(p, value)} />
+                {(page.checks || []).map((check, index) => (
+                  <Notice key={index} kind="warning">
+                    📄 {check}
+                  </Notice>
+                ))}
+                {page.questions.map((question, q) => {
+                  if (onlyToCheck && !needsCheck(question)) return null;
+                  const id = `${p}_${q}`;
+                  const keyMissing = !String(question.key || '').trim();
+                  const flagged = needsCheck(question);
+                  const crop = typeof question.source_crop === 'string' ? question.source_crop : null;
+                  const fixes = Array.isArray(question.fixes) ? (question.fixes as string[]) : [];
+                  return (
+                    <div key={q} id={questionAnchor(p, q)} className="scroll-mt-24 space-y-3 border-t border-gray-700 pt-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-gray-200">Question {q + 1}</p>
+                        {flagged ? (
+                          <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-300">⚠ To check</span>
+                        ) : question.reviewed ? (
+                          <span className="rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-bold text-green-400">✓ Checked</span>
+                        ) : (
+                          <span className="rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-bold text-green-500/80">✓ Looks fine</span>
+                        )}
                       </div>
-                      <SecondaryButton onClick={() => onEdit(p, q, { figure: null })}>Remove figure</SecondaryButton>
-                    </div>
-                  )}
-                  {question.question_type === 'MCQ' ? (
-                    <>
-                      {/* One below the other, each growing to fit its text, so every option can be
-                          read in full and checked against the page. */}
-                      <div className="space-y-3">
-                        {[0, 1, 2, 3].map((o) => (
+                      {flagged && (
+                        <div className="flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                          <ul className="list-disc space-y-1 pl-4 text-sm text-amber-200">
+                            {(question.checks as string[]).map((check, index) => (
+                              <li key={index}>{check}</li>
+                            ))}
+                          </ul>
+                          <SecondaryButton onClick={() => onEdit(p, q, { reviewed: true })}>✓ Looks right</SecondaryButton>
+                        </div>
+                      )}
+                      <div className={crop ? 'grid grid-cols-1 gap-4 lg:grid-cols-2' : ''}>
+                        {crop && (
+                          <div className="lg:sticky lg:top-20 self-start">
+                            <Label>Source — as printed on the page</Label>
+                            <img
+                              src={crop}
+                              alt={`Question ${q + 1} on the page`}
+                              className="max-h-[32rem] w-full rounded-lg bg-[#ffffff] object-contain object-left-top p-1"
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-3 min-w-0">
+                          <TextArea label="Question" value={question.question} onChange={(value) => onEdit(p, q, { question: value })} />
+                          {fixes.length > 0 && (
+                            <p className="text-xs text-gray-500">Auto-fixed run-together words: {fixes.join(', ')}</p>
+                          )}
+                          {question.figure?.image && (
+                            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                              <div>
+                                <Label>Figure (cropped from the page)</Label>
+                                <img src={question.figure.image} alt="Question figure" className="max-h-64 max-w-full rounded-lg bg-[#ffffff] p-1" />
+                              </div>
+                              <SecondaryButton onClick={() => onEdit(p, q, { figure: null })}>Remove figure</SecondaryButton>
+                            </div>
+                          )}
+                          {question.question_type === 'MCQ' ? (
+                            <>
+                              {/* One below the other, each growing to fit its text, so every option can be
+                                  read in full and checked against the page. */}
+                              <div className="space-y-3">
+                                {[0, 1, 2, 3].map((o) => (
+                                  <TextArea
+                                    key={o}
+                                    rows={1}
+                                    label={`Option ${o + 1}${!keyMissing && String(question.key) === String(o + 1) ? ' — ✓ correct' : ''}`}
+                                    className={!keyMissing && String(question.key) === String(o + 1) ? 'border-green-500/70' : ''}
+                                    value={question.options[o] || ''}
+                                    onChange={(value) =>
+                                      onEdit(p, q, { options: [0, 1, 2, 3].map((i) => (i === o ? value : question.options[i] || '')) })
+                                    }
+                                  />
+                                ))}
+                              </div>
+                              <Select
+                                label="Correct option"
+                                value={keyMissing ? '— missing —' : String(question.key)}
+                                options={['— missing —', '1', '2', '3', '4']}
+                                onChange={(value) => onEdit(p, q, { key: value === '— missing —' ? '' : value })}
+                              />
+                            </>
+                          ) : (
+                            <TextInput
+                              label="Correct (numerical) answer — leave blank if missing"
+                              value={String(question.key || '')}
+                              onChange={(value) => onEdit(p, q, { key: value })}
+                            />
+                          )}
                           <TextArea
-                            key={o}
-                            rows={1}
-                            label={`Option ${o + 1}${!keyMissing && String(question.key) === String(o + 1) ? ' — ✓ correct' : ''}`}
-                            className={!keyMissing && String(question.key) === String(o + 1) ? 'border-green-500/70' : ''}
-                            value={question.options[o] || ''}
-                            onChange={(value) =>
-                              onEdit(p, q, { options: [0, 1, 2, 3].map((i) => (i === o ? value : question.options[i] || '')) })
-                            }
+                            label="Explanation (optional)"
+                            value={question.explanation || ''}
+                            onChange={(value) => onEdit(p, q, { explanation: value })}
                           />
-                        ))}
+                          {keyMissing && !ackBlank[id] && <Notice kind="warning">⚠️ No answer key set for this question yet.</Notice>}
+                          {keyMissing && ackBlank[id] && <Notice kind="info">Answer left blank on purpose — it will be flagged for review.</Notice>}
+                        </div>
                       </div>
-                      <Select
-                        label="Correct option"
-                        value={keyMissing ? '— missing —' : String(question.key)}
-                        options={['— missing —', '1', '2', '3', '4']}
-                        onChange={(value) => onEdit(p, q, { key: value === '— missing —' ? '' : value })}
-                      />
-                    </>
-                  ) : (
-                    <TextInput
-                      label="Correct (numerical) answer — leave blank if missing"
-                      value={String(question.key || '')}
-                      onChange={(value) => onEdit(p, q, { key: value })}
-                    />
-                  )}
-                  <TextArea label="Explanation (optional)" value={question.explanation || ''} onChange={(value) => onEdit(p, q, { explanation: value })} />
-                  {keyMissing && !ackBlank[id] && <Notice kind="warning">⚠️ No answer key set for this question yet.</Notice>}
-                  {keyMissing && ackBlank[id] && <Notice kind="info">Answer left blank on purpose — it will be flagged for review.</Notice>}
-                </div>
-              );
-            })}
-          </div>
-        </details>
-      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          );
+        })}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const MissingKeysDialog: React.FC<{
   items: MissingItem[];
