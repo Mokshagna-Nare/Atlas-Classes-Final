@@ -191,24 +191,41 @@ const GenerateFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => 
     let previousQuestions: string[] = [];
     let previousConcepts: unknown[] = [];
     let completed = 0;
-    const durations: number[] = [];
+    let finishedPages = 0;
+    const runStarted = performance.now();
     const results: PageResult[] = [];
     const total = selectedRows.length;
+    const parallel = Math.max(1, Math.min(4, config.parallel_pages || 1, total));
     let stopped = false;
+
+    // Pages run side by side, so each answer carries the questions / concepts it was sent plus
+    // its own: merge, don't overwrite (another page may have finished in between).
+    const mergeUnique = <T,>(base: T[], extra: T[] | undefined) => {
+      const seen = new Set(base.map((item) => JSON.stringify(item)));
+      const merged = [...base];
+      for (const item of extra || []) {
+        const key = JSON.stringify(item);
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(item);
+        }
+      }
+      return merged;
+    };
 
     // One page, start to finish. Returns false if the run must stop.
     const runPage = async (row: (typeof selectedRows)[number], index: number, retry: boolean) => {
       const pageStart = performance.now();
       const log: PageLog = { page_number: row.page.page_number, messages: [], rejected: [] };
       setProgress({
-        value: index / total,
+        value: finishedPages / total,
         text: retry
           ? `Re-trying page ${row.page.page_number} (it failed earlier)...`
-          : `Generating questions for page ${row.page.page_number}...`,
+          : parallel > 1
+            ? `Generating questions (${parallel} pages at a time) — ${finishedPages} of ${total} page(s) done...`
+            : `Generating questions for page ${row.page.page_number}...`,
       });
-      setStatus(
-        `Page ${index + 1} of ${total} • ${row.count} question(s) requested • ${completed}/${requestedTotal} questions completed`,
-      );
+      setStatus(`${finishedPages} of ${total} page(s) done • ${completed}/${requestedTotal} questions completed`);
 
       const body = {
         page_number: row.page.page_number,
@@ -242,8 +259,8 @@ const GenerateFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => 
         }
       }
 
-      previousQuestions = response.previous_questions;
-      previousConcepts = response.previous_concepts;
+      previousQuestions = mergeUnique(previousQuestions, response.previous_questions);
+      previousConcepts = mergeUnique(previousConcepts, response.previous_concepts);
       completed += response.questions.length;
       const failed = !response.fatal && !response.questions.length && Boolean(response.error);
 
@@ -281,10 +298,13 @@ const GenerateFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => 
       }
 
       const elapsed = (performance.now() - pageStart) / 1000;
-      durations.push(elapsed);
-      const average = durations.reduce((a, b) => a + b, 0) / durations.length;
+      if (!retry) finishedPages += 1;
+      // Real elapsed time per finished page (pages overlap), times the pages still to do.
+      const perPage = (performance.now() - runStarted) / 1000 / Math.max(1, finishedPages);
+      setProgress({ value: finishedPages / total, text: `${finishedPages} of ${total} page(s) done...` });
+      setStatus(`${finishedPages} of ${total} page(s) done • ${completed}/${requestedTotal} questions completed`);
       setEta(
-        `⏱️ Estimated time remaining: ${formatEta(average * Math.max(0, total - index - 1))}. Page ${index + 1}/${total} completed in ${elapsed.toFixed(1)} seconds.`,
+        `⏱️ Estimated time remaining: ${formatEta(perPage * Math.max(0, total - finishedPages))}. Page ${row.page.page_number} took ${elapsed.toFixed(1)} seconds.`,
       );
       setConceptsText(`🧠 ${previousConcepts.length} distinct concept(s) tested so far — later pages are steered away from repeating these.`);
       return { stop: false, failed };
@@ -294,15 +314,26 @@ const GenerateFlow: React.FC<{ config: QGConfig; onDone: (result: RunResult) => 
     const failedRows: { row: (typeof selectedRows)[number]; index: number }[] = [];
 
     try {
-      for (let index = 0; index < total; index++) {
-        const outcome = await runPage(selectedRows[index], index, false);
-        if (outcome.stop) {
-          stopped = true;
-          break;
+      // A few pages at a time (the AI call is the slow part); starts are staggered a little.
+      let next = 0;
+      const worker = async (slot: number) => {
+        if (slot) await sleep(slot * config.min_request_delay * 1000, controller.signal);
+        while (!stopped) {
+          const index = next++;
+          if (index >= total) return;
+          try {
+            const outcome = await runPage(selectedRows[index], index, false);
+            if (outcome.stop) stopped = true;
+            else if (outcome.failed) failedRows.push({ row: selectedRows[index], index });
+          } catch (error) {
+            stopped = true;
+            throw error;
+          }
         }
-        if (outcome.failed) failedRows.push({ row: selectedRows[index], index });
-        if (index < total - 1) await sleep(config.min_request_delay * 1000, controller.signal);
-      }
+      };
+      const settled = await Promise.allSettled(Array.from({ length: parallel }, (_, slot) => worker(slot)));
+      const crashed = settled.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
+      if (crashed) throw crashed.reason;
 
       // Provider outages are usually short: give failed pages one more go.
       if (!stopped && failedRows.length) {

@@ -676,42 +676,57 @@ def list_provider_models(provider):
     return listed
 
 
-def fallback_models(provider, model):
-    """Other models to try, in order: the configured list, else the provider's own list."""
+# Words in model ids that suggest a capable general model (tried first) or a narrow one (last).
+_STRONG_MODEL_WORDS = ("claude", "gpt", "gemini", "deepseek", "qwen", "llama", "mistral", "glm", "kimi", "grok", "sonnet", "opus", "flash", "pro")
+_NARROW_MODEL_WORDS = ("search", "scholar", "social", "code", "coder", "vision", "tiny", "nano", "guard", "ocr", "1b", "3b")
+
+
+def _candidate_models(provider, exclude):
+    """Models worth testing, best first: the configured fallback list, then the provider's own list."""
 
     configured = [m.strip() for m in os.environ.get(FALLBACK_ENV.get(provider, ""), "").split(",") if m.strip()]
 
-    if configured:
-        candidates = configured
-    else:
-        try:
-            candidates = list_provider_models(provider)
-        except Exception:
-            candidates = []
+    try:
+        listed = list_provider_models(provider)
+    except Exception:
+        listed = []
 
-        candidates = [m for m in candidates if not any(word in m.lower() for word in _NON_CHAT_MODEL_WORDS)]
+    listed = [m for m in listed if not any(word in m.lower() for word in _NON_CHAT_MODEL_WORDS)]
 
-    seen = {model.strip().lower(), "auto"}
+    def rank(model_id):
+        lower = model_id.lower()
+        return -(sum(word in lower for word in _STRONG_MODEL_WORDS) - sum(word in lower for word in _NARROW_MODEL_WORDS))
+
+    seen = {m.strip().lower() for m in exclude} | {"auto"}
     result = []
 
-    for candidate in candidates:
+    for candidate in configured + sorted(listed, key=rank):
         if candidate.lower() not in seen and not _is_busy(provider, candidate):
             seen.add(candidate.lower())
             result.append(candidate)
 
-    return result[:MAX_FALLBACK_MODELS]
+    return result
 
 
-# The provider can't serve this model at all (a router like OmniRoute sent
-# it to a backend that isn't installed or logged in, e.g. "Auggie CLI not
-# found"). Retrying the same model can't help — move on to another model at
-# once, and skip this one for an hour.
+def fallback_models(provider, model):
+    """Other models to try (kept for callers that only need the list)."""
+
+    return _candidate_models(provider, [model])[:MAX_FALLBACK_MODELS]
+
+
+# The provider can't serve this model at all: a router like OmniRoute sent
+# it to a backend that isn't installed / logged in ("Auggie CLI not found"),
+# or whose free model is switched off ("400 Upstream request failed: Model
+# is unavailable"). Retrying the same model can't help — move on to another
+# model at once, and skip this one for a while.
 _SETUP_ERROR_HINTS = (
     "cli not found", "not installed", "login", "not logged in", "model not found", "model_not_found",
     "no such model", "unknown model", "does not exist", "unsupported model", "invalid model",
     "not configured", "no provider", "provider not found", "no route", "not available for",
+    "model is unavailable", "model unavailable", "model is not available", "model not available",
+    "upstream request failed", "model_not_available", "is not a valid model",
 )
-BROKEN_MODEL_SECONDS = int(os.environ.get("QPG_BROKEN_MODEL_SECONDS", "3600"))
+BROKEN_MODEL_SECONDS = int(os.environ.get("QPG_BROKEN_MODEL_SECONDS", "1800"))
 
 
 def is_setup_error(error):
@@ -723,12 +738,17 @@ def is_setup_error(error):
 
 
 _core_is_retryable_error = core.is_retryable_error
+_probe_state = threading.local()
 
 
 def _is_retryable_error(error):
-    # The shared retry loop would otherwise retry a 502 "CLI not found" 4
-    # times with back-off per model, which made a page take many minutes.
-    return False if is_setup_error(error) else _core_is_retryable_error(error)
+    # The shared retry loop would otherwise retry a 400 "Model is unavailable"
+    # or a 502 "CLI not found" 3-4 times with back-off per model, which made a
+    # page take minutes. Model tests never retry either: they must be quick.
+    if getattr(_probe_state, "active", False) or is_setup_error(error):
+        return False
+
+    return _core_is_retryable_error(error)
 
 
 core.is_retryable_error = _is_retryable_error
@@ -760,71 +780,154 @@ def _mark_busy(provider, model, busy, seconds=None):
             _busy_models.pop((provider, model.lower()), None)
 
 
+# ---- Finding a model that actually works ----------------------------------------------------
+# Instead of trying the next models one by one (each failure costing a full
+# request), several likely models get a tiny test request at the same time;
+# the ones that answer are used, and remembered for a few minutes.
+PROBE_CANDIDATES = int(os.environ.get("QPG_PROBE_MODELS", "8"))
+PROBE_TIMEOUT_SECONDS = 25
+WORKING_CACHE_SECONDS = 600
+_working = {}  # provider -> (expires, [models])
+_working_lock = threading.Lock()
+
+
+def _probe(provider, model):
+    _probe_state.active = True
+
+    try:
+        client = provider_client(provider, PROBE_TIMEOUT_SECONDS)
+        core.call_chat_completion_api(
+            provider, client, model, "Health check. Reply in JSON.", 'Return {"ok": true} as JSON.', 64
+        )
+        return True
+    except HTTPException:
+        return False
+    except Exception as error:
+        if "empty" in str(error).lower():
+            return True  # it answered (just with nothing): the model is up
+
+        _mark_busy(provider, model, True, BROKEN_MODEL_SECONDS if is_setup_error(error) else None)
+        return False
+    finally:
+        _probe_state.active = False
+
+
+def working_models(provider, exclude=()):
+    """Models of this provider that answered a test request just now (best first)."""
+
+    excluded = {m.strip().lower() for m in exclude} | {"auto"}
+
+    with _working_lock:
+        cached = _working.get(provider)
+
+    if cached and cached[0] > time.time():
+        alive = [m for m in cached[1] if m.lower() not in excluded and not _is_busy(provider, m)]
+
+        if alive:
+            return alive
+
+    candidates = _candidate_models(provider, excluded)[:PROBE_CANDIDATES]
+
+    if not candidates:
+        return []
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=len(candidates)) as pool:
+        outcomes = list(pool.map(lambda m: (m, _probe(provider, m)), candidates))
+
+    alive = [m for m, ok in outcomes if ok]
+
+    with _working_lock:
+        _working[provider] = (time.time() + WORKING_CACHE_SECONDS, alive)
+
+    return alive
+
+
+class ProviderUnavailable(Exception):
+    """No model of the chosen provider works right now (said once, quickly, not per page)."""
+
+
+PROVIDER_DOWN_SECONDS = int(os.environ.get("QPG_PROVIDER_DOWN_SECONDS", "120"))
+_provider_down = {}  # provider -> (until, message)
+
+
 def run_with_model_fallback(provider, model, run, notes):
     """
-    run(model) with the chosen model; if the provider is out of capacity,
-    the same request is tried with other models of that provider. A model
-    that just failed this way is remembered as busy for a few minutes, so
-    the next pages go straight to a working model instead of waiting
-    through its retries again.
+    run(model) with the chosen model. If that model isn't working (busy,
+    switched off, not installed at the provider), other models of the same
+    provider are tested at once and the request goes to one that answers. A
+    failing model is skipped for a while, so later pages go straight to a
+    working one. If no model works, ProviderUnavailable is raised — and for
+    the next couple of minutes it is raised immediately, so a run stops in
+    seconds instead of waiting through every page.
     """
 
-    models = [model]
-    fallbacks_added = False
+    down = _provider_down.get(provider)
+
+    if down and down[0] > time.time():
+        raise ProviderUnavailable(down[1])
+
+    order = [model]
+    tested = False
 
     if _is_busy(provider, model):
-        backups = fallback_models(provider, model)
+        alive = working_models(provider, exclude=[model])[:MAX_FALLBACK_MODELS]
+        tested = True
 
-        if backups:
-            models = backups + [model]
-            fallbacks_added = True
-            notes.append({
-                "kind": "info",
-                "text": f"'{model}' was busy at the provider a moment ago — using {', '.join(backups)} first.",
-            })
+        if alive:
+            order = alive + [model]
+            notes.append({"kind": "info", "text": f"'{model}' wasn't working a moment ago — using {alive[0]}."})
 
+    tried = []
     first_error = None
     index = 0
 
-    while index < len(models):
-        current = models[index]
+    while index < len(order):
+        current = order[index]
 
         try:
             result = run(current)
         except Exception as error:
-            if not is_capacity_error(error):
+            if isinstance(error, ProviderUnavailable) or not is_capacity_error(error):
                 raise
 
             _mark_busy(provider, current, True, BROKEN_MODEL_SECONDS if is_setup_error(error) else None)
+            tried.append(current)
+            first_error = first_error or error
 
-            if first_error is None:
-                first_error = error
-
-            if not fallbacks_added:
-                fallbacks_added = True
-                backups = [m for m in fallback_models(provider, model) if m not in models]
-                models.extend(backups)
-
-                if backups:
-                    notes.append({
-                        "kind": "info",
-                        "text": (
-                            f"'{current}' is busy at the provider ({str(error)[:120]}) — "
-                            f"trying other {provider} models: {', '.join(backups)}."
-                        ),
-                    })
+            if not tested:
+                tested = True
+                alive = [m for m in working_models(provider, exclude=tried) if m not in order][:MAX_FALLBACK_MODELS]
+                order.extend(alive)
+                notes.append({
+                    "kind": "info",
+                    "text": (
+                        f"'{current}' isn't working at {provider} ({str(error)[:140]}) — "
+                        + (f"switched to {alive[0]}, which answered a test request." if alive
+                           else "tested other models; none answered.")
+                    ),
+                })
 
             index += 1
             continue
 
         _mark_busy(provider, current, False)
+        _provider_down.pop(provider, None)
 
         if current != model:
-            notes.append({"kind": "info", "text": f"This page was done with '{current}' because '{model}' was busy."})
+            notes.append({"kind": "info", "text": f"Done with '{current}' because '{model}' wasn't working."})
 
         return result
 
-    raise first_error
+    reason = core.explain_provider_error(first_error) if first_error is not None else "no model answered"
+    message = (
+        f"{provider} has no working model right now — {reason[:260]} "
+        f"(tried {', '.join(tried[:4])}{' …' if len(tried) > 4 else ''}, and tested other models). "
+        f"Choose a different model or provider, or add a working one in {provider}, then try again."
+    )
+    _provider_down[provider] = (time.time() + PROVIDER_DOWN_SECONDS, message)
+    raise ProviderUnavailable(message) from first_error
 
 
 def data_url(data, mime):
@@ -1188,6 +1291,8 @@ def config():
         "max_pdf_pages": core.MAX_PDF_PAGES,
         "max_total_questions": core.MAX_TOTAL_QUESTIONS,
         "min_request_delay": core.MIN_REQUEST_DELAY,
+        # Pages generated at the same time (the AI call is the slow part, so ~3x faster).
+        "parallel_pages": max(1, min(4, int(os.environ.get("QPG_PARALLEL_PAGES", "3")))),
         "numerical_option_text": core.NUMERICAL_OPTION_TEXT,
         "field_labels": core.FIELD_LABELS,
         "ocr_available": ocr_available(),
@@ -1359,6 +1464,11 @@ def generate_page(request: GeneratePageRequest):
             result["missing_figures"] = [str(figure_id).replace("F", "") for figure_id in missing]
         except HTTPException:
             raise
+        except ProviderUnavailable as error:
+            # No model of this provider works: every remaining page would fail the
+            # same way, so stop the run now (pages already done are kept).
+            result["error"] = f"Stopped at page {request.page_number}: {error}"
+            result["fatal"] = True
         except core.HTMLResponseError as error:
             # Same for every remaining page (wrong base URL) — stop the run.
             result["error"] = f"Stopped after page {request.page_number}: {error}"
@@ -1726,14 +1836,15 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
         result["fatal"] = True
         return []
     except Exception as error:
-        explanation = core.explain_provider_error(error)
-        notes.append({
-            "kind": "warning",
-            "text": (
-                f"{request.label}: the AI clean-up step failed ({explanation[:200]}), so the built-in "
-                "reader's result is shown — check it in the review step."
-            ),
-        })
+        if isinstance(error, ProviderUnavailable):
+            text = f"{request.label}: AI clean-up skipped — {error} The built-in reader's result is shown."
+        else:
+            text = (
+                f"{request.label}: the AI clean-up step failed ({core.explain_provider_error(error)[:200]}), so the "
+                "built-in reader's result is shown — check it in the review step."
+            )
+
+        notes.append({"kind": "warning", "text": text})
         return ocr_questions
 
     if not questions and ocr_questions:
@@ -1914,9 +2025,14 @@ def extract_page(request: ExtractPageRequest):
             result["fatal"] = True
             return result
         except Exception as error:
-            explanation = core.explain_provider_error(error, sent_images=sent_image)
+            explanation = (
+                str(error) if isinstance(error, ProviderUnavailable)
+                else core.explain_provider_error(error, sent_images=sent_image)
+            )
             result["error"] = f"Extraction failed on {request.label}: {explanation}"
-            result["fatal"] = explanation.startswith("The selected model can't read images")
+            result["fatal"] = isinstance(error, ProviderUnavailable) or explanation.startswith(
+                "The selected model can't read images"
+            )
             return result
 
     standalone_lines = _standalone_lines(result.get("text_read")) if from_builtin else frozenset()

@@ -210,6 +210,38 @@ def _review_checks():
     assert questions[0]["source_crop"].startswith("data:image/jpeg;base64,")
 
 
+@check("unavailable AI models fail fast (no retries, quick stop)")
+def _provider_fast_fail():
+    import main
+
+    unavailable = RuntimeError("Error code: 400 - [400]: Upstream request failed: Model is unavailable.")
+    assert main.is_setup_error(unavailable)
+    assert not main.core.is_retryable_error(unavailable)
+    assert main.core.is_retryable_error(RuntimeError("503 overloaded"))
+    original = main.working_models
+    main.working_models = lambda provider, exclude=(): []
+
+    try:
+        def broken(model):
+            raise unavailable
+
+        try:
+            main.run_with_model_fallback("SelfTest", "auto", broken, [])
+            raise AssertionError("expected ProviderUnavailable")
+        except main.ProviderUnavailable:
+            pass
+
+        started = time.time()
+
+        try:
+            main.run_with_model_fallback("SelfTest", "auto", broken, [])
+        except main.ProviderUnavailable:
+            assert time.time() - started < 1
+    finally:
+        main.working_models = original
+        main._provider_down.pop("SelfTest", None)
+
+
 @check("service endpoints answer")
 def _endpoints():
     from fastapi.testclient import TestClient
