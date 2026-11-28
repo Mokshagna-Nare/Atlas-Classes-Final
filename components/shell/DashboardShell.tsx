@@ -92,15 +92,6 @@ function useDesktop() {
   return desktop;
 }
 
-/** The sidebar-panel glyph used on the toggle buttons. */
-const PanelIcon: React.FC<{ className?: string; rail: boolean }> = ({ className = 'h-[18px] w-[18px]', rail }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-    <rect x="3" y="4" width="18" height="16" rx="3.5" />
-    <path d="M9 4v16" />
-    <path d={rail ? 'M13.5 10l2 2-2 2' : 'M15.5 10l-2 2 2 2'} strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-300" />
-  </svg>
-);
-
 interface Tip { label: string; sub?: string; badge?: number | null; alert?: boolean; top: number; left: number }
 
 function DashboardShell<V extends string>({
@@ -186,7 +177,7 @@ function DashboardShell<V extends string>({
           title={rail ? undefined : `Collapse sidebar (${SHORTCUT})`}
           aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!rail}
-          className={`absolute -right-3.5 top-[88px] z-10 hidden h-7 w-7 items-center justify-center rounded-full bg-atlas-raised text-gray-400 ring-1 ring-white/15 shadow-[0_6px_18px_-6px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] transition-all duration-300 hover:scale-110 hover:bg-emerald-400 hover:text-gray-950 hover:ring-emerald-300 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 md:flex light:bg-paper light:ring-gray-700 light:hover:bg-atlas-primary light:hover:text-on-accent ${rail ? 'opacity-100' : 'opacity-0 group-hover/side:opacity-100'}`}
+          className={`absolute -right-3.5 top-[88px] z-10 hidden h-7 w-7 items-center justify-center rounded-full bg-atlas-raised text-gray-400 ring-1 ring-white/15 shadow-[0_6px_18px_-6px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] transition-all duration-300 hover:scale-110 hover:bg-emerald-400 hover:text-gray-950 hover:ring-emerald-300 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 md:flex light:bg-paper light:ring-gray-700 light:hover:bg-atlas-primary light:hover:text-on-accent opacity-100`}
         >
           <svg className={`h-3.5 w-3.5 transition-transform ${ease} ${rail ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} aria-hidden="true">
             <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
@@ -334,16 +325,6 @@ function DashboardShell<V extends string>({
         <header className="sticky top-0 z-10 bg-atlas-black/80 backdrop-blur-xl border-b border-white/5 light:bg-paper/85 light:border-gray-700 px-4 sm:px-8 py-4 flex items-center gap-4">
           <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-gray-300 p-1" aria-label="Open menu">
             <MenuIcon className="h-6 w-6" />
-          </button>
-          <button
-            type="button"
-            onClick={toggleRail}
-            title={`${collapsed ? 'Show' : 'Hide'} sidebar (${SHORTCUT})`}
-            aria-label={collapsed ? 'Show sidebar' : 'Hide sidebar'}
-            aria-pressed={collapsed}
-            className="group/toggle relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-gray-400 transition-all duration-200 hover:border-emerald-400/30 hover:bg-emerald-400/[0.08] hover:text-emerald-300 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 md:inline-flex light:border-gray-700 light:bg-paper light:shadow-[0_1px_2px_rgba(16,24,40,0.06)] light:hover:border-brand-line light:hover:bg-brand-pale light:hover:text-brand-deep"
-          >
-            <PanelIcon rail={collapsed} />
           </button>
           <div className="min-w-0 flex-1">
             <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm min-w-0">
