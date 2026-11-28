@@ -98,6 +98,61 @@ const evenSplit = (total: number, keys: string[]) => {
   return Object.fromEntries(keys.map((k, i) => [k, base + (i < extra ? 1 : 0)]));
 };
 
+/**
+ * A saved paper's questions, in paper order. Finalised papers list them in `question_ids`; papers
+ * still being built in Generate Paper (drafts) keep them per subject in `question_allocations`
+ * and have an empty `question_ids` — reading only that made drafts look empty and left the
+ * Publish button silently disabled.
+ */
+const paperQuestionIds = (paper: any): string[] => {
+  const listed: string[] = paper?.question_ids || paper?.questionids || [];
+  if (listed.length) return [...new Set(listed)];
+  const allocations = paper?.question_allocations || {};
+  const subjects = [...new Set([...Object.keys(paper?.subject_config || {}), ...Object.keys(allocations)])];
+  const ids: string[] = [];
+  for (const subject of subjects) {
+    const slot = allocations[subject] || {};
+    ids.push(...(slot.track1 || []), ...(slot.track2 || []));
+  }
+  return [...new Set(ids.filter(Boolean))];
+};
+
+const REQUEST_TIMEOUT_MS = 30000;
+
+/** Runs a Supabase request with a time limit, so a stalled connection ends in a clear message, not an endless spinner. */
+const withTimeout = async <T,>(run: (signal: AbortSignal) => PromiseLike<T>, what: string): Promise<T> => {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const result: any = await run(controller.signal);
+    if (controller.signal.aborted || result?.error?.message?.toLowerCase?.().includes('abort')) {
+      throw new Error(`${what} didn't get an answer from the database within ${REQUEST_TIMEOUT_MS / 1000} seconds. Check your internet connection and try again.`);
+    }
+    return result as T;
+  } finally {
+    window.clearTimeout(timer);
+  }
+};
+
+/** Database errors in words an admin can act on. */
+const explainDbError = (error: any): string => {
+  const text = String(error?.message || error || '');
+  const lower = text.toLowerCase();
+  if (lower.includes('row-level security') || lower.includes('permission denied') || error?.code === '42501') {
+    return 'The database refused this because your admin session isn\'t verified (two-step verification). Sign out, sign in again with your verification code, then publish.';
+  }
+  if (lower.includes('jwt') && (lower.includes('expired') || lower.includes('invalid'))) {
+    return 'Your session has expired. Sign out and sign in again, then publish.';
+  }
+  if (lower.includes('failed to fetch') || lower.includes('network')) {
+    return 'Couldn\'t reach the database. Check your internet connection and try again.';
+  }
+  if (lower.includes('invalid input syntax for type uuid')) {
+    return 'Some selected questions have an invalid ID. Re-select the questions (or the saved paper) and try again.';
+  }
+  return text || 'Something went wrong.';
+};
+
 const PublicLinkBadge: React.FC = () => (
   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.06] text-gray-400 ring-1 ring-inset ring-white/10">
     <Svg d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
@@ -304,8 +359,18 @@ const CreateTest: React.FC = () => {
   const [offlinePapers, setOfflinePapers] = useState<any[]>([]);
   const [selectedPaperId, setSelectedPaperId] = useState('');
 
+  const [papersError, setPapersError] = useState<string | null>(null);
+  const [loadingPaper, setLoadingPaper] = useState(false);
+
   useEffect(() => {
-    supabase.from('offline_papers').select('*').order('created_at', { ascending: false }).then(({ data }) => data && setOfflinePapers(data));
+    supabase
+      .from('offline_papers')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) setPapersError(`Couldn't load saved papers: ${explainDbError(error)}`);
+        else setOfflinePapers(data || []);
+      });
   }, []);
 
   // --- 2b. Auto-generate from bank ---
@@ -450,11 +515,49 @@ const CreateTest: React.FC = () => {
       return;
     }
     const paper = offlinePapers.find(p => p.id === paperId);
-    if (paper) {
-      const ids = paper.question_ids || paper.questionids || [];
-      setFinalQuestionIds(ids);
-      const { data } = await supabase.from('mcqs').select('*').in('id', ids);
-      if (data) setPreviewQuestions(data);
+    setFinalQuestionIds([]);
+    setPreviewQuestions([]);
+    if (!paper) return;
+    const ids = paperQuestionIds(paper);
+    if (!ids.length) {
+      return setMessage({
+        type: 'error',
+        text: `"${paper.title || 'This paper'}" has no questions yet. Add questions to it in Generate Paper, or choose another paper.`,
+      });
+    }
+
+    setLoadingPaper(true);
+    try {
+      // In batches: a long id list in one request can exceed the URL limit.
+      const rows: any[] = [];
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await withTimeout(
+          signal => supabase.from('mcqs').select('*').in('id', ids.slice(i, i + 100)).abortSignal(signal),
+          'Loading the paper',
+        );
+        if (error) throw error;
+        rows.push(...(data || []));
+      }
+      const byId = new Map(rows.map(row => [row.id, row]));
+      const kept = ids.filter(id => byId.has(id));
+      setPreviewQuestions(kept.map(id => byId.get(id)));
+      setFinalQuestionIds(kept);
+      const missing = ids.length - kept.length;
+      setMessage(
+        kept.length === 0
+          ? { type: 'error', text: `None of this paper's ${ids.length} question(s) are in the question bank any more. Choose another paper.` }
+          : {
+              type: 'success',
+              text:
+                `Loaded ${kept.length} question(s) from "${paper.title || 'the paper'}"` +
+                (paper.status === 'Draft' ? ' (a draft paper)' : '') +
+                (missing ? ` — ${missing} were deleted from the question bank and are left out.` : '.'),
+            },
+      );
+    } catch (err: any) {
+      setMessage({ type: 'error', text: `Couldn't load the paper's questions: ${explainDbError(err)}` });
+    } finally {
+      setLoadingPaper(false);
     }
   };
 
@@ -548,36 +651,67 @@ const CreateTest: React.FC = () => {
     if (finalQuestionIds.length === 0) return setMessage({ type: 'error', text: 'Select or generate questions first.' });
 
     setIsSubmitting(true);
+    setMessage({ type: 'success', text: 'Publishing the test…' });
     try {
-      const { data: insertedTest, error } = await supabase
-        .from('tests')
-        .insert({
-          title: title.trim(),
-          duration_minutes: Number(duration),
-          start_window: startAt.toISOString(),
-          end_window: new Date(endWindow).toISOString(),
-          status: 'Upcoming',
-          question_ids: finalQuestionIds,
-          ...(assignInstituteId ? { institute_id: assignInstituteId } : {}),
-        })
-        .select()
-        .single();
+      // The database only accepts tests from a signed-in admin who passed two-step
+      // verification; check first so the admin gets a clear reason instead of a refusal.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error('Your session has expired. Sign out and sign in again, then publish.');
+      const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assurance && assurance.currentLevel !== 'aal2') {
+        throw new Error("Your admin session isn't verified with two-step verification. Sign out, sign in again with your verification code, then publish.");
+      }
+
+      const { data: insertedTest, error } = await withTimeout(
+        signal =>
+          supabase
+            .from('tests')
+            .insert({
+              title: title.trim(),
+              duration_minutes: Number(duration),
+              start_window: startAt.toISOString(),
+              end_window: new Date(endWindow).toISOString(),
+              status: 'Upcoming',
+              question_ids: finalQuestionIds,
+              ...(assignInstituteId ? { institute_id: assignInstituteId } : {}),
+            })
+            .select()
+            .abortSignal(signal)
+            .single(),
+        'Publishing',
+      );
       if (error) throw error;
+      if (!insertedTest?.id) throw new Error("The database didn't confirm the new test. Check Manage Tests before trying again.");
 
       const assignedClassIds = assignInstituteId ? [...selectedClassIds] : [];
       const withDemo = assignDemo && Boolean(demoClassId);
       if (withDemo && !assignedClassIds.includes(demoClassId!)) assignedClassIds.push(demoClassId!);
       if (assignedClassIds.length > 0) {
-        const { error: assignError } = await supabase.from('test_assignments').insert(
-          assignedClassIds.map(classId => ({
-            test_id: insertedTest.id,
-            class_id: classId,
-            opens_at: startAt.toISOString(),
-            closes_at: new Date(endWindow).toISOString(),
-          }))
+        const { error: assignError } = await withTimeout(
+          signal =>
+            supabase
+              .from('test_assignments')
+              .insert(
+                assignedClassIds.map(classId => ({
+                  test_id: insertedTest.id,
+                  class_id: classId,
+                  opens_at: startAt.toISOString(),
+                  closes_at: new Date(endWindow).toISOString(),
+                }))
+              )
+              .abortSignal(signal),
+          'Assigning classes',
         );
-        if (assignError) throw new Error(`Test was created, but assigning classes failed: ${assignError.message}`);
+        if (assignError) {
+          throw new Error(
+            `The test "${title.trim()}" was created, but assigning its classes failed (${explainDbError(assignError)}). ` +
+              'Open Manage Tests to assign the classes, or delete it and publish again.'
+          );
+        }
       }
+
+      // Manage Tests (and anything else listing tests) reloads at once.
+      window.dispatchEvent(new CustomEvent('atlas:tests-changed', { detail: { id: insertedTest.id } }));
 
       const institute = institutes.find(i => i.id === assignInstituteId);
       setPublished({
@@ -603,7 +737,7 @@ const CreateTest: React.FC = () => {
       setSelectedClassIds([]);
       setAssignDemo(false);
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Failed to create test.' });
+      setMessage({ type: 'error', text: `Test not published: ${explainDbError(err)}` });
     } finally {
       setIsSubmitting(false);
     }
@@ -702,12 +836,14 @@ const CreateTest: React.FC = () => {
                 placeholder={offlinePapers.length ? 'Choose a paper' : 'No saved papers yet'}
                 options={offlinePapers.map(p => ({
                   value: p.id,
-                  label: p.title,
-                  hint: [p.subject, `${(p.question_ids || p.questionids || []).length} questions`].filter(Boolean).join(' · '),
+                  label: p.title || 'Untitled paper',
+                  hint: [p.subject, `${paperQuestionIds(p).length} questions`, p.status === 'Draft' ? 'draft' : null].filter(Boolean).join(' · '),
                 }))}
                 icon={<Svg d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />}
               />
             </Field>
+            {loadingPaper && <p className="mt-2 text-xs text-gray-400 animate-pulse">Loading the paper's questions…</p>}
+            {papersError && <p className="mt-2 text-xs font-semibold text-rose-300">{papersError}</p>}
           </div>
         )}
 
@@ -960,7 +1096,7 @@ const CreateTest: React.FC = () => {
             </p>
           )}
         </div>
-        <button onClick={handleCreateTest} disabled={isSubmitting || finalQuestionIds.length === 0} className={`${primaryBtn} w-full md:w-auto px-8 py-3 text-base`}>
+        <button onClick={handleCreateTest} disabled={isSubmitting || loadingPaper} className={`${primaryBtn} w-full md:w-auto px-8 py-3 text-base`}>
           {isSubmitting ? 'Publishing…' : 'Publish online test'}
         </button>
       </div>
