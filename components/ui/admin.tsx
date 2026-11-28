@@ -204,7 +204,8 @@ export const AdminModal: React.FC<{
   tone?: 'emerald' | 'rose' | 'amber';
 }> = ({ title, subtitle, icon, onClose, footer, children, width = 'max-w-2xl', tone = 'emerald' }) => {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    // An open dropdown inside the dialog handles its own Escape (and marks it handled).
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && onClose();
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';

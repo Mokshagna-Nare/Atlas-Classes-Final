@@ -210,13 +210,16 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, placeh
       close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close(true);
+      if (e.key === 'Escape') {
+        e.preventDefault(); // close only the picker, not a dialog it sits in
+        close(true);
+      }
     };
     document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
     return () => {
       document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, true);
     };
   }, [isOpen, close]);
 
@@ -304,7 +307,7 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, placeh
           role="dialog"
           aria-label={label}
           style={{ top: pos.top, left: pos.left }}
-          className="fixed z-[60] w-[340px] overflow-hidden rounded-[22px] bg-zinc-900/95 backdrop-blur-2xl ring-1 ring-white/10 shadow-[0_30px_80px_-20px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] animate-menu-in select-none"
+          className="fixed z-[300] w-[340px] overflow-hidden rounded-[22px] bg-zinc-900/95 backdrop-blur-2xl ring-1 ring-white/10 shadow-[0_30px_80px_-20px_rgb(var(--shadow-rgb)/calc(0.9*var(--shadow-k)))] animate-menu-in select-none"
         >
           {/* Month header */}
           <div className="flex items-center justify-between px-5 pt-4 pb-2">

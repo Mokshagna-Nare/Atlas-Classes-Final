@@ -203,7 +203,7 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({
           aria-label={title}
           onKeyDown={onMenuKeyDown}
           style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left }}
-          className={`fixed z-[60] w-72 ${menuPos.above ? 'origin-bottom-left' : 'origin-top-left'} overflow-hidden rounded-2xl bg-atlas-surface/95 backdrop-blur-xl ring-1 ring-white/10 shadow-[0_24px_60px_-12px_rgb(var(--shadow-rgb)/calc(0.85*var(--shadow-k))),0_0_0_1px_rgba(16,185,129,0.05)] outline-none animate-menu-in`}
+          className={`fixed z-[300] w-72 ${menuPos.above ? 'origin-bottom-left' : 'origin-top-left'} overflow-hidden rounded-2xl bg-atlas-surface/95 backdrop-blur-xl ring-1 ring-white/10 shadow-[0_24px_60px_-12px_rgb(var(--shadow-rgb)/calc(0.85*var(--shadow-k))),0_0_0_1px_rgba(16,185,129,0.05)] outline-none animate-menu-in`}
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
 
