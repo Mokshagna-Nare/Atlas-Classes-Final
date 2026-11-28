@@ -188,6 +188,60 @@ def _docx():
     assert len(Document(io.BytesIO(extracted)).tables) == 1
 
 
+@check("review checks: run-together words, structure, missing questions, page crops")
+def _review_checks():
+    import ocr_figures
+    import text_checks
+    from PIL import Image, ImageDraw
+
+    fixed, _ = text_checks.fix_joined_words("formed by theprocess of packagingin under acidicpH")
+    assert fixed == "formed by the process of packaging in under acidic pH", fixed
+    kept, changes = text_checks.fix_joined_words("Lysosomes collenchyma Hasselbalch NaOH Avogadro")
+    assert not changes, changes
+    question = {"question": "Which is a plant tissue?", "options": ["Xylem", "Neuron", "Cartilage", ""], "question_type": "MCQ"}
+    assert any("3 option" in check for check in text_checks.question_checks(question))
+    questions = [{"question": "First question here?", "options": []}, {"question": "Third question here?", "options": []}]
+    page = text_checks.page_checks(questions, "1. First question here?\n3. Third question here?")
+    assert any("Question 2 not found" in check for check in page), page
+    image = Image.new("RGB", (400, 200), "white")
+    ImageDraw.Draw(image).text((10, 10), "1. First question here?", fill="black")
+    boxes = [(10, 10, 200, 22, "1. First question here?"), (10, 110, 200, 122, "3. Third question here?")]
+    assert ocr_figures.attach_source_crops(questions, image, boxes) == 2
+    assert questions[0]["source_crop"].startswith("data:image/jpeg;base64,")
+
+
+@check("unavailable AI models fail fast (no retries, quick stop)")
+def _provider_fast_fail():
+    import main
+
+    unavailable = RuntimeError("Error code: 400 - [400]: Upstream request failed: Model is unavailable.")
+    assert main.is_setup_error(unavailable)
+    assert not main.core.is_retryable_error(unavailable)
+    assert main.core.is_retryable_error(RuntimeError("503 overloaded"))
+    original = main.working_models
+    main.working_models = lambda provider, exclude=(): []
+
+    try:
+        def broken(model):
+            raise unavailable
+
+        try:
+            main.run_with_model_fallback("SelfTest", "auto", broken, [])
+            raise AssertionError("expected ProviderUnavailable")
+        except main.ProviderUnavailable:
+            pass
+
+        started = time.time()
+
+        try:
+            main.run_with_model_fallback("SelfTest", "auto", broken, [])
+        except main.ProviderUnavailable:
+            assert time.time() - started < 1
+    finally:
+        main.working_models = original
+        main._provider_down.pop("SelfTest", None)
+
+
 @check("service endpoints answer")
 def _endpoints():
     from fastapi.testclient import TestClient

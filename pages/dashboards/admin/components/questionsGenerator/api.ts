@@ -1,9 +1,14 @@
 // Small client for the Questions generator service. The service URL is
 // set with VITE_QUESTIONS_GENERATOR_API; AI keys stay on that server.
 import { supabase } from '../../../../../services/supabase';
+import type { QGConfig } from './types';
 
-// Default = the address Render gives the service from render.yaml.
-const DEFAULT_SERVICE_URL = 'https://atlas-questions-generator.onrender.com';
+// Default = Google Cloud Run (2 GiB; see qpg-service/deploy-cloud-run.sh).
+// Backup: Render, still deployed from render.yaml. To roll back, set this to
+// RENDER_SERVICE_URL (or set VITE_QUESTIONS_GENERATOR_API on the hosting).
+const CLOUD_RUN_SERVICE_URL = 'https://atlas-questions-generator-1056168822660.us-central1.run.app';
+export const RENDER_SERVICE_URL = 'https://atlas-questions-generator.onrender.com';
+const DEFAULT_SERVICE_URL = CLOUD_RUN_SERVICE_URL;
 
 export const QG_API_URL = (
   (import.meta as any).env?.VITE_QUESTIONS_GENERATOR_API || DEFAULT_SERVICE_URL
@@ -197,3 +202,35 @@ export const sleep = (ms: number, signal?: AbortSignal) =>
       reject(new DOMException('Aborted', 'AbortError'));
     });
   });
+
+// ---- Warm-up ------------------------------------------------------------------------------
+// The service sleeps when idle (Cloud Run / Render) and takes ~20-60 s to start. The admin panel
+// calls warmUpQuestionsGenerator() as soon as it opens, so by the time the admin clicks
+// "Questions generator" the service is usually awake and its settings are already loaded. Nothing
+// is shown for this: it runs quietly, and any failure is ignored (the tab then loads as before).
+let configPromise: Promise<QGConfig> | null = null;
+
+/** The service's settings, loaded once and shared (a failed load is retried next time). */
+export const loadQGConfig = (): Promise<QGConfig> => {
+  if (!configPromise) {
+    configPromise = qgJson<QGConfig>('/config');
+    configPromise.catch(() => {
+      configPromise = null;
+    });
+  }
+  return configPromise;
+};
+
+let lastWarmUp = 0;
+const WARM_UP_EVERY_MS = 10 * 60 * 1000; // an idle service is shut down after ~15 minutes
+
+export const warmUpQuestionsGenerator = () => {
+  if (typeof window === 'undefined' || Date.now() - lastWarmUp < WARM_UP_EVERY_MS) return;
+  lastWarmUp = Date.now();
+  // A plain wake-up call (no login needed, no CORS check), then the settings.
+  fetch(`${QG_API_URL}/health`, { mode: 'no-cors', cache: 'no-store' })
+    .catch(() => undefined)
+    .finally(() => {
+      loadQGConfig().catch(() => undefined);
+    });
+};

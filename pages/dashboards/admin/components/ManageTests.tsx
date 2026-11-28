@@ -39,10 +39,22 @@ const ManageTests: React.FC = () => {
   const [testAttempts, setTestAttempts] = useState<any[]>([]);
   const [loadingAttempts, setLoadingAttempts] = useState(false);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const fetchTests = async () => {
     setLoading(true);
     const { data, error } = await supabase.from('tests').select('*').order('created_at', { ascending: false });
-    if (!error && data) setTests(data);
+    if (error) {
+      // Say so, instead of showing an empty list that looks like "no tests".
+      setLoadError(
+        /row-level security|permission denied|jwt/i.test(error.message)
+          ? "Couldn't load tests: your admin session needs to be verified again. Sign out and sign in with your verification code."
+          : `Couldn't load tests: ${error.message}`
+      );
+    } else {
+      setLoadError(null);
+      if (data) setTests(data);
+    }
 
     const { data: assignments } = await supabase.from('test_assignments').select('test_id, classes(name)');
     if (assignments) {
@@ -56,7 +68,20 @@ const ManageTests: React.FC = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchTests(); }, []);
+  useEffect(() => {
+    fetchTests();
+    // A test published in Create Online Test shows up here at once; also refresh when the admin
+    // comes back to this browser tab.
+    const reload = () => fetchTests();
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchTests(); };
+    window.addEventListener('atlas:tests-changed', reload);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('atlas:tests-changed', reload);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this test? All student results will also be deleted.")) return;
@@ -144,6 +169,15 @@ const ManageTests: React.FC = () => {
           View all tests, manage statuses, and review student attempt results.
         </p>
       </div>
+
+      {loadError && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+          <span>{loadError}</span>
+          <button type="button" onClick={fetchTests} className="rounded-xl bg-white/[0.06] px-4 py-2 text-xs font-bold text-white ring-1 ring-inset ring-white/10 hover:bg-white/[0.1]">
+            Try again
+          </button>
+        </div>
+      )}
 
       <div className="bg-gray-900/40 border border-gray-800 rounded-3xl overflow-hidden shadow-2xl">
         <table className="w-full text-left">

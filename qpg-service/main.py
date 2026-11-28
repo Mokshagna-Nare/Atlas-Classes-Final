@@ -29,6 +29,7 @@ import importlib.util
 import io
 import json
 import multiprocessing
+import re
 import resource
 import os
 import pathlib
@@ -74,6 +75,8 @@ import st_shim  # noqa: E402
 import qpg_core as core  # noqa: E402
 import image_input  # noqa: E402
 import ocr_layout  # noqa: E402
+import ocr_figures  # noqa: E402
+import text_checks  # noqa: E402
 
 # Screenshot/photo layouts, unnumbered questions, option grids (see ocr_layout.py).
 ocr_layout.install(core)
@@ -635,7 +638,7 @@ FALLBACK_ENV = {
     "Agent Router": "AGENTROUTER_FALLBACK_MODELS",
     "Claude API": "CLAUDE_FALLBACK_MODELS",
 }
-MAX_FALLBACK_MODELS = int(os.environ.get("QPG_MAX_FALLBACK_MODELS", "2"))
+MAX_FALLBACK_MODELS = int(os.environ.get("QPG_MAX_FALLBACK_MODELS", "3"))
 MODEL_LIST_CACHE_SECONDS = 600
 # Models that can't write questions (embeddings, speech, image generation...).
 _NON_CHAT_MODEL_WORDS = ("embed", "tts", "whisper", "audio", "speech", "dall", "image", "moderation", "rerank", "transcribe")
@@ -673,30 +676,82 @@ def list_provider_models(provider):
     return listed
 
 
-def fallback_models(provider, model):
-    """Other models to try, in order: the configured list, else the provider's own list."""
+# Words in model ids that suggest a capable general model (tried first) or a narrow one (last).
+_STRONG_MODEL_WORDS = ("claude", "gpt", "gemini", "deepseek", "qwen", "llama", "mistral", "glm", "kimi", "grok", "sonnet", "opus", "flash", "pro")
+_NARROW_MODEL_WORDS = ("search", "scholar", "social", "code", "coder", "vision", "tiny", "nano", "guard", "ocr", "1b", "3b")
+
+
+def _candidate_models(provider, exclude):
+    """Models worth testing, best first: the configured fallback list, then the provider's own list."""
 
     configured = [m.strip() for m in os.environ.get(FALLBACK_ENV.get(provider, ""), "").split(",") if m.strip()]
 
-    if configured:
-        candidates = configured
-    else:
-        try:
-            candidates = list_provider_models(provider)
-        except Exception:
-            candidates = []
+    try:
+        listed = list_provider_models(provider)
+    except Exception:
+        listed = []
 
-        candidates = [m for m in candidates if not any(word in m.lower() for word in _NON_CHAT_MODEL_WORDS)]
+    listed = [m for m in listed if not any(word in m.lower() for word in _NON_CHAT_MODEL_WORDS)]
 
-    seen = {model.strip().lower(), "auto"}
+    def rank(model_id):
+        lower = model_id.lower()
+        return -(sum(word in lower for word in _STRONG_MODEL_WORDS) - sum(word in lower for word in _NARROW_MODEL_WORDS))
+
+    seen = {m.strip().lower() for m in exclude} | {"auto"}
     result = []
 
-    for candidate in candidates:
-        if candidate.lower() not in seen:
+    for candidate in configured + sorted(listed, key=rank):
+        if candidate.lower() not in seen and not _is_busy(provider, candidate):
             seen.add(candidate.lower())
             result.append(candidate)
 
-    return result[:MAX_FALLBACK_MODELS]
+    return result
+
+
+def fallback_models(provider, model):
+    """Other models to try (kept for callers that only need the list)."""
+
+    return _candidate_models(provider, [model])[:MAX_FALLBACK_MODELS]
+
+
+# The provider can't serve this model at all: a router like OmniRoute sent
+# it to a backend that isn't installed / logged in ("Auggie CLI not found"),
+# or whose free model is switched off ("400 Upstream request failed: Model
+# is unavailable"). Retrying the same model can't help — move on to another
+# model at once, and skip this one for a while.
+_SETUP_ERROR_HINTS = (
+    "cli not found", "not installed", "login", "not logged in", "model not found", "model_not_found",
+    "no such model", "unknown model", "does not exist", "unsupported model", "invalid model",
+    "not configured", "no provider", "provider not found", "no route", "not available for",
+    "model is unavailable", "model unavailable", "model is not available", "model not available",
+    "upstream request failed", "model_not_available", "is not a valid model",
+)
+BROKEN_MODEL_SECONDS = int(os.environ.get("QPG_BROKEN_MODEL_SECONDS", "1800"))
+
+
+def is_setup_error(error):
+    if isinstance(error, (HTTPException, core.HTMLResponseError)):
+        return False
+
+    text = f"{type(error).__name__} {error}".lower()
+    return any(hint in text for hint in _SETUP_ERROR_HINTS)
+
+
+_core_is_retryable_error = core.is_retryable_error
+_probe_state = threading.local()
+
+
+def _is_retryable_error(error):
+    # The shared retry loop would otherwise retry a 400 "Model is unavailable"
+    # or a 502 "CLI not found" 3-4 times with back-off per model, which made a
+    # page take minutes. Model tests never retry either: they must be quick.
+    if getattr(_probe_state, "active", False) or is_setup_error(error):
+        return False
+
+    return _core_is_retryable_error(error)
+
+
+core.is_retryable_error = _is_retryable_error
 
 
 def is_capacity_error(error):
@@ -704,7 +759,7 @@ def is_capacity_error(error):
         return False
 
     text = f"{type(error).__name__} {error}".lower()
-    return any(hint in text for hint in _CAPACITY_ERROR_HINTS)
+    return is_setup_error(error) or any(hint in text for hint in _CAPACITY_ERROR_HINTS)
 
 
 BUSY_MODEL_SECONDS = int(os.environ.get("QPG_BUSY_MODEL_SECONDS", "300"))
@@ -717,79 +772,162 @@ def _is_busy(provider, model):
         return _busy_models.get((provider, model.lower()), 0) > time.time()
 
 
-def _mark_busy(provider, model, busy):
+def _mark_busy(provider, model, busy, seconds=None):
     with _busy_lock:
         if busy:
-            _busy_models[(provider, model.lower())] = time.time() + BUSY_MODEL_SECONDS
+            _busy_models[(provider, model.lower())] = time.time() + (seconds or BUSY_MODEL_SECONDS)
         else:
             _busy_models.pop((provider, model.lower()), None)
 
 
+# ---- Finding a model that actually works ----------------------------------------------------
+# Instead of trying the next models one by one (each failure costing a full
+# request), several likely models get a tiny test request at the same time;
+# the ones that answer are used, and remembered for a few minutes.
+PROBE_CANDIDATES = int(os.environ.get("QPG_PROBE_MODELS", "8"))
+PROBE_TIMEOUT_SECONDS = 25
+WORKING_CACHE_SECONDS = 600
+_working = {}  # provider -> (expires, [models])
+_working_lock = threading.Lock()
+
+
+def _probe(provider, model):
+    _probe_state.active = True
+
+    try:
+        client = provider_client(provider, PROBE_TIMEOUT_SECONDS)
+        core.call_chat_completion_api(
+            provider, client, model, "Health check. Reply in JSON.", 'Return {"ok": true} as JSON.', 64
+        )
+        return True
+    except HTTPException:
+        return False
+    except Exception as error:
+        if "empty" in str(error).lower():
+            return True  # it answered (just with nothing): the model is up
+
+        _mark_busy(provider, model, True, BROKEN_MODEL_SECONDS if is_setup_error(error) else None)
+        return False
+    finally:
+        _probe_state.active = False
+
+
+def working_models(provider, exclude=()):
+    """Models of this provider that answered a test request just now (best first)."""
+
+    excluded = {m.strip().lower() for m in exclude} | {"auto"}
+
+    with _working_lock:
+        cached = _working.get(provider)
+
+    if cached and cached[0] > time.time():
+        alive = [m for m in cached[1] if m.lower() not in excluded and not _is_busy(provider, m)]
+
+        if alive:
+            return alive
+
+    candidates = _candidate_models(provider, excluded)[:PROBE_CANDIDATES]
+
+    if not candidates:
+        return []
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=len(candidates)) as pool:
+        outcomes = list(pool.map(lambda m: (m, _probe(provider, m)), candidates))
+
+    alive = [m for m, ok in outcomes if ok]
+
+    with _working_lock:
+        _working[provider] = (time.time() + WORKING_CACHE_SECONDS, alive)
+
+    return alive
+
+
+class ProviderUnavailable(Exception):
+    """No model of the chosen provider works right now (said once, quickly, not per page)."""
+
+
+PROVIDER_DOWN_SECONDS = int(os.environ.get("QPG_PROVIDER_DOWN_SECONDS", "120"))
+_provider_down = {}  # provider -> (until, message)
+
+
 def run_with_model_fallback(provider, model, run, notes):
     """
-    run(model) with the chosen model; if the provider is out of capacity,
-    the same request is tried with other models of that provider. A model
-    that just failed this way is remembered as busy for a few minutes, so
-    the next pages go straight to a working model instead of waiting
-    through its retries again.
+    run(model) with the chosen model. If that model isn't working (busy,
+    switched off, not installed at the provider), other models of the same
+    provider are tested at once and the request goes to one that answers. A
+    failing model is skipped for a while, so later pages go straight to a
+    working one. If no model works, ProviderUnavailable is raised — and for
+    the next couple of minutes it is raised immediately, so a run stops in
+    seconds instead of waiting through every page.
     """
 
-    models = [model]
-    fallbacks_added = False
+    down = _provider_down.get(provider)
+
+    if down and down[0] > time.time():
+        raise ProviderUnavailable(down[1])
+
+    order = [model]
+    tested = False
 
     if _is_busy(provider, model):
-        backups = fallback_models(provider, model)
+        alive = working_models(provider, exclude=[model])[:MAX_FALLBACK_MODELS]
+        tested = True
 
-        if backups:
-            models = backups + [model]
-            fallbacks_added = True
-            notes.append({
-                "kind": "info",
-                "text": f"'{model}' was busy at the provider a moment ago — using {', '.join(backups)} first.",
-            })
+        if alive:
+            order = alive + [model]
+            notes.append({"kind": "info", "text": f"'{model}' wasn't working a moment ago — using {alive[0]}."})
 
+    tried = []
     first_error = None
     index = 0
 
-    while index < len(models):
-        current = models[index]
+    while index < len(order):
+        current = order[index]
 
         try:
             result = run(current)
         except Exception as error:
-            if not is_capacity_error(error):
+            if isinstance(error, ProviderUnavailable) or not is_capacity_error(error):
                 raise
 
-            _mark_busy(provider, current, True)
+            _mark_busy(provider, current, True, BROKEN_MODEL_SECONDS if is_setup_error(error) else None)
+            tried.append(current)
+            first_error = first_error or error
 
-            if first_error is None:
-                first_error = error
-
-            if not fallbacks_added:
-                fallbacks_added = True
-                backups = [m for m in fallback_models(provider, model) if m not in models]
-                models.extend(backups)
-
-                if backups:
-                    notes.append({
-                        "kind": "info",
-                        "text": (
-                            f"'{current}' is busy at the provider ({str(error)[:120]}) — "
-                            f"trying other {provider} models: {', '.join(backups)}."
-                        ),
-                    })
+            if not tested:
+                tested = True
+                alive = [m for m in working_models(provider, exclude=tried) if m not in order][:MAX_FALLBACK_MODELS]
+                order.extend(alive)
+                notes.append({
+                    "kind": "info",
+                    "text": (
+                        f"'{current}' isn't working at {provider} ({str(error)[:140]}) — "
+                        + (f"switched to {alive[0]}, which answered a test request." if alive
+                           else "tested other models; none answered.")
+                    ),
+                })
 
             index += 1
             continue
 
         _mark_busy(provider, current, False)
+        _provider_down.pop(provider, None)
 
         if current != model:
-            notes.append({"kind": "info", "text": f"This page was done with '{current}' because '{model}' was busy."})
+            notes.append({"kind": "info", "text": f"Done with '{current}' because '{model}' wasn't working."})
 
         return result
 
-    raise first_error
+    reason = core.explain_provider_error(first_error) if first_error is not None else "no model answered"
+    message = (
+        f"{provider} has no working model right now — {reason[:260]} "
+        f"(tried {', '.join(tried[:4])}{' …' if len(tried) > 4 else ''}, and tested other models). "
+        f"Choose a different model or provider, or add a working one in {provider}, then try again."
+    )
+    _provider_down[provider] = (time.time() + PROVIDER_DOWN_SECONDS, message)
+    raise ProviderUnavailable(message) from first_error
 
 
 def data_url(data, mime):
@@ -1153,6 +1291,8 @@ def config():
         "max_pdf_pages": core.MAX_PDF_PAGES,
         "max_total_questions": core.MAX_TOTAL_QUESTIONS,
         "min_request_delay": core.MIN_REQUEST_DELAY,
+        # Pages generated at the same time (the AI call is the slow part, so ~3x faster).
+        "parallel_pages": max(1, min(4, int(os.environ.get("QPG_PARALLEL_PAGES", "3")))),
         "numerical_option_text": core.NUMERICAL_OPTION_TEXT,
         "field_labels": core.FIELD_LABELS,
         "ocr_available": ocr_available(),
@@ -1324,6 +1464,11 @@ def generate_page(request: GeneratePageRequest):
             result["missing_figures"] = [str(figure_id).replace("F", "") for figure_id in missing]
         except HTTPException:
             raise
+        except ProviderUnavailable as error:
+            # No model of this provider works: every remaining page would fail the
+            # same way, so stop the run now (pages already done are kept).
+            result["error"] = f"Stopped at page {request.page_number}: {error}"
+            result["fatal"] = True
         except core.HTMLResponseError as error:
             # Same for every remaining page (wrong base URL) — stop the run.
             result["error"] = f"Stopped after page {request.page_number}: {error}"
@@ -1439,13 +1584,80 @@ def _page_for_ai(*args):
     return page
 
 
+def _pdf_page_geometry(pdf_bytes, page_number):
+    """A text-layer PDF page as (image, text lines) for finding its figures."""
+
+    import fitz
+    from PIL import Image
+
+    zoom = 2.0
+    document = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+    try:
+        page = document[page_number - 1]
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+        items = []
+
+        for block in page.get_text("dict").get("blocks", []):
+            for line in block.get("lines", []):
+                text = "".join(span.get("text", "") for span in line.get("spans", [])).strip()
+
+                if text:
+                    x0, y0, x1, y1 = line["bbox"]
+                    items.append((x0, y0, x1, y1, text, 1.0))
+
+        return image, items, page.rect.width
+    finally:
+        document.close()
+
+
+def _attach_page_figures(questions, page, found):
+    """
+    Crop the page's figures and give each to its question, and give every question the part of
+    the page it was read from (for checking it side by side). Best-effort.
+    """
+
+    try:
+        if page["mode"] == "image":
+            geometry = found.get("geometry") if found else None
+
+            if not geometry:
+                return
+
+            image, figures, boxes = geometry["image"], geometry.get("figures") or [], geometry["boxes"]
+        elif page.get("pdf_bytes") is not None:
+            image, items, page_width = _pdf_page_geometry(page["pdf_bytes"], page["page_number"])
+            figures, _, boxes = ocr_figures.find(image, items, page_width)
+        else:
+            return
+    except Exception as error:  # noqa: BLE001 — a bonus, never a failed page
+        print(f"page geometry skipped: {error}", flush=True)
+        return
+
+    for step in (
+        lambda: ocr_figures.attach(questions, image, figures, boxes) if figures else 0,
+        lambda: ocr_figures.attach_source_crops(questions, image, boxes),
+    ):
+        try:
+            step()
+        except Exception as error:  # noqa: BLE001
+            print(f"figure / crop step skipped: {error}", flush=True)
+
+
 def _ocr_page(*args):
     page = _build_page(*args)
 
     if LOW_MEMORY and page["mode"] == "image":
         return _read_image_page_in_strips(page)
 
-    return core.read_questions_without_ai(page)
+    with ocr_layout.collect_figures() as found:
+        questions, text, error = core.read_questions_without_ai(page)
+
+    if not error and questions:
+        _attach_page_figures(questions, page, found)
+
+    return questions, text, error
 
 
 @app.post("/extract/prepare", dependencies=[Depends(require_admin)])
@@ -1514,7 +1726,8 @@ class ExtractPageRequest(BaseModel):
     bloom_level: str = "Understand"
 
 
-OCR_AI_TIMEOUT_SECONDS = 180
+OCR_AI_TIMEOUT_SECONDS = 120  # one AI call
+AI_CLEAN_UP_BUDGET_SECONDS = int(os.environ.get("QPG_AI_CLEAN_UP_SECONDS", "180"))  # whole step, all models
 
 _OCR_TEXT_NOTE = (
     "NOTE: the source text below was read from an image of the page by OCR, "
@@ -1552,7 +1765,7 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
         except Exception:
             image_bytes = None
 
-    def ask(model, with_image):
+    def ask(client, model, with_image):
         note = (_OCR_TEXT_NOTE if from_ocr else _PDF_TEXT_NOTE) + (_IMAGE_NOTE if with_image else "")
         return core.extract_questions_from_page(
             request.provider,
@@ -1564,13 +1777,13 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
             page_text=f"{note}\n\n{text_read}",
         )
 
-    try:
+    def work(work_notes):
         client = provider_client(request.provider or "", OCR_AI_TIMEOUT_SECONDS)
         model = (request.model or "").strip()
 
         try:
-            questions = run_with_model_fallback(
-                request.provider, model, lambda m: ask(m, image_bytes is not None), notes
+            return run_with_model_fallback(
+                request.provider, model, lambda m: ask(client, m, image_bytes is not None), work_notes
             )
         except Exception as error:
             if image_bytes is None or not core.explain_provider_error(error, sent_images=True).startswith(
@@ -1578,8 +1791,44 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
             ):
                 raise
 
-            notes.append({"kind": "info", "text": "The model can't read images — used the page text only."})
-            questions = run_with_model_fallback(request.provider, model, lambda m: ask(m, False), notes)
+            work_notes.append({"kind": "info", "text": "The model can't read images — used the page text only."})
+            return run_with_model_fallback(request.provider, model, lambda m: ask(client, m, False), work_notes)
+
+    # The built-in reader's result is already in hand, so never let a slow or
+    # struggling AI provider hold the page for long: after the time budget the
+    # page is shown with the built-in result (the AI call is left to finish
+    # on its own in the background and its answer is dropped).
+    outcome = {}
+    work_notes = []
+
+    def runner():
+        try:
+            outcome["questions"] = work(work_notes)
+        except BaseException as error:  # noqa: BLE001 — handed back below
+            outcome["error"] = error
+
+    worker = threading.Thread(target=runner, name="ai-clean-up", daemon=True)
+    worker.start()
+    worker.join(AI_CLEAN_UP_BUDGET_SECONDS)
+
+    if worker.is_alive():
+        notes.extend(list(work_notes))
+        notes.append({
+            "kind": "warning",
+            "text": (
+                f"{request.label}: the AI provider didn't finish within {AI_CLEAN_UP_BUDGET_SECONDS} s, so the "
+                "built-in reader's result is shown — check it in the review step (or try again later / pick "
+                "another model)."
+            ),
+        })
+        return ocr_questions
+
+    notes.extend(work_notes)
+
+    try:
+        if "error" in outcome:
+            raise outcome["error"]
+        questions = outcome.get("questions") or []
     except HTTPException:
         raise
     except core.HTMLResponseError as error:
@@ -1587,14 +1836,15 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
         result["fatal"] = True
         return []
     except Exception as error:
-        explanation = core.explain_provider_error(error)
-        notes.append({
-            "kind": "warning",
-            "text": (
-                f"{request.label}: the AI clean-up step failed ({explanation[:200]}), so the built-in "
-                "reader's result is shown — check it in the review step."
-            ),
-        })
+        if isinstance(error, ProviderUnavailable):
+            text = f"{request.label}: AI clean-up skipped — {error} The built-in reader's result is shown."
+        else:
+            text = (
+                f"{request.label}: the AI clean-up step failed ({core.explain_provider_error(error)[:200]}), so the "
+                "built-in reader's result is shown — check it in the review step."
+            )
+
+        notes.append({"kind": "warning", "text": text})
         return ocr_questions
 
     if not questions and ocr_questions:
@@ -1604,7 +1854,108 @@ def _ai_clean_up(request, page_args, text_read, ocr_questions, notes, result):
         })
         return ocr_questions
 
+    try:
+        carry_figures(ocr_questions, questions)
+    except Exception:  # noqa: BLE001 — figures are a bonus
+        pass
+
     return questions
+
+
+# Two common slips of the built-in reader (no AI) on printed papers:
+# - a figure's part labels ("A", "-B", "C", "D") read after the question,
+#   e.g. "...inner walls? A -B C D";
+# - the page's section heading printed under the options, e.g. option D
+#   "D (Permanent Tissues)".
+_FIGURE_LABELS_AT_END = re.compile(r"(?<=[?.:])(?:\s*[-\u2013\u2014,]?\s*\(?[A-H]\)?(?=[\s,\u2013\u2014-]|$)){2,}\s*$")
+_HEADING_AT_END = re.compile(r"\s*\((?:[A-Z][a-z]+)(?:\s+(?:(?:and|of|in|&)\s+)?[A-Z][a-z]+)+\)\s*$")
+
+
+# "Statement I: ... Statement II: ... In the light of the above ..." each on
+# its own line, as printed, instead of one run-on paragraph.
+_OWN_LINE_RE = re.compile(
+    r"(?<=\S)\s*(?="
+    r"Statement\s*[-\u2013]?\s*\(?(?:I{1,3}|IV|V|[1-4])\)?\s*[:.\-\u2013]"
+    r"|Assertion\s*(?:\(\s*A\s*\))?\s*[:.\-\u2013]"
+    r"|Reason\s*(?:\(\s*R\s*\))?\s*[:.\-\u2013]"
+    r"|In (?:the )?light of the above"
+    r"|Choose the (?:correct|most appropriate) answer"
+    r"|Select the correct answer"
+    r")"
+)
+
+
+def format_statement_lines(text):
+    if not isinstance(text, str) or not text:
+        return text
+
+    return _OWN_LINE_RE.sub("\n", text).strip()
+
+
+def carry_figures(source_questions, target_questions):
+    """Give the AI's questions the figures (and page crops) the built-in reader found."""
+
+    import difflib
+
+    taken = set()
+
+    for source in source_questions or []:
+        if not isinstance(source, dict) or not (source.get("figure") or source.get("source_crop")):
+            continue
+
+        wanted = re.sub(r"\W+", " ", str(source.get("question") or "")).lower()[:160]
+        best, best_score = None, 0.5
+
+        for index, target in enumerate(target_questions or []):
+            if index in taken or not isinstance(target, dict) or target.get("figure"):
+                continue
+
+            text = re.sub(r"\W+", " ", str(target.get("question") or "")).lower()[:160]
+            score = difflib.SequenceMatcher(None, wanted, text).ratio()
+
+            if score > best_score:
+                best, best_score = index, score
+
+        if best is None and len(source_questions) == 1 and len(target_questions or []) == 1:
+            best = 0
+
+        if best is not None:
+            taken.add(best)
+
+            for key in ("figure", "source_crop"):
+                if source.get(key) and not target_questions[best].get(key):
+                    target_questions[best][key] = source[key]
+
+
+def _standalone_lines(text_read):
+    return {line.strip() for line in (text_read or "").splitlines() if line.strip()}
+
+
+def tidy_builtin_question(question, standalone_lines=frozenset()):
+    text = question.get("question")
+
+    if isinstance(text, str):
+        tidied = _FIGURE_LABELS_AT_END.sub("", text).rstrip()
+
+        if tidied:
+            question["question"] = tidied
+
+    options = question.get("options")
+
+    if isinstance(options, list) and options:
+        last = max((i for i, option in enumerate(options) if isinstance(option, str) and option.strip()), default=None)
+
+        heading = _HEADING_AT_END.search(options[last]) if last is not None else None
+
+        # Only a heading the page prints on a line of its own, never a real
+        # option such as "Mitochondria (Cell Organelles)".
+        if heading and heading.group(0).strip() in standalone_lines:
+            tidied = options[last][: heading.start()].rstrip()
+
+            if tidied:
+                options[last] = tidied
+
+    return question
 
 
 @app.post("/extract/page", dependencies=[Depends(require_admin)])
@@ -1614,6 +1965,8 @@ def extract_page(request: ExtractPageRequest):
     page_args = (data, request.kind, request.mode, request.page_number, request.label, request.mime)
     result = {"label": request.label, "questions": [], "text_read": None, "error": None, "fatal": False}
     notes = []
+
+    from_builtin = request.method in ("ocr", "ocr_ai")
 
     if request.method in ("ocr", "ocr_ai"):
         # Step 1 (both methods): read the page locally — the PDF's own text
@@ -1633,7 +1986,9 @@ def extract_page(request: ExtractPageRequest):
 
         if request.method == "ocr_ai" and (text_read or "").strip():
             # Step 2: the AI turns that text into clean questions.
+            builtin_questions = raw_questions
             raw_questions = _ai_clean_up(request, page_args, text_read, raw_questions, notes, result)
+            from_builtin = raw_questions is builtin_questions
 
             if result["error"]:
                 return result
@@ -1670,16 +2025,50 @@ def extract_page(request: ExtractPageRequest):
             result["fatal"] = True
             return result
         except Exception as error:
-            explanation = core.explain_provider_error(error, sent_images=sent_image)
+            explanation = (
+                str(error) if isinstance(error, ProviderUnavailable)
+                else core.explain_provider_error(error, sent_images=sent_image)
+            )
             result["error"] = f"Extraction failed on {request.label}: {explanation}"
-            result["fatal"] = explanation.startswith("The selected model can't read images")
+            result["fatal"] = isinstance(error, ProviderUnavailable) or explanation.startswith(
+                "The selected model can't read images"
+            )
             return result
+
+    standalone_lines = _standalone_lines(result.get("text_read")) if from_builtin else frozenset()
 
     for raw_question in raw_questions:
         cleaned, _ = core.normalize_extracted_question(raw_question, request.difficulty, request.bloom_level)
 
+        if cleaned is not None and from_builtin:
+            try:
+                cleaned = tidy_builtin_question(cleaned, standalone_lines)
+            except Exception:  # noqa: BLE001 — tidying is optional, never block the page
+                pass
+
         if cleaned is not None:
+            cleaned["question"] = format_statement_lines(cleaned.get("question"))
+
+            if isinstance(raw_question, dict) and raw_question.get("figure"):
+                cleaned["figure"] = figure_to_json(raw_question["figure"])
+
+            if isinstance(raw_question, dict) and isinstance(raw_question.get("source_crop"), str):
+                cleaned["source_crop"] = raw_question["source_crop"]
+
+            # Automatic fixes (run-together words) and the reasons to check this question.
+            try:
+                cleaned["fixes"] = text_checks.fix_question(cleaned)
+                cleaned["checks"] = text_checks.question_checks(cleaned)
+            except Exception as error:  # noqa: BLE001 — checks are a bonus
+                print(f"question checks skipped: {error}", flush=True)
+
             result["questions"].append(cleaned)
+
+    try:
+        result["page_checks"] = text_checks.page_checks(result["questions"], result.get("text_read"))
+    except Exception as error:  # noqa: BLE001
+        print(f"page checks skipped: {error}", flush=True)
+        result["page_checks"] = []
 
     result["notes"] = st_shim.notices() + notes
     return result
@@ -1717,6 +2106,16 @@ def _docx_bytes(mode, pages, grade, subject, topic, source_name):
 
         buffer = core.build_docx(results=results, grade=grade, subject=subject, topic=topic, source_name=source_name)
     else:
+        pages = [
+            dict(
+                page,
+                questions=[
+                    dict(question, figure=figure_from_json(question.get("figure")))
+                    for question in page.get("questions", [])
+                ],
+            )
+            for page in pages
+        ]
         buffer = core.build_docx_from_extracted(
             pages=pages, grade=grade, subject=subject, topic=topic, source_name=source_name
         )

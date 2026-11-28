@@ -27,6 +27,8 @@ export interface QGConfig {
   max_pdf_pages: number;
   max_total_questions: number;
   min_request_delay: number;
+  /** Pages the service generates at the same time (older services: missing = 1). */
+  parallel_pages?: number;
   numerical_option_text: string;
   field_labels: string[];
   ocr_available: boolean;

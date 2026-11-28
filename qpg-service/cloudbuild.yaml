@@ -1,0 +1,36 @@
+# Automatic deploy of the Questions generator to Google Cloud Run.
+# Used by the Cloud Build trigger that setup-auto-deploy.sh creates: on every
+# push to feature/mathtype-support that changes qpg-service/, the image is
+# built (the self-test runs during the build; a failing build deploys
+# nothing) and rolled out. Memory, timeout and keys set by
+# deploy-cloud-run.sh stay as they are.
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_IMAGE}:${COMMIT_SHA}", "-t", "${_IMAGE}:latest", "qpg-service"]
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "--all-tags", "${_IMAGE}"]
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${COMMIT_SHA}
+      - --region=${_REGION}
+      - --quiet
+
+substitutions:
+  _SERVICE: atlas-questions-generator
+  _REGION: us-central1
+  _IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/atlas-questions-generator
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+
+timeout: 1800s

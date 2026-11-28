@@ -29,6 +29,7 @@ import QuestionPaperGenerator from "./components/QuestionPaperGenerator";
 import StudentAnalyticsDashboard from "./components/Analytics/StudentAnalyticsDashboard";
 import FlaggedAttempts from "./components/FlaggedAttempts";
 import QuestionsGenerator from "./components/questionsGenerator/QuestionsGenerator";
+import { warmUpQuestionsGenerator } from "./components/questionsGenerator/api";
 import { TasksProvider, useTasks } from "./components/tasks/TasksContext";
 import TasksPage from "./components/tasks/TasksPage";
 import QuickAdd from "./components/tasks/QuickAdd";
@@ -147,6 +148,20 @@ const AdminConsole: React.FC = () => {
       return next.length === prev.length ? prev : next;
     });
   }, [activeView, taskOf]);
+
+  // Wake the Questions generator service (it sleeps when idle) as soon as the admin panel opens,
+  // and keep it awake while the panel is open and on screen, so the tab opens as quickly as the
+  // others. Quiet: nothing is shown, failures are ignored.
+  useEffect(() => {
+    warmUpQuestionsGenerator();
+    const onVisible = () => { if (document.visibilityState === "visible") warmUpQuestionsGenerator(); };
+    const timer = window.setInterval(onVisible, 10 * 60 * 1000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // Editing a bank question lives in MCQ Upload; forget it once that section is closed.
   useEffect(() => {
