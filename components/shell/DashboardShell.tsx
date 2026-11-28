@@ -77,6 +77,8 @@ const LiveClock: React.FC = () => {
 const RAIL_KEY = (portal: string) => `atlas-sidebar-rail:${portal}`;
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const SHORTCUT = IS_MAC ? '⌘B' : 'Ctrl+B';
+/** The "A" of the Atlas Classes logo (same artwork as the site's favicon). */
+const ATLAS_MARK = 'https://i.postimg.cc/7hZVtdz9/Favicon-(without-BG)-(1).png';
 
 function useDesktop() {
   const query = '(min-width: 768px)';
@@ -191,7 +193,10 @@ function DashboardShell<V extends string>({
           </svg>
         </button>
 
-        <div className={`relative flex items-center pt-6 pb-2 transition-[padding] ${ease} ${rail ? 'px-[18px]' : 'justify-between px-6'}`}>
+        {/* Brand zone */}
+        <div className="relative shrink-0 bg-[radial-gradient(120%_90%_at_50%_0%,rgba(52,211,153,0.16),rgba(52,211,153,0.04)_55%,transparent_80%)] light:bg-[radial-gradient(120%_90%_at_50%_0%,rgb(var(--c-brand-pale)),rgb(var(--c-brand-pale)/0.35)_60%,transparent_85%)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/40 to-transparent" aria-hidden="true" />
+        <div className={`relative flex items-center pt-6 pb-2 transition-[padding] ${ease} ${rail ? 'px-[16px]' : 'justify-between px-6'}`}>
           <div className={`min-w-0 ${fade} ${rail ? 'absolute' : ''}`}>{brand}</div>
           {/* Compact mark in the rail */}
           <button
@@ -202,17 +207,20 @@ function DashboardShell<V extends string>({
             tabIndex={rail ? 0 : -1}
             aria-hidden={!rail}
             aria-label="Expand sidebar"
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-300 to-atlas-primary text-xl font-black text-atlas-black shadow-[0_10px_28px_-10px_rgba(16,185,129,0.9)] transition-[opacity,transform] ${ease} light:text-on-accent ${rail ? 'scale-100 opacity-100' : 'pointer-events-none absolute scale-75 opacity-0'}`}
+            className={`group/mark relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] ring-1 ring-inset ring-white/10 shadow-[0_12px_30px_-12px_rgba(16,185,129,0.55),inset_0_1px_0_rgba(255,255,255,0.08)] transition-[opacity,transform,box-shadow] ${ease} hover:ring-emerald-300/40 hover:shadow-[0_14px_34px_-10px_rgba(16,185,129,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 light:from-paper light:to-paper light:ring-brand-line light:shadow-[0_1px_2px_rgba(16,24,40,0.06),0_10px_24px_-12px_rgba(21,128,90,0.45)] ${rail ? 'scale-100 opacity-100' : 'pointer-events-none absolute scale-75 opacity-0'}`}
           >
-            A
+            <span className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_50%_35%,rgba(52,211,153,0.22),transparent_70%)] opacity-80 transition-opacity group-hover/mark:opacity-100" aria-hidden="true" />
+            <img src={ATLAS_MARK} alt="Atlas Classes" className="keep-original-colors relative h-8 w-8 object-contain drop-shadow-[0_2px_6px_rgba(16,185,129,0.35)] transition-transform duration-300 group-hover/mark:scale-110" />
           </button>
           <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-white transition-colors" aria-label="Close menu">
             <XIcon className="h-6 w-6" />
           </button>
         </div>
-        <p className={`whitespace-nowrap px-6 text-[10px] font-black uppercase tracking-[0.3em] text-atlas-primary/80 transition-[opacity,height,padding] ${ease} ${rail ? 'h-0 pb-3 opacity-0' : 'h-auto pb-6 opacity-100'}`}>{portalLabel}</p>
+        <p className={`whitespace-nowrap px-6 text-[10px] font-black uppercase tracking-[0.3em] text-atlas-primary/80 transition-[opacity,height,padding] ${ease} ${rail ? 'h-0 pb-4 opacity-0' : 'h-auto pb-5 opacity-100'}`}>{portalLabel}</p>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-300/35 to-transparent light:via-brand-line" aria-hidden="true" />
+        </div>
 
-        <nav className={`flex-grow overflow-y-auto overflow-x-hidden pb-4 transition-[padding] ${ease} ${rail ? 'px-3 space-y-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-4 space-y-7'}`} aria-label={`${portalLabel} navigation`} onScroll={hideTip}>
+        <nav className={`flex-grow overflow-y-auto overflow-x-hidden pt-5 pb-4 transition-[padding] ${ease} ${rail ? 'px-3 space-y-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-4 space-y-7'}`} aria-label={`${portalLabel} navigation`} onScroll={hideTip}>
           {groups.map((group, groupIndex) => (
             <div key={group.heading}>
               {rail ? (
@@ -261,8 +269,10 @@ function DashboardShell<V extends string>({
           ))}
         </nav>
 
-        <div className={`border-t border-white/5 transition-[padding] ${ease} ${rail ? 'px-3 py-4' : 'p-4'}`}>
-          <div className={`flex items-center rounded-2xl border transition-all ${ease} ${rail ? 'flex-col gap-2 border-transparent p-0' : 'gap-3 p-3 bg-white/[0.03] border-white/5 light:bg-gray-950 light:border-gray-700'}`}>
+        {/* Profile zone */}
+        <div className={`relative shrink-0 bg-black/25 bg-gradient-to-t from-black/30 to-transparent light:bg-gray-950 light:from-gray-950 transition-[padding] ${ease} ${rail ? 'px-3 pb-4 pt-5' : 'px-4 pb-4 pt-5'}`}>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/45 to-transparent light:via-brand-line" aria-hidden="true" />
+          <div className={`flex items-center rounded-2xl border transition-all ${ease} ${rail ? 'flex-col gap-1.5 border-white/[0.08] bg-white/[0.04] px-1.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] light:border-gray-700 light:bg-paper light:shadow-[0_1px_2px_rgba(16,24,40,0.05)]' : 'gap-3 p-3 bg-white/[0.04] border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] light:bg-paper light:border-gray-700 light:shadow-[0_1px_2px_rgba(16,24,40,0.05)]'}`}>
             <div
               tabIndex={rail ? 0 : -1}
               onMouseEnter={e => showTip(e, { label: user.name, sub: user.caption })}
